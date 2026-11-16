@@ -2,9 +2,10 @@
 
 Exit codes: 0 = success; 1 = a suite/responses file is invalid, a provider
 can't be set up, a case got no response (``run``) or no judgment
-(``judge``), or (with ``--strict``) at least one case failed its checks or,
-for ``check``, had no response, or a response matched no case; 130 =
-interrupted. Typer itself uses 2 for bad usage.
+(``judge``, which also fails if no response matches a case), or (with
+``--strict``) at least one case failed its checks or, for ``check``, had no
+response, or a response matched no case; 130 = interrupted. Typer itself
+uses 2 for bad usage.
 """
 
 from __future__ import annotations
@@ -758,6 +759,9 @@ def judge(
         typer.echo(_dumps(payload))
     else:
         _print_judgments(result, judge_, verbose=verbose)
+    if not result.records:
+        # Judging nothing is a wrong responses file, not a pass.
+        raise _exit_error("no response in the file matches a case in the suite")
     if result.summary.errors:
         raise typer.Exit(1)
 

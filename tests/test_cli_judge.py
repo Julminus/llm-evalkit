@@ -251,3 +251,12 @@ def test_max_response_chars_zero_means_no_cut(dirs: list[str]) -> None:
     assert result.exit_code == 0, result.output
     assert "response too long" not in result.output
     assert "judged 10/10 cases" in result.output
+
+
+def test_judging_nothing_fails(dirs: list[str], tmp_path: Path) -> None:
+    # Found in the post-S3 review: a responses file for another suite passed.
+    other = tmp_path / "other.jsonl"
+    other.write_text('{"id": "not-a-case", "response": "x"}\n', encoding="utf-8")
+    result = runner.invoke(app, ["judge", str(SMOKE_SUITE), str(other), "-j", "mock", *dirs])
+    assert result.exit_code == 1
+    assert "no response in the file matches a case in the suite" in result.output
