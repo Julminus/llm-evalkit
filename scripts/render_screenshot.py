@@ -7,6 +7,8 @@ actual output, not a mock-up.
         `evalkit check` on the example suite's hand-written responses
     uv run python scripts/render_screenshot.py run --provider ollama:qwen2.5:7b
         `evalkit run` on the example suite with a real model (needs Ollama)
+    uv run python scripts/render_screenshot.py judge --judge ollama:qwen2.5:14b
+        `evalkit judge` on the example suite's responses with a real judge (needs Ollama)
 """
 
 from __future__ import annotations
@@ -60,13 +62,11 @@ class _NoProgress(Progress):
         super().__init__(*args, **kwargs)
 
 
-def render_run(provider: str, out_dir: Path, *, image: Path = IMG / "run-output.svg") -> None:
+def _record_cli(args: list[str], title: str, image: Path) -> None:
     recorder = _recording()
     cli.console = recorder
     cli.err_console = recorder  # failures and notes go to stderr; show them too
     cli.Progress = _NoProgress  # type: ignore[misc]
-    # --no-cache: the image should show a real generation, not a cache replay.
-    args = ["run", SUITE, "-p", provider, "--out", str(out_dir), "--no-cache"]
     command = typer.main.get_command(cli.app)
     try:
         command.main(args=args, prog_name="evalkit", standalone_mode=False)
@@ -74,7 +74,18 @@ def render_run(provider: str, out_dir: Path, *, image: Path = IMG / "run-output.
         if exc.exit_code not in (0, 1):
             raise
     # --out is relative by default, so the log path in the image is not this PC's.
-    _save(recorder, f"evalkit run {SUITE} -p {provider}", image)
+    _save(recorder, title, image)
+
+
+def render_run(provider: str, out_dir: Path) -> None:
+    # --no-cache: the image should show a real generation, not a cache replay.
+    args = ["run", SUITE, "-p", provider, "--out", str(out_dir), "--no-cache"]
+    _record_cli(args, f"evalkit run {SUITE} -p {provider}", IMG / "run-output.svg")
+
+
+def render_judge(judge: str, out_dir: Path) -> None:
+    args = ["judge", SUITE, RESPONSES, "-j", judge, "--out", str(out_dir), "--no-cache"]
+    _record_cli(args, f"evalkit judge {SUITE} {RESPONSES} -j {judge}", IMG / "judge-output.svg")
 
 
 def main() -> None:
@@ -84,11 +95,16 @@ def main() -> None:
     run = sub.add_parser("run")
     run.add_argument("--provider", default="ollama:qwen2.5:7b")
     run.add_argument("--out", type=Path, default=Path("runs"))
+    judge = sub.add_parser("judge")
+    judge.add_argument("--judge", default="ollama:qwen2.5:14b")
+    judge.add_argument("--out", type=Path, default=Path("runs"))
     args = parser.parse_args()
     if args.target == "check":
         render_check()
-    else:
+    elif args.target == "run":
         render_run(args.provider, args.out)
+    else:
+        render_judge(args.judge, args.out)
 
 
 if __name__ == "__main__":
