@@ -264,6 +264,8 @@ def _print_run(result: RunResult, provider: Provider) -> None:
         )
     if result.refused:
         console.print(f"[yellow]refused:[/] {escape(', '.join(result.refused))}")
+    for warning in result.warnings:
+        err_console.print(f"[yellow]warning:[/] {escape(warning)}")
     for record in result.errors:
         err_console.print(f"[red]failed[/] {escape(record.id)}: {escape(record.error or '')}")
     if result.run_dir is not None:
@@ -417,6 +419,7 @@ def run(
                 "counts": result.counts(),
                 "errors": {r.id: r.error for r in result.errors},
                 "truncated": result.truncated,
+                "warnings": result.warnings,
             },
             "checks": _summary_payload(summary),
         }

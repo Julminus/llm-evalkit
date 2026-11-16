@@ -8,6 +8,7 @@ from typing import Any, ClassVar
 
 import pytest
 
+from evalkit import runner as runner_module
 from evalkit.cache import ResponseCache
 from evalkit.evaluate import load_responses
 from evalkit.prompts import Prompt
@@ -187,11 +188,15 @@ class TestRunner:
         assert record.cached is False
         assert len(record.cache_key) == 64
 
-    def test_unexpected_exceptions_propagate(self) -> None:
-        provider = Scripted({"prompt 0": [RuntimeError("bug")]})
-        with pytest.raises(ExceptionGroup) as info:
-            run(Runner(provider).run(make_suite(1).cases))
-        assert info.group_contains(RuntimeError, match="bug")
+    def test_unexpected_provider_exception_fails_only_that_case(self) -> None:
+        # Before, a non-ProviderError (a decoding error, an SDK validation
+        # error) cancelled every case in flight and crashed the run.
+        provider = Scripted({"prompt 1": [KeyError("choices"), "never sent"]})
+        records = run(Runner(provider, retry=RetryPolicy(max_retries=3)).run(make_suite(3).cases))
+        assert [r.ok for r in records] == [True, False, True]
+        assert records[1].error == "fake: unexpected KeyError: 'choices'"
+        assert records[1].attempts == 1  # not retried
+        assert provider.calls["prompt 1"] == 1
 
     def test_run_case_without_slots(self) -> None:
         record = run(Runner(Scripted()).run_case(make_suite(1).cases[0]))
@@ -215,6 +220,58 @@ class TestCaching:
         assert all(r.cached and r.attempts == 0 for r in r2)
         assert [r.response for r in r2] == [r.response for r in r1]
         assert [r.latency_s for r in r2] == [r.latency_s for r in r1]
+
+    def test_identical_requests_share_one_generation(self, tmp_path: Path) -> None:
+        # Two cases, same prompt, different ids (e.g. different constraints).
+        suite = parse_suite(
+            {
+                "name": "t",
+                "cases": [
+                    {"id": "short", "language": "en", "prompt": "same"},
+                    {"id": "long", "language": "en", "prompt": "same"},
+                ],
+            }
+        )
+        provider = Scripted({"same": ["sample 0", "sample 1"]})
+        records = run(Runner(provider, cache=ResponseCache(tmp_path)).run(suite.cases))
+        assert provider.calls["same"] == 1
+        assert [r.response for r in records] == ["sample 0", "sample 0"]
+        assert sorted(r.cached for r in records) == [False, True]
+        # A re-run replays exactly what the first run recorded.
+        again = run(Runner(Scripted(), cache=ResponseCache(tmp_path)).run(suite.cases))
+        assert [r.response for r in again] == ["sample 0", "sample 0"]
+
+    def test_without_a_cache_identical_requests_are_independent(self) -> None:
+        suite = parse_suite(
+            {
+                "name": "t",
+                "cases": [
+                    {"id": "a", "language": "en", "prompt": "same"},
+                    {"id": "b", "language": "en", "prompt": "same"},
+                ],
+            }
+        )
+        provider = Scripted({"same": ["sample 0", "sample 1"]})
+        records = run(Runner(provider).run(suite.cases))
+        assert provider.calls["same"] == 2
+        assert sorted(r.response or "" for r in records) == ["sample 0", "sample 1"]
+
+    def test_cache_write_failure_does_not_stop_the_run(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        cache = ResponseCache(tmp_path)
+
+        def full_disk(*args: Any, **kwargs: Any) -> None:
+            raise OSError(28, "No space left on device")
+
+        monkeypatch.setattr(cache, "put", full_disk)
+        result = run(run_suite(make_suite(3), Scripted(), cache=cache, out_dir=tmp_path / "runs"))
+        assert all(r.ok for r in result.records)
+        assert len(result.warnings) == 1
+        assert result.warnings[0].startswith("3 response(s) could not be written to the cache")
+        manifest = json.loads(next((tmp_path / "runs").glob("*/manifest.json")).read_text("utf-8"))
+        assert manifest["status"] == "complete"
+        assert manifest["warnings"] == result.warnings
 
     def test_failures_are_not_cached(self, tmp_path: Path) -> None:
         cache = ResponseCache(tmp_path)
@@ -324,6 +381,39 @@ class TestRunSuite:
         assert manifest["counts"]["cases"] == 3
         lines = (tmp_path / "int" / "responses.jsonl").read_text(encoding="utf-8").splitlines()
         assert sorted(json.loads(line)["id"] for line in lines) == ["c0", "c1", "c2"]
+
+    def test_log_rewrite_failure_still_completes_the_manifest(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # On Windows, `Get-Content -Wait responses.jsonl` holds the file open,
+        # so the final suite-order rewrite fails. Before, that skipped the
+        # manifest update: its status stayed "running" forever.
+        real_replace = runner_module.replace_file
+
+        def locked(src: Any, dst: Any) -> None:
+            if Path(dst).name == "responses.jsonl":
+                raise PermissionError(13, "The process cannot access the file")
+            real_replace(src, dst)
+
+        monkeypatch.setattr(runner_module, "replace_file", locked)
+        result = run(run_suite(make_suite(3), Scripted(), out_dir=tmp_path, run_id="held"))
+        manifest = json.loads((tmp_path / "held" / "manifest.json").read_text(encoding="utf-8"))
+        assert manifest["status"] == "complete"
+        assert "completion order" in manifest["warnings"][0]
+        assert result.warnings == manifest["warnings"]
+        assert len(load_responses(tmp_path / "held" / "responses.jsonl")) == 3
+        assert not (tmp_path / "held" / "responses.jsonl.tmp").exists()
+
+    def test_a_crash_is_recorded_as_crashed(self, tmp_path: Path) -> None:
+        def broken(record: RunRecord) -> None:
+            raise RuntimeError("bug in a callback")
+
+        with pytest.raises(ExceptionGroup):
+            run(
+                run_suite(make_suite(2), Scripted(), out_dir=tmp_path, run_id="x", on_record=broken)
+            )
+        manifest = json.loads((tmp_path / "x" / "manifest.json").read_text(encoding="utf-8"))
+        assert manifest["status"] == "crashed"
 
     def test_resume_from_cache(self, tmp_path: Path) -> None:
         cache = ResponseCache(tmp_path / "cache")

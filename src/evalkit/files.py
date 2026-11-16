@@ -1,15 +1,38 @@
-"""Reading the text files evalkit takes as input (suites, responses).
+"""File helpers: reading input files, replacing output files atomically.
 
-Both are UTF-8. A UTF-8 byte-order mark is accepted, since Windows editors
-add one. Anything else gets a message that says what the file actually is,
-because the usual cause is Windows PowerShell 5.1, whose ``>`` writes UTF-16.
+Inputs (suites, responses) are UTF-8. A UTF-8 byte-order mark is accepted,
+since Windows editors add one. Anything else gets a message that says what the
+file actually is, because the usual cause is Windows PowerShell 5.1, whose
+``>`` writes UTF-16.
 """
 
 from __future__ import annotations
 
+import os
+import time
 from pathlib import Path
 
 _UTF16_BOMS = (b"\xff\xfe", b"\xfe\xff")
+_REPLACE_ATTEMPTS = 5
+_REPLACE_FIRST_DELAY = 0.02  # seconds; doubles each attempt, ~0.3 s in total
+
+
+def replace_file(src: str | Path, dst: str | Path) -> None:
+    """``os.replace``, retried briefly on ``PermissionError``.
+
+    On Windows, replacing a file fails while another process holds it open
+    without delete sharing: ``Get-Content -Wait`` on a run log, an editor, a
+    virus scan, or a second evalkit run reading the same cache entry. Those
+    holds are usually brief. The waits block, so they are kept short.
+    """
+    for attempt in range(_REPLACE_ATTEMPTS):
+        try:
+            os.replace(src, dst)
+            return
+        except PermissionError:
+            if attempt == _REPLACE_ATTEMPTS - 1:
+                raise
+            time.sleep(_REPLACE_FIRST_DELAY * 2**attempt)
 
 
 class NotUtf8Error(ValueError):

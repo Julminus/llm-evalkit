@@ -7,7 +7,8 @@ The pieces, from the inside out:
 * :class:`Runner` sends cases with at most ``concurrency`` requests in flight,
   checks the :class:`ResponseCache` first, and turns each case into one
   :class:`RunRecord`. A case that keeps failing becomes a record with an
-  ``error``; it never stops the other cases.
+  ``error``; it never stops the other cases. With a cache, cases that make the
+  identical request share one generation instead of paying for it twice.
 * :func:`run_suite` wraps a runner in a run directory::
 
       runs/<run_id>/manifest.json      what was run, how, and the totals
@@ -25,7 +26,6 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-import os
 import random
 import re
 import time
@@ -39,6 +39,7 @@ from pydantic import BaseModel, ConfigDict
 
 from evalkit import __version__
 from evalkit.cache import ResponseCache, cache_key
+from evalkit.files import replace_file
 from evalkit.prompts import Prompt, build_prompt
 from evalkit.providers.base import (
     Completion,
@@ -159,6 +160,9 @@ class Runner:
         self._sleep = sleep
         self._rng = rng or random.Random()
         self._clock = clock
+        self._key_locks: dict[str, asyncio.Lock] = {}
+        self.cache_write_errors: list[str] = []
+        """Responses that could not be written to the cache (they are still logged)."""
 
     async def run(
         self, cases: Sequence[EvalCase], *, on_record: OnRecord | None = None
@@ -189,25 +193,43 @@ class Runner:
             "model": self.provider.model,
             "cache_key": key,
         }
-        if self.cache is not None:
+        if self.cache is None:
+            return await self._fresh(prompt, base, slots)
+
+        # One lock per request: a second case with the identical request waits
+        # for the first, then finds its answer in the cache. Without this both
+        # generate, and a re-run replays whichever was written last.
+        async with self._key_locks.setdefault(key, asyncio.Lock()):
             entry = self.cache.get(key)
             if entry is not None:
                 return _from_completion(
                     base, entry.completion, latency_s=entry.latency_s, attempts=0, cached=True
                 )
+            request = {"identity": identity, "prompt": prompt.model_dump(), "params": params}
+            return await self._fresh(prompt, base, slots, cache_as=(key, request))
 
+    async def _fresh(
+        self,
+        prompt: Prompt,
+        base: dict[str, Any],
+        slots: asyncio.Semaphore | None,
+        *,
+        cache_as: tuple[str, dict[str, Any]] | None = None,
+    ) -> RunRecord:
+        """Generate (with retries) and, on success, store under ``cache_as``."""
         async with slots or asyncio.Semaphore(1):
             outcome, latency, attempts = await self._generate(prompt)
         if isinstance(outcome, str):
             return RunRecord(**base, response=None, error=outcome, attempts=attempts)
-
-        completion = outcome
-        if self.cache is not None:
-            request = {"identity": identity, "prompt": prompt.model_dump(), "params": params}
-            self.cache.put(key, completion, latency_s=latency, request=request)
-        return _from_completion(
-            base, completion, latency_s=latency, attempts=attempts, cached=False
-        )
+        if cache_as is not None and self.cache is not None:
+            key, request = cache_as
+            try:
+                self.cache.put(key, outcome, latency_s=latency, request=request)
+            except OSError as exc:
+                # The response is still in the run log; only a re-run will
+                # have to generate it again.
+                self.cache_write_errors.append(f"{base['id']}: {exc}")
+        return _from_completion(base, outcome, latency_s=latency, attempts=attempts, cached=False)
 
     async def _generate(self, prompt: Prompt) -> tuple[Completion | str, float, int]:
         """Try until success, a non-retryable error, or no retries left.
@@ -230,6 +252,15 @@ class Runner:
                 delay = self.retry.delay(retries_used, retry_after=exc.retry_after, rng=self._rng)
                 await self._sleep(delay)
                 continue
+            except Exception as exc:
+                # Anything else from a provider (a decoding error, an SDK
+                # validation error, a bug) fails this case only, not retried,
+                # so one bad response can't cancel the cases in flight.
+                return (
+                    f"{self.provider.name}: unexpected {type(exc).__name__}: {exc}",
+                    0.0,
+                    attempts,
+                )
             return completion, self._clock() - start, attempts
 
 
@@ -249,13 +280,21 @@ class RunLog:
             self._fh.close()
 
     def finalize(self, records: Sequence[RunRecord]) -> None:
-        """Replace the log with ``records`` in the given (suite) order."""
+        """Replace the log with ``records`` in the given (suite) order.
+
+        If the replace fails, the log keeps its completion order, which is
+        still complete and valid ``evalkit check`` input.
+        """
         self.close()
         tmp = self.path.with_name(self.path.name + ".tmp")
-        with tmp.open("w", encoding="utf-8", newline="\n") as fh:
-            for record in records:
-                fh.write(record.model_dump_json() + "\n")
-        os.replace(tmp, self.path)
+        try:
+            with tmp.open("w", encoding="utf-8", newline="\n") as fh:
+                for record in records:
+                    fh.write(record.model_dump_json() + "\n")
+            replace_file(tmp, self.path)
+        except BaseException:
+            tmp.unlink(missing_ok=True)
+            raise
 
 
 @dataclass
@@ -267,6 +306,8 @@ class RunResult:
     records: list[RunRecord]
     duration_s: float
     started_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    warnings: list[str] = field(default_factory=list)
+    """Problems that lost no responses, e.g. a cache write that failed."""
 
     @property
     def errors(self) -> list[RunRecord]:
@@ -352,7 +393,7 @@ def _write_json(path: Path, data: dict[str, Any]) -> None:
     tmp.write_text(
         json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n"
     )
-    os.replace(tmp, path)
+    replace_file(tmp, path)
 
 
 async def run_suite(
@@ -428,19 +469,39 @@ async def run_suite(
             on_record(record)
 
     t0 = time.perf_counter()
-    status: Literal["complete", "interrupted"] = "interrupted"
+    # "interrupted" covers Ctrl-C and cancellation (BaseException); an
+    # exception from evalkit itself is a crash, and the manifest says so.
+    status: Literal["complete", "interrupted", "crashed"] = "interrupted"
     records: list[RunRecord] = seen
     try:
         records = await runner.run(cases, on_record=record_done)
         status = "complete"
+    except Exception:
+        status = "crashed"
+        raise
     finally:
         duration = time.perf_counter() - t0
         result = RunResult(run_id, run_dir, list(records), round(duration, 3), started)
+        if runner.cache_write_errors:
+            n = len(runner.cache_write_errors)
+            result.warnings.append(
+                f"{n} response(s) could not be written to the cache "
+                f"(first: {runner.cache_write_errors[0]}); they are in the run log, "
+                "but a re-run will generate them again"
+            )
         if log is not None:
-            if status == "complete":
-                log.finalize(records)
-            else:
+            try:
+                if status == "complete":
+                    log.finalize(records)
+                else:
+                    log.close()
+            except OSError as exc:
+                # The appended log is complete; only the suite-order rewrite failed.
                 log.close()
+                result.warnings.append(
+                    f"could not rewrite {log.path} in suite order ({exc}); "
+                    "it is complete but in completion order"
+                )
         if manifest_path is not None:
             manifest.update(
                 status=status,
@@ -448,5 +509,7 @@ async def run_suite(
                 duration_s=result.duration_s,
                 counts=result.counts(),
             )
+            if result.warnings:
+                manifest["warnings"] = result.warnings
             _write_json(manifest_path, manifest)
     return result

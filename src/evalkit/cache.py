@@ -34,6 +34,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from evalkit.files import replace_file
 from evalkit.prompts import Prompt
 from evalkit.providers.base import Completion
 
@@ -113,7 +114,7 @@ class ResponseCache:
         try:
             with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
                 fh.write(entry.model_dump_json(indent=2))
-            os.replace(tmp, target)
+            replace_file(tmp, target)
         except BaseException:
             Path(tmp).unlink(missing_ok=True)
             raise
