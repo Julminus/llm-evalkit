@@ -65,6 +65,20 @@ _PARAGRAPH_SPLIT_RE = re.compile(r"\n\s*\n")
 _QUOTE_FOLD = str.maketrans({"’": "'", "‘": "'", "ʼ": "'", "“": '"', "”": '"'})
 
 
+_LONE_SURROGATE_RE = re.compile("[\ud800-\udfff]")
+
+
+def scrub_surrogates(text: str) -> str:
+    """Replace lone UTF-16 surrogates with U+FFFD.
+
+    JSON can spell one (``"\\ud83d"`` with no low half), and Python decodes it
+    into a ``str`` that can't be written as UTF-8, so a single one in a
+    response or a judge reply would crash the run log. Valid characters,
+    emoji included, are never surrogates in a Python ``str``.
+    """
+    return _LONE_SURROGATE_RE.sub("�", text)
+
+
 def normalize(text: str) -> str:
     """NFKC-normalize and collapse runs of whitespace to single spaces."""
     return " ".join(unicodedata.normalize("NFKC", text).split())

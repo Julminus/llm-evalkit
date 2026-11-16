@@ -17,9 +17,10 @@ from abc import ABC, abstractmethod
 from datetime import UTC, datetime
 from typing import Any, ClassVar, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from evalkit.prompts import Prompt
+from evalkit.text import scrub_surrogates
 
 __all__ = [
     "RETRYABLE_STATUS",
@@ -84,6 +85,11 @@ class Completion(BaseModel):
     """The provider's own value (``end_turn``, ``done``, ``content_filter``...)."""
     input_tokens: int | None = None
     output_tokens: int | None = None
+
+    @field_validator("text")
+    @classmethod
+    def _valid_unicode(cls, text: str) -> str:
+        return scrub_surrogates(text)
 
 
 class ProviderError(Exception):

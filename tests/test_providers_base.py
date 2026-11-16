@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from evalkit.prompts import Prompt, build_prompt
 from evalkit.providers import (
+    Completion,
     GenerationParams,
     MockProvider,
     ProviderConfigError,
@@ -109,6 +110,13 @@ class TestSpec:
     def test_base_class_requires_model(self) -> None:
         with pytest.raises(ProviderConfigError, match="model name is required"):
             MockProvider("")
+
+
+def test_completion_text_never_holds_a_lone_surrogate() -> None:
+    # A JSON escape like "\ud83d" from a server would otherwise crash the run log.
+    completion = Completion(text="ok \ud83d!", model="m", finish_reason="stop")
+    assert completion.text == "ok �!"
+    assert Completion(text="ok \U0001f600", model="m", finish_reason="stop").text == "ok \U0001f600"
 
 
 def test_effective_and_ignored_params() -> None:

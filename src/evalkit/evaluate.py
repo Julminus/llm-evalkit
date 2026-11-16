@@ -14,6 +14,7 @@ from evalkit.files import NotUtf8Error, read_utf8
 from evalkit.langdetect import Language
 from evalkit.schema import EvalCase, Suite
 from evalkit.taxonomy import FailureMode
+from evalkit.text import scrub_surrogates
 
 
 class CaseReport(BaseModel):
@@ -68,7 +69,8 @@ def load_responses(path: str | Path) -> dict[str, str]:
     first or last response would hide a bug in whatever produced the file.
     Run logs (``runs/<id>/responses.jsonl``) are valid input: a row whose
     generation failed (``"response": null`` with an ``"error"``) is left out,
-    so the case is reported as having no response.
+    so the case is reported as having no response. A lone surrogate escape
+    (``"\\ud83d"``) becomes U+FFFD, as in every other UTF-8 tool.
     """
     path = Path(path)
     try:
@@ -99,7 +101,7 @@ def load_responses(path: str | Path) -> dict[str, str]:
             continue
         if not isinstance(obj.get("response"), str):
             raise ResponsesError(f"{path}:{n}: each line needs a string 'response'")
-        out[obj["id"]] = obj["response"]
+        out[obj["id"]] = scrub_surrogates(obj["response"])
     return out
 
 

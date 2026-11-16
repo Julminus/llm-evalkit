@@ -242,3 +242,82 @@ class TestReasked:
     def test_deeply_nested_input_does_not_crash(self) -> None:
         raw = "{" * 5000 + "}" * 5000
         assert problems(raw)[0].startswith("not valid JSON")
+
+
+class TestOddReplies:
+    """Found in the post-S3 review: none of these may raise anything but JudgmentError."""
+
+    def test_deep_array_nesting(self) -> None:
+        raw = '{"rationale": "x", "scores": ' + "[" * 5000
+        [problem] = problems(raw)
+        assert problem.startswith("not valid JSON")
+
+    def test_number_too_long_for_python(self) -> None:
+        raw = '{"rationale": "x", "scores": {"instruction_following": ' + "1" * 4400 + "}}"
+        [problem] = problems(raw)
+        assert problem == "not valid JSON: a number is too long"
+
+    def test_score_text_too_long_for_python(self) -> None:
+        [problem] = problems(text(scores={"instruction_following": "1" * 4400, "faithfulness": 5}))
+        assert problem.startswith('the score for "instruction_following" must be a whole number')
+        assert len(problem) < 160  # the value is shortened in the message
+
+    def test_lone_surrogate_escape_becomes_a_replacement_character(self) -> None:
+        raw = text(rationale="placeholder").replace("placeholder", "Nice \\ud83d answer")
+        parsed = parse_judgment(raw, IF_FA)
+        assert parsed.rationale == "Nice \ufffd answer"
+        parsed.rationale.encode("utf-8")  # writable
+
+    def test_unprintable_value_in_a_python_literal(self) -> None:
+        raw = (
+            "{'rationale': 'x', 'scores': {'instruction_following': {(1, 2): 4}, "
+            "'faithfulness': 5}, 'failure_modes': []}"
+        )
+        [problem] = problems(raw)
+        assert problem.endswith("not a dict that can't be shown")
+
+    def test_duplicate_json_key_is_reasked(self) -> None:
+        low = '"scores": {"instruction_following": 1, "faithfulness": 1}'
+        high = '"scores": {"instruction_following": 4, "faithfulness": 5}'
+        raw = '{"rationale": "x", ' + low + ", " + high + ', "failure_modes": []}'
+        assert problems(raw) == ['the key "scores" appears twice; give each key once']
+
+    def test_duplicate_python_key_is_not_read(self) -> None:
+        raw = (
+            "{'rationale': 'x', 'scores': {'instruction_following': 1, 'faithfulness': 1}, "
+            "'scores': {'instruction_following': 4, 'faithfulness': 5}, 'failure_modes': []}"
+        )
+        [problem] = problems(raw)
+        assert problem.startswith("not valid JSON")
+
+
+class TestChoosingTheObject:
+    """The candidate with the most expected keys wins; on a tie, the last one."""
+
+    def test_an_invalid_brace_before_the_verdict(self) -> None:
+        parsed = parse_judgment("Format: {rationale, scores}.\n" + text(), IF_FA)
+        assert parsed.rationale == "Does what was asked."
+
+    def test_echoed_template_before_the_verdict(self) -> None:
+        template = '{"rationale": "<2 to 4 sentences>", "scores": {"instruction_following": <1-5>}}'
+        parsed = parse_judgment(template + "\n" + text(), IF_FA)
+        assert parsed.scores[Dimension.INSTRUCTION_FOLLOWING] == 4
+
+    def test_quoted_json_response_before_the_verdict(self) -> None:
+        quoted = '```json\n{"name": "Ayu", "age": 21}\n```'
+        parsed = parse_judgment(f"The response was:\n{quoted}\nMy verdict: {text()}", IF_FA)
+        assert parsed.rationale == "Does what was asked."
+        assert parsed.repairs == ["took the JSON object out of surrounding text"]
+
+    def test_draft_then_final_verdict_takes_the_last(self) -> None:
+        draft = text(rationale="draft", scores={"instruction_following": 2, "faithfulness": 2})
+        parsed = parse_judgment(f"<think>{draft}</think>\n{text()}", IF_FA)
+        assert parsed.rationale == "Does what was asked."
+
+    def test_a_partial_object_after_the_verdict_loses(self) -> None:
+        raw = text() + ' and also {"scores": {"instruction_following": 1}}'
+        assert parse_judgment(raw, IF_FA).scores[Dimension.INSTRUCTION_FOLLOWING] == 4
+
+    def test_objects_with_none_of_the_keys_are_never_chosen(self) -> None:
+        [problem] = problems('Example: {"a": 1}. That is all.')
+        assert problem.startswith("not valid JSON")

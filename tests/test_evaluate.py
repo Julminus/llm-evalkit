@@ -132,6 +132,17 @@ class TestLoadResponses:
         )
         assert load_responses(path)["a"] == "café – ok"
 
+    def test_lone_surrogate_escape_becomes_a_replacement_character(self, tmp_path: Path) -> None:
+        # Found in the post-S3 review: `judge` crashed on one while hashing the file.
+        path = self._write(tmp_path, '{"id": "a", "response": "40000 \\ud83d"}')
+        response = load_responses(path)["a"]
+        assert response == "40000 �"
+        response.encode("utf-8")
+
+    def test_a_real_surrogate_pair_is_kept(self, tmp_path: Path) -> None:
+        path = self._write(tmp_path, '{"id": "a", "response": "ok \\ud83d\\ude00"}')
+        assert load_responses(path)["a"] == "ok \U0001f600"
+
     @pytest.mark.parametrize(
         ("line", "message"),
         [
