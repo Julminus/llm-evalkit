@@ -1,24 +1,39 @@
-"""Command-line interface: ``evalkit validate | check | list-checks``.
+"""Command-line interface: ``evalkit validate | check | run | list-checks``.
 
-Exit codes: 0 = success, 1 = a suite/responses file is invalid, or (with
-``--strict``) at least one case failed. Typer itself uses 2 for bad usage.
+Exit codes: 0 = success; 1 = a suite/responses file is invalid, a provider
+can't be set up, a case got no response (``run``), or (with ``--strict``) at
+least one case failed its checks; 130 = interrupted. Typer itself uses 2 for
+bad usage.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections import Counter
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from rich.console import Console
 from rich.markup import escape
+from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn, TimeElapsedColumn
 from rich.table import Table
 
 from evalkit import __version__
+from evalkit.cache import ResponseCache
 from evalkit.checks import CHECK_TYPES, Status
 from evalkit.evaluate import CheckSummary, ResponsesError, check_suite, load_responses
+from evalkit.providers import (
+    GenerationParams,
+    MockProvider,
+    Provider,
+    ProviderConfigError,
+    ProviderError,
+    make_provider,
+    parse_spec,
+)
+from evalkit.runner import RetryPolicy, RunRecord, RunResult, run_suite
 from evalkit.schema import Suite, SuiteError, load_suite
 
 app = typer.Typer(
@@ -95,8 +110,8 @@ def validate(
         raise typer.Exit(1)
 
 
-def _summary_json(summary: CheckSummary) -> str:
-    payload = {
+def _summary_payload(summary: CheckSummary) -> dict[str, Any]:
+    return {
         "pass_rate": round(summary.pass_rate, 4),
         "pass_rate_by_language": {
             k: round(v, 4) for k, v in summary.pass_rate_by_language().items()
@@ -110,7 +125,10 @@ def _summary_json(summary: CheckSummary) -> str:
         "unknown": summary.unknown,
         "cases": [r.model_dump(mode="json") for r in summary.reports],
     }
-    return json.dumps(payload, ensure_ascii=False, indent=2)
+
+
+def _summary_json(summary: CheckSummary) -> str:
+    return json.dumps(_summary_payload(summary), ensure_ascii=False, indent=2)
 
 
 def _print_summary(summary: CheckSummary, *, verbose: bool) -> None:
@@ -180,6 +198,191 @@ def check(
     else:
         _print_summary(summary, verbose=verbose)
     if strict and summary.counts[Status.FAIL]:
+        raise typer.Exit(1)
+
+
+def _exit_error(message: str, code: int = 1) -> typer.Exit:
+    err_console.print(f"[red]error:[/] {escape(message)}")
+    return typer.Exit(code)
+
+
+def _build_provider(
+    spec: str, *, suite: Suite, mock_responses: Path | None, timeout: float, base_url: str | None
+) -> Provider:
+    try:
+        if mock_responses is None:
+            return make_provider(spec, timeout=timeout, base_url=base_url)
+        name, model = parse_spec(spec)
+        if name != "mock":
+            raise ProviderConfigError("--mock-responses only works with --provider mock")
+        return MockProvider.for_suite(suite, load_responses(mock_responses), model=model)
+    except (ProviderConfigError, ResponsesError) as exc:
+        raise _exit_error(str(exc)) from exc
+
+
+def _print_run(result: RunResult, provider: Provider) -> None:
+    c = result.counts()
+    console.print(
+        f"run [bold]{escape(result.run_id)}[/] ({escape(provider.spec)}): {c['cases']} cases in "
+        f"{result.duration_s:.1f} s; {c['generated']} generated, {c['cached']} from cache, "
+        f"{c['errors']} failed; {c['input_tokens']} input / {c['output_tokens']} output tokens"
+    )
+    if result.truncated:
+        console.print(
+            f"[yellow]hit the token limit (may fail checks for that reason):[/] "
+            f"{escape(', '.join(result.truncated))}"
+        )
+    if result.refused:
+        console.print(f"[yellow]refused:[/] {escape(', '.join(result.refused))}")
+    for record in result.errors:
+        err_console.print(f"[red]failed[/] {escape(record.id)}: {escape(record.error or '')}")
+    if result.run_dir is not None:
+        console.print(f"log: {escape(str(result.run_dir / 'responses.jsonl'))}")
+
+
+@app.command()
+def run(
+    suite_path: SuitePath,
+    provider_spec: Annotated[
+        str,
+        typer.Option(
+            "--provider",
+            "-p",
+            help="mock | ollama:MODEL | openai:MODEL | anthropic:MODEL (e.g. ollama:qwen2.5:7b).",
+        ),
+    ],
+    temperature: Annotated[
+        float, typer.Option(min=0.0, max=2.0, help="Sampling temperature (local providers).")
+    ] = 0.0,
+    seed: Annotated[int, typer.Option(help="Sampling seed (where the provider supports it).")] = 0,
+    max_tokens: Annotated[
+        int | None, typer.Option(min=1, help="Output token limit. Default: the provider's.")
+    ] = None,
+    concurrency: Annotated[
+        int, typer.Option("--concurrency", "-c", min=1, help="Requests in flight at once.")
+    ] = 4,
+    retries: Annotated[int, typer.Option(min=0, help="Retries per case for transient errors.")] = 3,
+    timeout: Annotated[float, typer.Option(min=1.0, help="Seconds per request.")] = 300.0,
+    base_url: Annotated[
+        str | None,
+        typer.Option(
+            help="Server URL; overrides OLLAMA_HOST / OPENAI_BASE_URL / ANTHROPIC_BASE_URL."
+        ),
+    ] = None,
+    cache_dir: Annotated[Path, typer.Option(help="Response cache directory.")] = Path(
+        ".evalkit-cache"
+    ),
+    no_cache: Annotated[
+        bool, typer.Option("--no-cache", help="Neither read nor write the cache.")
+    ] = False,
+    out: Annotated[Path, typer.Option(help="Directory for run logs.")] = Path("runs"),
+    run_id: Annotated[
+        str | None, typer.Option(help="Run directory name. Default: time + model.")
+    ] = None,
+    case: Annotated[
+        list[str] | None, typer.Option("--case", help="Only run this case id (repeatable).")
+    ] = None,
+    mock_responses: Annotated[
+        Path | None,
+        typer.Option(
+            exists=True,
+            dir_okay=False,
+            help='With --provider mock: JSONL of {"id", "response"} to answer with.',
+        ),
+    ] = None,
+    as_json: Annotated[bool, typer.Option("--json", help="Print JSON instead of tables.")] = False,
+    verbose: Annotated[
+        bool, typer.Option("--verbose", "-v", help="Show passing checks too.")
+    ] = False,
+    strict: Annotated[
+        bool, typer.Option("--strict", help="Exit with code 1 if any case fails its checks.")
+    ] = False,
+) -> None:
+    """Generate responses for a suite with a model, log them, and check them."""
+    suite = _load_or_exit(suite_path)
+    selected = [c for c in suite.cases if not case or c.id in case]
+    unknown = sorted(set(case or []) - {c.id for c in suite.cases})
+    if unknown:
+        raise _exit_error(f"no such case id(s) in {suite_path}: {', '.join(unknown)}")
+
+    params = GenerationParams(temperature=temperature, seed=seed, max_tokens=max_tokens)
+    provider = _build_provider(
+        provider_spec,
+        suite=suite,
+        mock_responses=mock_responses,
+        timeout=timeout,
+        base_url=base_url,
+    )
+    ignored = provider.ignored_params(params)
+    if ignored:
+        err_console.print(
+            f"[yellow]note:[/] {provider.name} does not accept {', '.join(ignored)}; "
+            "those settings are not sent"
+        )
+    cache = None if no_cache else ResponseCache(cache_dir)
+
+    progress = Progress(
+        TextColumn("{task.description}"),
+        BarColumn(),
+        MofNCompleteColumn(),
+        TimeElapsedColumn(),
+        console=err_console,
+        transient=True,
+        disable=not err_console.is_terminal,
+    )
+    task = progress.add_task(escape(provider.spec), total=len(selected))
+
+    def advance(_: RunRecord) -> None:
+        progress.advance(task)
+
+    async def main() -> RunResult:
+        async with provider:
+            await provider.preflight()
+            return await run_suite(
+                suite,
+                provider,
+                params=params,
+                concurrency=concurrency,
+                retry=RetryPolicy(max_retries=retries),
+                cache=cache,
+                out_dir=out,
+                run_id=run_id,
+                case_ids=[c.id for c in selected] if case else None,
+                suite_path=suite_path,
+                on_record=advance,
+            )
+
+    try:
+        with progress:
+            result = asyncio.run(main())
+    except ProviderError as exc:
+        raise _exit_error(str(exc)) from exc
+    except KeyboardInterrupt as exc:
+        err_console.print(
+            "[yellow]interrupted.[/] Completed responses are in the run log and the cache; "
+            "run the same command again to continue."
+        )
+        raise typer.Exit(130) from exc
+
+    summary = check_suite(suite.model_copy(update={"cases": selected}), result.responses())
+    if as_json:
+        payload = {
+            "run": {
+                "run_id": result.run_id,
+                "run_dir": str(result.run_dir) if result.run_dir else None,
+                "provider": provider.spec,
+                "duration_s": result.duration_s,
+                "counts": result.counts(),
+                "errors": {r.id: r.error for r in result.errors},
+                "truncated": result.truncated,
+            },
+            "checks": _summary_payload(summary),
+        }
+        typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        _print_summary(summary, verbose=verbose)
+        _print_run(result, provider)
+    if result.errors or (strict and summary.counts[Status.FAIL]):
         raise typer.Exit(1)
 
 
