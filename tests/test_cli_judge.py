@@ -44,7 +44,12 @@ def test_mock_judge_on_the_example_files(dirs: list[str], tmp_path: Path) -> Non
     assert "judged 10/10 cases: 8 clean, 2 repaired locally, 0 after a re-ask" in out
     assert "mean scores (1-5): IF 4.10, RQ 5.00, FA 5.00, HE 4.43" in out
     assert "  id: IF 3.60, RQ 5.00, FA 5.00, HE 4.00" in out
-    assert "failure modes: format_error 3 (both 3); language_mismatch 1 (both 1)" in out
+    assert "failure modes: format_error 3 (check 3); language_mismatch 1 (check 1)" in out
+    assert (
+        "judge vs checks on checkable modes (only the checks count):\n"
+        "  format_error: both 3, judge only 0, checks only 0\n"
+        "  language_mismatch: both 1, judge only 0, checks only 0\n"
+    ) in out
     assert "10 requests, 0 cases from cache, 0 re-asks" in out
     [run_dir] = (tmp_path / "runs").iterdir()
     assert run_dir.name.endswith("-judge-mock-default")
@@ -231,4 +236,6 @@ def test_taxonomy_lists_every_failure_mode() -> None:
         "language_mismatch",
     ):
         assert mode in result.output
-    assert "judge, checks (language)" in result.output
+    assert "checks (language)" in result.output
+    [row] = [line for line in result.output.splitlines() if "intent_misread" in line]
+    assert "judge" in row

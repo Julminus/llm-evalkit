@@ -11,7 +11,9 @@ concurrency limit: re-judging a run replays the cached judgments exactly.
 
 The deterministic checks run first. Their results go into the judge's prompt
 (unless ``include_checks=False``), and their failure modes are kept apart
-from the judge's, so a report can say who found what.
+from the judge's, so a report can say who found what. For the checkable modes
+(:data:`evalkit.taxonomy.CHECKABLE`) only the checks count; the judge's tags
+for them are kept and compared with the checks (:meth:`JudgeSummary.judge_vs_checks`).
 """
 
 from __future__ import annotations
@@ -51,7 +53,7 @@ from evalkit.runner import (
     suite_info,
 )
 from evalkit.schema import Dimension, EvalCase, Suite
-from evalkit.taxonomy import FailureMode
+from evalkit.taxonomy import CHECKABLE, FailureMode
 
 __all__ = [
     "Judge",
@@ -81,6 +83,7 @@ class JudgeRecord(BaseModel):
     scores: dict[Dimension, int] = Field(default_factory=dict)
     rationale: str | None = None
     judge_failure_modes: list[FailureMode] = Field(default_factory=list)
+    """Every failure mode the judge named, including checkable ones that don't count."""
     check_status: Status
     """The deterministic checks' verdict on the same response."""
     check_failure_modes: list[FailureMode] = Field(default_factory=list)
@@ -106,8 +109,24 @@ class JudgeRecord(BaseModel):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def failure_modes(self) -> list[FailureMode]:
-        """Check and judge failure modes together, checks first, without repeats."""
-        return list(dict.fromkeys([*self.check_failure_modes, *self.judge_failure_modes]))
+        """The failure modes that count: the checks', then the judge's for the
+        modes no check decides. Checks first, without repeats."""
+        judged = [m for m in self.judge_failure_modes if m not in CHECKABLE]
+        return list(dict.fromkeys([*self.check_failure_modes, *judged]))
+
+    def sources(self) -> dict[FailureMode, Literal["check", "judge", "both"]]:
+        """Each counted failure mode and who found it.
+
+        "both" happens only when a check is re-tagged with ``fails_as`` as a
+        mode the judge also named: the judge's tags for checkable modes
+        don't count, so they never make a checkable mode "both".
+        """
+        out: dict[FailureMode, Literal["check", "judge", "both"]] = {}
+        for mode in self.failure_modes:
+            by_check = mode in self.check_failure_modes
+            by_judge = mode in self.judge_failure_modes and mode not in CHECKABLE
+            out[mode] = "both" if by_check and by_judge else "check" if by_check else "judge"
+        return out
 
     @property
     def parse_outcome(self) -> ParseOutcome:
@@ -297,22 +316,42 @@ class JudgeSummary(BaseModel):
         return out
 
     def failure_modes(self) -> dict[FailureMode, dict[str, int]]:
-        """Per failure mode: cases where only the checks, only the judge, or both found it.
+        """Per counted failure mode: cases where the checks, the judge, or both found it.
 
         Counts cover judged records only, so the three numbers are comparable.
+        A checkable mode is counted from the checks only, so its "judge" count
+        is 0 (see :meth:`judge_vs_checks`); "both" happens when a check is
+        re-tagged with ``fails_as`` as a mode the judge also named.
         """
         out: dict[FailureMode, Counter[str]] = defaultdict(Counter)
         for r in self.judged:
-            for mode in r.failure_modes:
-                by_check = mode in r.check_failure_modes
-                by_judge = mode in r.judge_failure_modes
-                source = "both" if by_check and by_judge else "check" if by_check else "judge"
+            for mode, source in r.sources().items():
                 out[mode][source] += 1
         order = list(FailureMode)
         return {
             mode: {k: c[k] for k in ("check", "judge", "both")}
             for mode, c in sorted(out.items(), key=lambda kv: order.index(kv[0]))
         }
+
+    def judge_vs_checks(self) -> dict[FailureMode, dict[str, int]]:
+        """For each checkable mode either side named: how often the judge agreed.
+
+        ``both``: the judge named it and a check failed with it; ``judge_only``:
+        the judge named it but no check did (these tags don't count);
+        ``checks_only``: a check failed with it and the judge didn't name it.
+        """
+        out: dict[FailureMode, dict[str, int]] = {}
+        for mode in (m for m in FailureMode if m in CHECKABLE):
+            pairs = [
+                (mode in r.judge_failure_modes, mode in r.check_failure_modes) for r in self.judged
+            ]
+            if any(j or c for j, c in pairs):
+                out[mode] = {
+                    "both": sum(j and c for j, c in pairs),
+                    "judge_only": sum(j and not c for j, c in pairs),
+                    "checks_only": sum(c and not j for j, c in pairs),
+                }
+        return out
 
     def parse_outcomes(self) -> dict[ParseOutcome, int]:
         counts = Counter(r.parse_outcome for r in self.records)
@@ -340,6 +379,7 @@ class JudgeSummary(BaseModel):
                 d.value: {str(k): v for k, v in c.items()} for d, c in self.score_counts().items()
             },
             "failure_modes": {m.value: c for m, c in self.failure_modes().items()},
+            "judge_vs_checks": {m.value: c for m, c in self.judge_vs_checks().items()},
             "missing": self.missing,
             "unknown": self.unknown,
         }

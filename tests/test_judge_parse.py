@@ -211,6 +211,11 @@ class TestReasked:
             '"failure_modes" must be a list of failure modes ([] if none applies)'
         ]
 
+    def test_a_dimension_name_is_not_a_failure_mode(self) -> None:
+        # Measured: both local judges sometimes listed "reasoning_quality" here.
+        [problem] = problems(text(failure_modes=["reasoning_quality"]))
+        assert problem.startswith('unknown failure mode "reasoning_quality"')
+
     @pytest.mark.parametrize("mode", ["none", "bad_grammar", 3, None, ""])
     def test_unknown_failure_modes(self, mode: object) -> None:
         [problem] = problems(text(failure_modes=[mode]))

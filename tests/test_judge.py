@@ -234,6 +234,47 @@ class TestJudgeCase:
             "hallucination",
         ]
 
+    def test_judge_tags_for_checkable_modes_do_not_count(self) -> None:
+        # Code owns constraint_violation, format_error and language_mismatch.
+        suite = make_suite(1, constraints=[{"type": "word_count", "max": 5}])
+        reply = json.dumps(
+            {
+                "rationale": "too long",
+                "scores": {d.value: 3 for d in Dimension},
+                "failure_modes": ["constraint_violation", "language_mismatch", "intent_misread"],
+            }
+        )
+        record = run(Judge(FakeJudge(default=reply)).judge_case(suite.cases[0], "one two"))
+        assert record.check_failure_modes == []
+        assert record.judge_failure_modes == [
+            FailureMode.CONSTRAINT_VIOLATION,
+            FailureMode.LANGUAGE_MISMATCH,
+            FailureMode.INTENT_MISREAD,
+        ]
+        assert record.failure_modes == [FailureMode.INTENT_MISREAD]
+        assert record.parse_outcome == "clean"
+
+    def test_a_check_retagged_as_a_judge_mode_can_agree_with_the_judge(self) -> None:
+        suite = make_suite(
+            1,
+            constraints=[
+                {"type": "required_phrases", "phrases": ["Jakarta"], "fails_as": "hallucination"}
+            ],
+        )
+        reply = json.dumps(
+            {
+                "rationale": "wrong city",
+                "scores": {d.value: 2 for d in Dimension},
+                "failure_modes": ["hallucination"],
+            }
+        )
+        record = run(Judge(FakeJudge(default=reply)).judge_case(suite.cases[0], "Bandung."))
+        assert record.failure_modes == [FailureMode.HALLUCINATION]
+        summary = JudgeSummary(records=[record])
+        assert summary.failure_modes() == {
+            FailureMode.HALLUCINATION: {"check": 0, "judge": 0, "both": 1}
+        }
+
     @pytest.mark.parametrize("include", [True, False])
     def test_include_checks_controls_the_prompt(self, include: bool) -> None:
         suite = make_suite(1, constraints=[{"type": "word_count", "max": 2}])
@@ -352,9 +393,14 @@ class TestSummary:
         }
         # Errors don't count: "d"'s language mismatch has no judge verdict to compare.
         assert summary.failure_modes() == {
-            FailureMode.CONSTRAINT_VIOLATION: {"check": 0, "judge": 0, "both": 1},
+            FailureMode.CONSTRAINT_VIOLATION: {"check": 1, "judge": 0, "both": 0},
             FailureMode.HALLUCINATION: {"check": 0, "judge": 1, "both": 0},
             FailureMode.FORMAT_ERROR: {"check": 1, "judge": 0, "both": 0},
+        }
+        # "a": judge and check agree on constraint_violation; "b": only the check.
+        assert summary.judge_vs_checks() == {
+            FailureMode.CONSTRAINT_VIOLATION: {"both": 1, "judge_only": 0, "checks_only": 0},
+            FailureMode.FORMAT_ERROR: {"both": 0, "judge_only": 0, "checks_only": 1},
         }
         assert summary.parse_outcomes() == {
             "clean": 1,
@@ -369,6 +415,7 @@ class TestSummary:
         assert data["mean_scores"]["instruction_following"] == 3.667
         assert data["score_counts"]["faithfulness"] == {"1": 0, "2": 0, "3": 1, "4": 0, "5": 1}
         assert data["failure_modes"]["format_error"] == {"check": 1, "judge": 0, "both": 0}
+        assert data["judge_vs_checks"]["format_error"]["checks_only"] == 1
         assert data["missing"] == ["z"]
         assert data["unknown"] == ["q"]
         json.dumps(data)  # JSON-ready

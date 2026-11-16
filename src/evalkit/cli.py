@@ -40,7 +40,7 @@ from evalkit.providers import (
 )
 from evalkit.runner import RetryPolicy, RunRecord, RunResult, run_suite
 from evalkit.schema import Dimension, EvalCase, Suite, SuiteError, load_suite
-from evalkit.taxonomy import DESCRIPTIONS, FailureMode
+from evalkit.taxonomy import CHECKABLE, DESCRIPTIONS, FailureMode
 
 _T = TypeVar("_T")
 
@@ -530,18 +530,7 @@ def _build_judge(
 
 
 def _modes_text(record: JudgeRecord) -> str:
-    parts = []
-    for mode in record.failure_modes:
-        sources = [
-            name
-            for name, modes in (
-                ("check", record.check_failure_modes),
-                ("judge", record.judge_failure_modes),
-            )
-            if mode in modes
-        ]
-        parts.append(f"{mode.value} ({'+'.join(sources)})")
-    return "\n".join(parts)
+    return "\n".join(f"{mode.value} ({source})" for mode, source in record.sources().items())
 
 
 def _print_judgments(result: JudgeResult, judge: Judge, *, verbose: bool) -> None:
@@ -599,6 +588,14 @@ def _print_judgments(result: JudgeResult, judge: Judge, *, verbose: bool) -> Non
             found = ", ".join(f"{k} {v}" for k, v in c.items() if v)
             shown.append(f"{mode.value} {sum(c.values())} ({found})")
         console.print("failure modes: " + "; ".join(shown))
+    versus = summary.judge_vs_checks()
+    if versus:
+        console.print("judge vs checks on checkable modes (only the checks count):")
+        for mode, c in versus.items():
+            console.print(
+                f"  {mode.value}: both {c['both']}, judge only {c['judge_only']}, "
+                f"checks only {c['checks_only']}"
+            )
     if summary.missing:
         console.print(f"[yellow]no response for:[/] {escape(', '.join(summary.missing))}")
     if summary.unknown:
@@ -607,8 +604,10 @@ def _print_judgments(result: JudgeResult, judge: Judge, *, verbose: bool) -> Non
         )
     c = result.counts()
     console.print(
-        f"run [bold]{escape(result.run_id)}[/]: {c['cases']} cases in {result.duration_s:.1f} s; "
-        f"{c['requests']} requests, {c['cached']} cases from cache, {c['reasks']} re-asks; "
+        f"run [bold]{escape(result.run_id)}[/]: {c['cases']} cases in {result.duration_s:.1f} s"
+    )
+    console.print(
+        f"  {c['requests']} requests, {c['cached']} cases from cache, {c['reasks']} re-asks; "
         f"{c['input_tokens']} input / {c['output_tokens']} output tokens"
     )
     for warning in result.warnings:
@@ -749,16 +748,16 @@ def list_checks() -> None:
 
 @app.command()
 def taxonomy() -> None:
-    """List the failure modes, and which of them the deterministic checks can raise."""
+    """List the failure modes and who assigns each: the checks or the judge."""
     raised_by: dict[FailureMode, list[str]] = {m: [] for m in FailureMode}
     for cls in CHECK_TYPES:
         raised_by[cls.default_failure_mode].append(cls.model_fields["type"].default)
     table = Table(title="Failure modes")
     table.add_column("failure mode")
-    table.add_column("raised by")
+    table.add_column("assigned by")
     table.add_column("meaning", overflow="fold")
     for mode, text in DESCRIPTIONS.items():
-        checks = ", ".join(raised_by[mode])
-        table.add_row(mode.value, f"judge, checks ({checks})" if checks else "judge", escape(text))
+        who = f"checks ({', '.join(raised_by[mode])})" if mode in CHECKABLE else "judge"
+        table.add_row(mode.value, who, escape(text))
     console.print(table)
-    console.print("[dim]Any check can be re-tagged with `fails_as` in the suite.[/]")
+    console.print("[dim]A check can be re-tagged with `fails_as` in the suite.[/]")

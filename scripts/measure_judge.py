@@ -306,6 +306,7 @@ def markdown(results: dict[str, Any]) -> str:
         "language_mismatch false alarms",
         lambda n: fraction(a["ground_truth"][n]["language_mismatch_false_alarms"]),
     )
+    row("judge tags", lambda n: a["ground_truth"][n]["judge_tag_counts"])
     rep = a["repeatability_qwen14b"]
     lines.append("")
     lines.append(

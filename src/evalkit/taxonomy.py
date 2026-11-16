@@ -1,10 +1,16 @@
 """Failure-mode taxonomy shared by the deterministic checks and the LLM judge.
 
-Deterministic checks can only ever produce three of these tags:
-``constraint_violation``, ``format_error`` and ``language_mismatch``. The rest
-need judgment about meaning, so only the judge assigns them. The judge may
-assign any of the seven, including the three a check can raise: a suite rarely
-encodes every constraint as a check.
+Three modes are checkable, and code decides them: ``constraint_violation``,
+``format_error`` and ``language_mismatch`` (:data:`CHECKABLE`). The other four
+need judgment about meaning, and the judge decides them.
+
+The judge is still offered all seven, and its tags for the checkable modes
+are kept and compared with the checks, but they don't count. Measured on 80
+real responses (README, Results): qwen2.5:14b tagged ``constraint_violation``
+on 31 of the 69 whose checks all passed, with the passing results in its
+prompt. Telling it not to contradict the checks changed nothing (33 of 68),
+and taking the three modes off its list just moved the same complaints to
+``partial_completion`` (false on 39 of 70 complete responses, up from 5 of 71).
 """
 
 from enum import StrEnum
@@ -50,3 +56,8 @@ DESCRIPTIONS: dict[FailureMode, str] = {
     ),
 }
 """One line per failure mode. The judge's prompt and ``evalkit taxonomy`` use these."""
+
+CHECKABLE: frozenset[FailureMode] = frozenset(
+    {FailureMode.CONSTRAINT_VIOLATION, FailureMode.FORMAT_ERROR, FailureMode.LANGUAGE_MISMATCH}
+)
+"""Modes a deterministic check decides. The judge's own tags for them don't count."""
