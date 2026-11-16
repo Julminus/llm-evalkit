@@ -102,6 +102,9 @@ disallow_untyped_defs = false
 testpaths = ["tests"]
 addopts = ["-ra", "--strict-markers", "--strict-config"]
 xfail_strict = true
+markers = [
+    "live: needs a running Ollama server with the model pulled (opt-in: EVALKIT_LIVE_OLLAMA=1)",
+]
 
 [tool.coverage.run]
 source = ["evalkit"]
