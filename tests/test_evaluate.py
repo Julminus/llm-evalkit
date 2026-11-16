@@ -150,6 +150,24 @@ class TestLoadResponses:
         with pytest.raises(ResponsesError, match=r"r.jsonl:2: duplicate id 'a'"):
             load_responses(self._write(tmp_path, row, row))
 
+    def test_failed_generation_rows_count_as_missing(self, tmp_path: Path) -> None:
+        path = self._write(
+            tmp_path,
+            json.dumps({"id": "a", "response": "ok"}),
+            json.dumps({"id": "b", "response": None, "error": "ollama: HTTP 500"}),
+        )
+        assert load_responses(path) == {"a": "ok"}
+
+    def test_null_response_without_error_is_still_invalid(self, tmp_path: Path) -> None:
+        with pytest.raises(ResponsesError, match="string 'response'"):
+            load_responses(self._write(tmp_path, json.dumps({"id": "a", "response": None})))
+
+    def test_duplicate_of_a_failed_row(self, tmp_path: Path) -> None:
+        failed = json.dumps({"id": "a", "response": None, "error": "x"})
+        ok = json.dumps({"id": "a", "response": "y"})
+        with pytest.raises(ResponsesError, match="duplicate id 'a'"):
+            load_responses(self._write(tmp_path, failed, ok))
+
     def test_missing_file(self, tmp_path: Path) -> None:
         with pytest.raises(ResponsesError, match="cannot read file"):
             load_responses(tmp_path / "nope.jsonl")

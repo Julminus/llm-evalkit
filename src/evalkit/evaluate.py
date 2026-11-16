@@ -65,6 +65,9 @@ def load_responses(path: str | Path) -> dict[str, str]:
 
     Blank lines are skipped. A repeated id is an error: silently keeping the
     first or last response would hide a bug in whatever produced the file.
+    Run logs (``runs/<id>/responses.jsonl``) are valid input: a row whose
+    generation failed (``"response": null`` with an ``"error"``) is left out,
+    so the case is reported as having no response.
     """
     path = Path(path)
     try:
@@ -72,6 +75,7 @@ def load_responses(path: str | Path) -> dict[str, str]:
     except OSError as exc:
         raise ResponsesError(f"{path}: cannot read file ({exc.strerror})") from exc
     out: dict[str, str] = {}
+    failed: set[str] = set()
     for n, line in enumerate(lines, start=1):
         if not line.strip():
             continue
@@ -81,10 +85,13 @@ def load_responses(path: str | Path) -> dict[str, str]:
             raise ResponsesError(f"{path}:{n}: invalid JSON ({exc.msg})") from exc
         if not isinstance(obj, dict) or not isinstance(obj.get("id"), str):
             raise ResponsesError(f"{path}:{n}: each line needs a string 'id'")
+        if obj["id"] in out or obj["id"] in failed:
+            raise ResponsesError(f"{path}:{n}: duplicate id {obj['id']!r}")
+        if obj.get("response") is None and isinstance(obj.get("error"), str):
+            failed.add(obj["id"])
+            continue
         if not isinstance(obj.get("response"), str):
             raise ResponsesError(f"{path}:{n}: each line needs a string 'response'")
-        if obj["id"] in out:
-            raise ResponsesError(f"{path}:{n}: duplicate id {obj['id']!r}")
         out[obj["id"]] = obj["response"]
     return out
 
