@@ -224,7 +224,9 @@ class TestJudgeCase:
         assert record.error == "fakejudge: HTTP 400"
         assert record.replies == ["garbage"]
         assert record.reasks == 1
-        assert record.parse_outcome == "unusable"
+        # The case ended on a failed request, and the first reply's tokens still count.
+        assert record.parse_outcome == "request_failed"
+        assert (record.input_tokens, record.output_tokens) == (10, 5)
 
     def test_rubric_dimensions_are_the_ones_required(self) -> None:
         suite = make_suite(1, rubric={"dimensions": ["faithfulness"]})
@@ -337,6 +339,23 @@ class TestJudgeAll:
         )
         assert [r.id for r in records] == [f"c{i}" for i in reversed(range(6))]
         assert provider.max_in_flight == 2
+
+    def test_two_answers_to_one_case_stay_apart(self) -> None:
+        # Found in the post-S3 review: records were keyed by case id.
+        suite = make_suite(1)
+        provider = FakeJudge()
+        case = suite.cases[0]
+
+        async def go() -> list[JudgeRecord]:
+            judge = Judge(provider)
+            return await judge.judge_all([(case, "answer A"), (case, "answer B")])
+
+        records = run(go())
+        assert len(records) == 2
+        [first, second] = provider.prompts["prompt 0"]
+        assert "answer A" in first.user
+        assert "answer B" in second.user
+        assert records[0] is not records[1]
 
     def test_reasks_share_the_concurrency_limit(self) -> None:
         suite = make_suite(4)

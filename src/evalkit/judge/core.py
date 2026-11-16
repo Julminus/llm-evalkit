@@ -145,7 +145,8 @@ class JudgeRecord(BaseModel):
             if self.reasks:
                 return "reasked"
             return "repaired" if self.repairs else "clean"
-        return "unusable" if self.replies else "request_failed"
+        # Each step sends one prompt; a step whose request failed adds no reply.
+        return "unusable" if len(self.replies) > self.reasks else "request_failed"
 
 
 def _add(total: int | None, value: int | None) -> int | None:
@@ -231,21 +232,24 @@ class Judge:
             requests += out.attempts
             latency += out.latency_s
             all_cached = all_cached and out.cached
+            completion = out.completion
+            if completion is not None:
+                tokens_in = _add(tokens_in, completion.input_tokens)
+                tokens_out = _add(tokens_out, completion.output_tokens)
+                replies.append(completion.text)
             usage = {
                 "requests": requests,
                 "cached": all_cached,
                 "latency_s": round(latency, 4),
+                "input_tokens": tokens_in,
+                "output_tokens": tokens_out,
                 "replies": replies,
+                "reasks": reasks,
             }
-            if out.completion is None:
-                return JudgeRecord(**base, **usage, error=out.error, reasks=reasks)
-            completion = out.completion
-            tokens_in = _add(tokens_in, completion.input_tokens)
-            tokens_out = _add(tokens_out, completion.output_tokens)
-            usage.update(input_tokens=tokens_in, output_tokens=tokens_out)
-            replies.append(completion.text)
+            if completion is None:
+                return JudgeRecord(**base, **usage, error=out.error)
             if completion.finish_reason == "refusal":
-                return JudgeRecord(**base, **usage, error="the judge refused", reasks=reasks)
+                return JudgeRecord(**base, **usage, error="the judge refused")
             try:
                 parsed = parse_judgment(completion.text, dimensions)
             except JudgmentError as exc:
@@ -258,10 +262,7 @@ class Judge:
                 if reasks == self.max_reasks:
                     tries = f" (after {reasks} re-asks)" if reasks else ""
                     return JudgeRecord(
-                        **base,
-                        **usage,
-                        error=f"unusable judge reply{tries}: {'; '.join(problems)}",
-                        reasks=reasks,
+                        **base, **usage, error=f"unusable judge reply{tries}: {'; '.join(problems)}"
                     )
                 prompt = build_repair_prompt(original, completion.text, problems)
                 continue
@@ -272,7 +273,6 @@ class Judge:
                 rationale=parsed.rationale,
                 judge_failure_modes=parsed.failure_modes,
                 repairs=parsed.repairs,
-                reasks=reasks,
             )
         raise AssertionError("unreachable")  # pragma: no cover - the loop always returns
 
@@ -284,18 +284,19 @@ class Judge:
     ) -> list[JudgeRecord]:
         """Judge every ``(case, response)``; records come back in input order."""
         slots = asyncio.Semaphore(self.runner.concurrency)
-        done: dict[str, JudgeRecord] = {}
+        # Keyed by position, not case id: two answers to one case are two items.
+        done: dict[int, JudgeRecord] = {}
 
-        async def one(case: EvalCase, response: str) -> None:
+        async def one(index: int, case: EvalCase, response: str) -> None:
             record = await self.judge_case(case, response, slots)
-            done[case.id] = record
+            done[index] = record
             if on_record is not None:
                 on_record(record)
 
         async with asyncio.TaskGroup() as tg:
-            for case, response in items:
-                tg.create_task(one(case, response))
-        return [done[case.id] for case, _ in items]
+            for index, (case, response) in enumerate(items):
+                tg.create_task(one(index, case, response))
+        return [done[index] for index in range(len(items))]
 
 
 def _mean(values: Sequence[int]) -> float | None:
