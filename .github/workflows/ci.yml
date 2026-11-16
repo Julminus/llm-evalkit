@@ -52,6 +52,13 @@ jobs:
           # The second run must be served entirely from the response cache.
           uv run evalkit run examples/suites/smoke.yaml -p mock --mock-responses examples/responses/smoke.jsonl | tee second-run.txt
           grep -q "0 generated, 10 from cache" second-run.txt
+      - name: Judge test (mock judge, no network)
+        run: |
+          uv run evalkit judge examples/suites/smoke.yaml examples/responses/smoke.jsonl -j mock --mock-judgments examples/judgments/smoke.jsonl | tee judge-run.txt
+          grep -q "judged 10/10 cases: 8 clean, 2 repaired locally" judge-run.txt
+          # Re-judging must replay every judgment from the cache.
+          uv run evalkit judge examples/suites/smoke.yaml examples/responses/smoke.jsonl -j mock --mock-judgments examples/judgments/smoke.jsonl | tee judge-again.txt
+          grep -q "0 requests, 10 cases from cache" judge-again.txt
 
   docker:
     runs-on: ubuntu-latest
@@ -65,3 +72,6 @@ jobs:
           docker run --rm -v "$PWD/examples:/work/examples:ro" llm-evalkit:ci \
             run examples/suites/smoke.yaml -p mock --mock-responses examples/responses/smoke.jsonl \
             --out /tmp/runs --cache-dir /tmp/cache
+          docker run --rm -v "$PWD/examples:/work/examples:ro" llm-evalkit:ci \
+            judge examples/suites/smoke.yaml examples/responses/smoke.jsonl \
+            -j mock --mock-judgments examples/judgments/smoke.jsonl --out /tmp/runs --cache-dir /tmp/cache
