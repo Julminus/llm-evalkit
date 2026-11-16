@@ -99,7 +99,7 @@ The corpus, the generation script and the scoring script are in the repo
 numbers. `uv run --with langdetect==1.0.9 python scripts/measure_langdetect.py` reproduces both
 rows of the table, including the baseline's wrong guesses.
 
-**Engineering.** 4 providers, 11 check types, 455 tests (3 of them opt-in live tests), 99.5% branch
+**Engineering.** 4 providers, 11 check types, 472 tests (3 of them opt-in live tests), 99.4% branch
 coverage, strict mypy. Every provider is tested offline against the request and response shapes of
 its API (the Anthropic one through the real SDK with a mock transport), and
 `EVALKIT_LIVE_OLLAMA=1 uv run pytest -m live` runs the Ollama paths for real. CI runs the tests on
@@ -200,8 +200,8 @@ uv run pytest
 
 `make setup`, `make test` and `make run` (the mock run above) are shortcuts; `make run-ollama
 MODEL=llama3.1:8b` runs the smoke suite on Ollama. Useful flags: `--json` (machine-readable
-output), `--strict` (exit code 1 if any case fails its checks, or, for `check`, has no response;
-for CI), `-c N` (requests in flight, default 4), `--case ID` (repeatable), `--no-cache`. To grade
+output), `--strict` (exit code 1 if any case fails its checks; for `check`, also if a case has no
+response or a response matches no case; for CI), `-c N` (requests in flight, default 4), `--case ID` (repeatable), `--no-cache`. To grade
 responses you already have: `uv run evalkit check SUITE responses.jsonl`. `uv run evalkit
 list-checks` lists the constraint types. To install the Anthropic SDK without the dev tools:
 `uv sync --no-dev --extra anthropic`. llm-evalkit is not on PyPI. With Docker:
@@ -219,13 +219,14 @@ list-checks` lists the constraint types. To install the Anthropic SDK without th
   on top, one stubborn request could be sent 12 times. The SDK's retries are switched off, so the
   retry count in the log is the real number of requests. Backoff is exponential with "full jitter"
   (a random wait in `[0, min(30 s, 2^n s)]`), and a server's `Retry-After` is honoured, capped at
-  30 s. A request keeps its
-  concurrency slot while it waits, because the point of backing off is to send fewer requests, not
-  to let a different one take its place.
+  30 s. A request keeps its concurrency slot while it waits, because the point of backing off is to
+  send fewer requests, not to let a different one take its place.
 - **A failing case is a result, not a crash.** It becomes a log record with an `error` and the
   number of attempts, the other cases continue, and the CLI exits 1 at the end. Any other exception
-  from a provider (a decoding error, an SDK validation error) also fails just that case, without
-  retries. A bug in evalkit itself still stops the run, and the manifest records it as `crashed`.
+  raised while a provider generates (a decoding error, an SDK validation error, or a bug in the
+  provider code itself) also fails just that case, without retries, and the record names the
+  exception type. An exception anywhere else in the run stops it, and the manifest records it as
+  `crashed`.
 - **The cache keys on what was actually sent.** The key is a SHA-256 of the provider identity
   (provider, model and server address), the exact prompt, the settings the provider sends, and a
   sample index. A setting the provider ignores can't cause a miss; one it sends always does.

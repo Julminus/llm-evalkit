@@ -63,20 +63,32 @@ def _version_callback(value: bool) -> None:
         raise typer.Exit
 
 
-def _use_utf8_output() -> None:
-    """Write UTF-8 even when stdout/stderr are redirected on Windows.
+def _never_crash_on_output() -> None:
+    """Keep each stream's encoding, but escape what it can't encode.
 
-    Python encodes a redirected stream with the ANSI code page (cp1252 here),
-    so ``evalkit check ... --json > out.json`` crashed on the first response
-    quoting an arrow, an emoji or CJK text. Terminals are unaffected: Python
-    writes to the Windows console as UTF-16 either way.
+    On Windows a redirected stream uses the ANSI code page (cp1252), so
+    ``evalkit check ... > out.txt`` crashed on the first response quoting
+    "→", an emoji or CJK text. Switching the stream to UTF-8 is no fix:
+    Windows PowerShell 5.1 decodes a program's output with the OEM code page,
+    so Rich's box drawing came out garbled. So the encoding stays (Rich then
+    draws ASCII boxes), and characters it can't hold are written as
+    ``\\u2192``-style escapes. ``--json`` escapes non-ASCII itself on such a
+    stream, so JSON output stays exact. Terminals are unaffected: Python
+    writes to the Windows console as UTF-16.
     """
     for stream in (sys.stdout, sys.stderr):
-        if isinstance(stream, io.TextIOWrapper) and stream.encoding.lower() not in {
-            "utf-8",
-            "utf8",
-        }:
-            stream.reconfigure(encoding="utf-8")
+        if isinstance(stream, io.TextIOWrapper) and stream.errors == "strict":
+            stream.reconfigure(errors="backslashreplace")
+
+
+def _stdout_is_utf8() -> bool:
+    encoding = getattr(sys.stdout, "encoding", None) or ""
+    return encoding.lower().replace("_", "-") in {"utf-8", "utf8"}
+
+
+def _dumps(payload: Any) -> str:
+    """JSON for stdout: readable on a UTF-8 stream, pure ASCII on any other."""
+    return json.dumps(payload, ensure_ascii=not _stdout_is_utf8(), indent=2)
 
 
 @app.callback()
@@ -87,7 +99,7 @@ def main(
     ] = False,
 ) -> None:
     """Bilingual (EN/ID) LLM evaluation harness."""
-    _use_utf8_output()
+    _never_crash_on_output()
 
 
 def _load_or_exit(path: Path) -> Suite:
@@ -148,7 +160,7 @@ def _summary_payload(summary: CheckSummary) -> dict[str, Any]:
 
 
 def _summary_json(summary: CheckSummary) -> str:
-    return json.dumps(_summary_payload(summary), ensure_ascii=False, indent=2)
+    return _dumps(_summary_payload(summary))
 
 
 def _print_summary(summary: CheckSummary, *, verbose: bool) -> None:
@@ -423,7 +435,7 @@ def run(
             },
             "checks": _summary_payload(summary),
         }
-        typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
+        typer.echo(_dumps(payload))
     else:
         _print_summary(summary, verbose=verbose)
         _print_run(result, provider)

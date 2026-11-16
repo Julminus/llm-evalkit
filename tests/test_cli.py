@@ -134,15 +134,29 @@ def test_check_strict_fails_on_unknown_responses(tmp_path: Path) -> None:
     assert "responses with no matching case: ghost" in result.output
 
 
-def test_output_is_utf8_when_redirected(monkeypatch: pytest.MonkeyPatch) -> None:
-    # A redirected stream on Windows defaults to cp1252, which cannot encode "→".
+def test_redirected_cp1252_output_escapes_instead_of_crashing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A redirected stream on Windows defaults to cp1252, which cannot encode
+    # "→". The encoding is kept (PowerShell 5.1 would garble UTF-8 box
+    # drawing); unencodable characters are escaped.
     raw = io.BytesIO()
     stream = io.TextIOWrapper(raw, encoding="cp1252")
     monkeypatch.setattr(sys, "stdout", stream)
-    cli._use_utf8_output()
-    stream.write("→ 好")
+    cli._never_crash_on_output()
+    stream.write("café → 好")
     stream.flush()
-    assert raw.getvalue() == "→ 好".encode()
+    assert raw.getvalue() == b"caf\xe9 \\u2192 \\u597d"
+
+
+def test_json_is_exact_on_a_non_utf8_stream(monkeypatch: pytest.MonkeyPatch) -> None:
+    payload = {"response": "café → 好"}
+    monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(io.BytesIO(), encoding="cp1252"))
+    ascii_json = cli._dumps(payload)
+    assert ascii_json.isascii()
+    assert json.loads(ascii_json) == payload
+    monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(io.BytesIO(), encoding="utf-8"))
+    assert "café → 好" in cli._dumps(payload)  # readable where the stream can hold it
 
 
 def test_check_reports_unknown_ids(tmp_path: Path) -> None:
