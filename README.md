@@ -15,9 +15,9 @@ A lightweight, bilingual (English / Bahasa Indonesia) harness for evaluating ins
 
 <sub>Real output of `evalkit judge examples/suites/smoke.yaml examples/responses/smoke.jsonl -j
 ollama:qwen2.5:14b` on an RTX 5080. 10 hand-written responses, so it shows the output format, not a
-benchmark result. Note the last lines: the judge named `constraint_violation` on 8 responses that no
-check failed. Those tags don't count (see below). The generation step looks like
-[this](docs/img/run-output.svg).</sub>
+benchmark result. Note the last lines: the judge named `constraint_violation` on 8 responses, though
+no check found a constraint violation in any of them (4 pass every check). Those tags don't count
+(see below). The generation step looks like [this](docs/img/run-output.svg).</sub>
 
 ## Results
 
@@ -26,70 +26,80 @@ below (`qwen2.5:7b` and `llama3.1:8b` on the 40-case everyday suite) with two lo
 `qwen2.5:14b` and `llama3.1:8b`, through Ollama 0.40.16 on an RTX 5080 with an otherwise idle GPU.
 Settings: temperature 0, seed 0, at most 1024 tokens per reply, one request at a time, and each
 condition starts from a fresh model load. No human labels exist yet (that is the next stage), so the
-judge is scored against three facts that need no opinion: which responses fail an exact check
-(10), which were cut off at the 200-token limit (9), and that none of the 80 is in the wrong
-language. Script: `scripts/measure_judge.py`; raw output, including every judge reply:
+judge is scored against three facts that need no opinion on its output: which responses fail an
+exact check (10), which were cut off at the 200-token limit (9), and that none of the 80 is in the
+wrong language (from the language labels of the corpus below). Script: `scripts/measure_judge.py`;
+raw output, including every judge reply:
 [`docs/results/judge-s3-prompt-v1.json`](docs/results/judge-s3-prompt-v1.json).
 
 | Judge prompt v1 (the shipped one) | `qwen2.5:14b` judge | `llama3.1:8b` judge |
 |---|---|---|
-| Replies usable | **80/80**, all valid JSON on the first try | **80/80**: 78 on the first try, 2 after one re-ask |
+| Judgments that ended with a usable reply | **80/80**, all on the first try | **80/80**: 78 on the first try, 2 after one re-ask |
 | Identical replies across two fresh model loads | **80/80** | not measured |
 | 80 judgments: wall time, median per judgment | 114 s, 1.41 s | 66 s, 0.80 s |
 | Truncated responses tagged `partial_completion` | **7/9** | 4/9 |
-| Complete responses tagged `partial_completion` | 5/71 | 11/71 |
-| `language_mismatch` tags (all false by construction) | **0/80** | 0/80 |
+| Responses not cut off but tagged `partial_completion` | 5/71 | 11/71 |
+| `language_mismatch` tags (all false) | **0/80** | 0/80 |
 | `constraint_violation` named where every check passed (not counted) | **31/69** | 39/69 |
 | Mean `instruction_following`: a check failed / all checks passed | 2.9 / 4.06 | 2.4 / 3.81 |
 
 What this shows:
 
-- **The mechanics hold up.** Every reply was usable. Both of llama3.1:8b's re-asks were
-  structural mistakes the re-ask fixed: a check name (`"sentence_count"`) and the string `"[]"`
-  given as failure modes. Two fresh loads of qwen2.5:14b gave byte-identical replies for all 80, so
-  a judged run can be reproduced. A judgment takes about 1.4 s on this GPU.
+- **The mechanics hold up.** Every judgment ended with a usable reply. Both of llama3.1:8b's
+  re-asks were structural mistakes the re-ask fixed: a check name (`"sentence_count"`) and the
+  string `"[]"` given as failure modes. Two fresh loads of qwen2.5:14b gave byte-identical replies
+  for all 80, so a judged run can be reproduced. A judgment takes about 1.4 s on this GPU.
 - **The judge's failure-mode tags are noisy, and telling it so doesn't help.** With the passing
   check results in its prompt, qwen2.5:14b still named `constraint_violation` on 31 of the 69
-  responses whose checks all passed. A common rationale calls one long sentence "more than one
-  sentence" right next to a `PASS sentence_count: 1 sentences` line. I tried two fixes on the same
-  80 responses, and neither worked (table below). The tags seem to follow the score more than the
-  response: the judge tagged 30 of the 33 answers it scored 4 for instruction following, and 2 of
-  the 21 it scored 5. So code decides the three
-  checkable modes (`constraint_violation`, `format_error`, `language_mismatch`), and the judge's
-  own tags for them are reported as "judge only" counts that don't count.
+  responses whose checks all passed. In about a dozen of them, the rationale says a sentence count
+  is broken right next to a PASS result for that count, as in "exceeds the requested length of one
+  sentence" for a single long sentence. Two fixes tried on the same 80 responses didn't reduce
+  these tags (table below). The tags track the score: qwen2.5:14b named `constraint_violation` on
+  21 of the 33 answers it scored 4 for instruction following (all 33 passed every check), and on
+  none of the 21 it scored 5. So code decides the three checkable modes (`constraint_violation`,
+  `format_error`, `language_mismatch`), and the judge's own tags for them are reported as "judge
+  only" counts that don't count.
 - **The check results in the prompt still pay off in the scores.** Without them
   (`--no-checks`), qwen2.5:14b named `constraint_violation` on only 6 of the 10 responses that
   really break a stated constraint, and scored them 3.7 for instruction following on average,
   against 2.9 with the check results.
 - **`partial_completion` is the most trustworthy judge tag here:** 7 of the 9 cut-off answers,
-  and 5 false tags in 71 complete ones.
-- **Some `hallucination` tags are real catches.** qwen2.5:14b gave 8. I read each one: 4 are
-  real errors (a glass slipper that "fits the prince's foot"; Snow White, "putri salju", taking
-  Cinderella to the ball; "more than 2,500 octopus species"; Rayleigh scattering described as
-  absorption, with blue as the longer wavelength), 3 are not (a typo, the made-up figures in a
-  weather report the prompt asked it to make up, and a garbled word the checks already fail), and
-  1 is debatable. Three of the four real ones are in Indonesian answers. The labels are in
-  [`judge-s3-audit.json`](docs/results/judge-s3-audit.json). That is one reader, and it measures
-  precision only: nobody has checked all 80 answers for errors the judge missed.
+  and 5 tags on the 71 that weren't cut off, at least 2 of them defensible (an answer one sentence
+  short of the two asked for, and a message left with "[Nama Rekan Kerja]" placeholders).
+- **Some `hallucination` tags are real catches.** qwen2.5:14b gave 8. Claude (the AI assistant
+  used to build this stage) read each one against the response: 4 are real errors (a glass slipper
+  that "fits the prince's foot"; Snow White, "putri salju", taking Cinderella to the ball; "more
+  than 2,500 octopus species"; Rayleigh scattering described as absorption, with blue as the longer
+  wavelength), 2 are not (a typo, and a garbled word the checks already fail), and 2 are debatable
+  (made-up figures in a weather report the prompt asked for, which the rubric's own wording counts
+  against it; an incoherent remark in a casual reply). Three of the four real ones are in
+  Indonesian answers. The labels are in [`judge-s3-audit.json`](docs/results/judge-s3-audit.json).
+  No person has checked them yet, and they measure precision only: nobody has checked all 80
+  answers for errors the judge missed.
 - **The two judges agree only roughly.** On the same 80 responses they give the identical
   `instruction_following` score 36 times and within one point 69 times (`helpfulness`: 37 and
   70). llama3.1:8b scores lower on every dimension (for example `helpfulness` 3.66 vs 4.17).
 
-The two prompt changes I tried, both measured on the same 80 responses and both reverted:
+The two prompt changes I tried, both measured on the same 80 responses and both reverted. Their
+exact wording is in [`docs/results/README.md`](docs/results/README.md).
 
-| Judge prompt | qwen2.5:14b: `constraint_violation` named, all checks passed | qwen2.5:14b: `partial_completion` on truncated / complete | llama3.1:8b, same two rows |
+| Judge prompt | qwen2.5:14b: `constraint_violation` named, all checks passed | qwen2.5:14b: `partial_completion` on truncated / not cut off | llama3.1:8b, same two rows |
 |---|---|---|---|
 | v1, shipped: all seven modes offered | 31/69 | 7/9 / 5/71 | 39/69; 4/9 / 11/71 |
 | v2: + "never contradict a passing check", "don't invent requirements", "tag only clear failures" | 33/68 | 8/9 / 7/70 | 45/68; 3/9 / 1/70 |
 | v3: only the four non-checkable modes offered | not offered | 8/9 / **39/70** | not offered; 9/9 / **58/71** |
 
-Under v3 the complaints didn't go away: they moved to `partial_completion`, where no check can
-overrule them. Under v1 they land on `constraint_violation`, where an exact check does. Raw data:
+v2 didn't reduce the false `constraint_violation` tags, but it changed a lot else: only 27 of 79
+qwen2.5:14b verdicts stayed the same, and it lost 2 of the 4 real hallucination catches. Under v3
+the complaints moved to `partial_completion`, where no check can overrule them (30 of qwen2.5:14b's
+39 such tags fall on responses it had tagged `constraint_violation` under v1). Under v1 they land on
+`constraint_violation`, where an exact check does. Raw data:
 [`judge-s3-prompt-v2.json`](docs/results/judge-s3-prompt-v2.json),
 [`judge-s3-prompt-v3.json`](docs/results/judge-s3-prompt-v3.json). Read all of this with its
 limits in mind: 80 responses to 20 prompts I wrote, one judge prompt that I designed and then
-tested against the same data, my own reading as the only human check, and a qwen judge grading,
-among others, a smaller qwen model. Agreement with human labels is the next stage.
+tested against the same data, no human labels yet, a qwen judge grading among others a smaller qwen
+model, and the llama3.1:8b judge grading its own 40 responses. Agreement with human labels is the
+next stage.
 
 **Providers and runner on real local models.** `examples/suites/everyday.yaml` has 20 everyday
 prompts, each asked in English and in Indonesian (40 cases). I ran it through Ollama 0.40.16 on
@@ -151,8 +161,10 @@ What this shows:
 **Language check on real model output.** The language check matters most in a bilingual suite, so
 it was measured on responses it had never seen. I generated 80 responses from two local models
 (`qwen2.5:7b` and `llama3.1:8b`, Q4_K_M, via Ollama, temperature 0) to 20 everyday prompts, each
-asked in English and in Indonesian. Then I read every response to record its true language: 39 EN,
-39 ID, and 2 language-neutral ("Tokyo."). The detector was scored once, before any tuning.
+asked in English and in Indonesian. Then Claude (the AI assistant used to build this project) read
+every response to record its true language: 39 EN, 39 ID, and 2 language-neutral ("Tokyo."). A
+native speaker's spot-check of those labels is still to come. The detector was scored once, before
+any tuning.
 
 | | Result |
 |---|---|
@@ -172,8 +184,8 @@ The corpus, the generation script and the scoring script are in the repo
 numbers. `uv run --with langdetect==1.0.9 python scripts/measure_langdetect.py` reproduces both
 rows of the table, including the baseline's wrong guesses.
 
-**Engineering.** 4 providers, 11 check types, an LLM judge, 611 tests (3 of them opt-in live
-tests), 99.2% branch coverage, strict mypy. Every provider is tested offline against the request and response shapes of
+**Engineering.** 4 providers, 11 check types, an LLM judge, 640 tests (3 of them opt-in live
+tests), 99.1% branch coverage, strict mypy. Every provider is tested offline against the request and response shapes of
 its API (the Anthropic one through the real SDK with a mock transport), and
 `EVALKIT_LIVE_OLLAMA=1 uv run pytest -m live` runs the Ollama paths for real. CI runs the tests on
 Python 3.11, 3.12 and 3.13 (Linux) plus the whole pipeline with the mock provider and the mock
@@ -257,7 +269,8 @@ with the number only" is a `format_error`, not a `constraint_violation`.
 | `anthropic:MODEL` | Claude through the official `anthropic` SDK | the SDK (`uv sync` installs it) and `ANTHROPIC_API_KEY` |
 
 `--temperature` and `--seed` default to 0 where the backend accepts them, and `--max-tokens` to the
-backend's own limit. A setting you pass that the backend can't apply isn't sent, and the CLI says
+backend's own limit, except on Ollama, whose own default is no limit at all: there it is 4,096
+(one degenerate answer otherwise repeated a list item for 40,960 tokens). A setting you pass that the backend can't apply isn't sent, and the CLI says
 so (see the Anthropic note below). Each run writes
 `runs/<run_id>/manifest.json` (suite digest, provider, settings requested / sent / ignored, timing,
 token totals) and `runs/<run_id>/responses.jsonl` (one record per case: response or error, finish
@@ -284,15 +297,20 @@ provider can be the judge. The judge replies with one JSON object:
   `format_error`, `language_mismatch`); the judge decides the other four.
   The judge is still asked about all seven, and the summary prints how often its tags for the
   checkable modes agreed with the checks ("both", "judge only", "checks only"), but only the
-  checks' tags count. Results below show why.
+  checks' tags count. The Results above show why.
 - **The check results go into the prompt** as facts the judge should use instead of counting
   itself. `--no-checks` leaves them out.
 - **Bad replies are repaired or re-asked.** See the design decisions below. `--max-reasks`
   (default 2) caps the re-asks; after that the case gets an error instead of a judgment, and the
-  command exits 1.
-- **Deterministic by default.** Temperature 0 and seed 0 where the judge accepts them, at most 1024
-  tokens per reply, and every reply is cached, so re-judging the same responses replays the same
-  verdicts.
+  command exits 1. It also exits 1 if no response in the file matches a case.
+- **Long responses are cut for the judge, not for the checks.** The judge sees at most 6,000
+  characters of a response (`--max-response-chars`, 0 for no limit), and the prompt says how long
+  the whole response is. Without the cut, a 40,960-token runaway answer reached a local judge with
+  a 4,096-token context as a silently shortened prompt, and its verdict quoted words that aren't in
+  the response.
+- **Deterministic by default.** Temperature 0 and seed 0 where the judge accepts them, the
+  provider's own token limit (a fixed cap would cut off Claude, whose thinking counts toward it),
+  and every reply is cached, so re-judging the same responses replays the same verdicts.
 
 Each judge run writes `runs/<run_id>/judgments.jsonl` (per case: scores, rationale, both
 failure-mode lists, the check verdict, repairs, re-asks, tokens, latency and every raw reply) and a
@@ -374,7 +392,7 @@ list-checks` lists the constraint types. To install the Anthropic SDK without th
 - **Code decides what code can check.** For `constraint_violation`, `format_error` and
   `language_mismatch`, only the checks count. I tried to get the judge to stop contradicting them
   (an instruction, then removing the three modes from its list) and measured both: the instruction
-  changed nothing, and removing the modes moved the same complaints to `partial_completion`, where
+  didn't reduce the false tags, and removing the modes moved the same complaints to `partial_completion`, where
   nothing can overrule them. Asking about all seven and ignoring its checkable tags keeps that noise
   where an exact check sits next to it, and the "judge only" count makes it visible on every run.
 - **The judge gets the check results as facts.** LLMs count words and sentences badly. So the
@@ -420,16 +438,17 @@ the sentence, so "the answer is C.", "Vitamin C." and "World War I." are read co
 middle initial is not: "John F. Kennedy" and "by J. Smith" split after the letter.
 
 **Known limits of the judge.** Its scores and tags are checked against facts the checks and the
-token limit establish, and against my reading of its 8 hallucination tags, not yet against human
-labels. Its failure-mode tags are noisy (see Results); its scores for instruction following can
-still contradict a passing check, since only the tags are overruled. Re-asking at temperature 0 can
-get the same reply back: across all the runs above, 9 re-asks got a corrected reply, and the 6
-judgments that stayed unusable (all with the reverted v2 and v3 prompts) are ones where the judge
-sent the identical reply all three times. The judge's instructions are in
-English for every case. Ollama ran these models with a 4,096-token context; a judge prompt longer
-than that (a long RAG context, say) would be cut without an error, so check `input_tokens` in the
+token limit establish, and against an AI assistant's reading of its 8 hallucination tags, not yet
+against human labels. Its failure-mode tags are noisy (see Results); its scores for instruction
+following can still contradict a passing check, since only the tags are overruled. Re-asking at
+temperature 0 can get the same reply back: in all the runs above, every re-ask that worked got a
+changed reply (8 distinct cases), and every judgment that stayed unusable (4 distinct cases, all
+with the reverted v2 and v3 prompts) got the identical reply three times. The judge's
+instructions are in English for every case. Ollama ran these models with a 4,096-token context
+(its `/api/ps` reports it); the response is cut to fit, but a long case context (RAG, say) is
+not, and a prompt over the limit is shortened without an error, so check `input_tokens` in the
 judgments log. Tagged sections stop a response from closing its own section, but a response can
-still try to talk the judge into a better score; I haven't measured how often that works.
+still try to talk the judge into a better score; how often that works is not measured.
 
 ## What's next
 
