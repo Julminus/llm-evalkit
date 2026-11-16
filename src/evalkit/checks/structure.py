@@ -63,29 +63,65 @@ def _unresolvable_refs(schema: dict[str, Any], validator_cls: type[Validator]) -
     ``#/$defs/Persn`` would otherwise surface only when a response reaches
     that part of the schema, as a crash in the middle of a run. A ref may
     point inside the schema or at a standard metaschema (bundled, as
-    jsonschema itself resolves them). Only real subschemas are walked, as the
-    schema's draft defines them (draft-04 ``id`` scoping included), so a
-    "$ref" inside ``enum`` data or a vendor keyword like ``x-docs`` is data.
+    jsonschema itself resolves them).
+
+    The walk covers every real subschema, as the schema's draft defines them
+    (draft-04 ``id`` scoping included), and also follows each ref into its
+    target, because a ref can point anywhere (``#/x-defs/A``, or ``$defs``
+    under draft-07), and jsonschema then uses that target as a schema. A
+    "$ref" inside ``enum`` data or an unreferenced vendor keyword such as
+    ``x-docs`` is data and is not checked.
     """
     spec = referencing.jsonschema.specification_with(
         validator_cls.META_SCHEMA.get("$schema", ""), default=referencing.jsonschema.DRAFT202012
     )
+    ours = _node_ids(schema)  # follow refs only into this schema, not the metaschemas
+    seen: set[int] = set()
     bad: list[str] = []
 
     def walk(resource: Resource[Any], resolver: Any) -> None:
         contents = resource.contents
-        ref = contents.get("$ref") if isinstance(contents, dict) else None
+        if id(contents) in seen:
+            return
+        seen.add(id(contents))
+        if not isinstance(contents, dict):
+            return
+        ref = contents.get("$ref")
         if isinstance(ref, str):
             try:
-                resolver.lookup(ref)
+                resolved = resolver.lookup(ref)
             except Unresolvable:
                 bad.append(ref)
-        for sub in resource.subresources():
+            else:
+                if id(resolved.contents) in ours:
+                    walk(spec.create_resource(resolved.contents), resolved.resolver)
+        subresources = list(resource.subresources())
+        # draft-06/07 "dependencies" mixes arrays and schemas; referencing
+        # yields its schemas only when the first value is one.
+        deps = contents.get("dependencies")
+        if isinstance(deps, dict):
+            subresources += [spec.create_resource(v) for v in deps.values() if isinstance(v, dict)]
+        for sub in subresources:
             walk(sub, resolver.in_subresource(sub))
 
     root = spec.create_resource(schema)
     walk(root, _METASCHEMAS.resolver_with_root(root))
     return bad
+
+
+def _node_ids(node: Any) -> set[int]:
+    """The ids of every dict and list in a JSON-like tree."""
+    ids: set[int] = set()
+    stack = [node]
+    while stack:
+        current = stack.pop()
+        if isinstance(current, dict):
+            ids.add(id(current))
+            stack.extend(current.values())
+        elif isinstance(current, list):
+            ids.add(id(current))
+            stack.extend(current)
+    return ids
 
 
 def _schema_problem(schema: dict[str, Any]) -> str | None:
@@ -111,8 +147,10 @@ def _new_validator(schema: dict[str, Any]) -> Validator:
 
 # Memoised per distinct schema: a suite often repeats one schema across many
 # cases, and the metaschema check costs ~0.8 ms. The key is the schema as
-# sorted JSON; a schema JSON can't represent (YAML dates, mixed key types) is
-# simply not memoised.
+# sorted JSON, and the value is built from that JSON form too, because that is
+# what a JSON Schema means: YAML's `properties: {1: ...}` has an int key that
+# would never match a JSON object's "1". A schema that JSON can't represent
+# at all (a YAML date, mixed key types) is used as loaded, without memoising.
 _PROBLEMS: dict[str, str | None] = {}
 _VALIDATORS: dict[str, Validator] = {}
 
@@ -131,7 +169,7 @@ def _memo(cache: dict[str, Any], schema: dict[str, Any], build: Any) -> Any:
     if key not in cache:
         if len(cache) >= _MEMO_LIMIT:
             cache.clear()
-        cache[key] = build(schema)
+        cache[key] = build(json.loads(key))
     return cache[key]
 
 
@@ -213,11 +251,17 @@ class JsonSchemaCheck(BaseCheck):
         return first_error
 
     def check(self, response: str) -> CheckResult:
-        extracted = self._extract(response)
-        if isinstance(extracted, str):
-            return self._fail(extracted)
-        data, where = extracted
-        errors = sorted(self._validator.iter_errors(data), key=lambda e: list(e.absolute_path))
+        try:
+            extracted = self._extract(response)
+            if isinstance(extracted, str):
+                return self._fail(extracted)
+            data, where = extracted
+            errors = sorted(self._validator.iter_errors(data), key=lambda e: list(e.absolute_path))
+        except Unresolvable as exc:
+            # A safety net behind the load-time $ref check: a schema problem is
+            # not the model's failure, and it must not crash a run after the
+            # responses have been paid for.
+            return self._skip(f"cannot apply the schema: unresolvable reference ({exc})")
         if errors:
             shown = "; ".join(
                 f"{_json_path(e.absolute_path)}: {e.message}" for e in errors[:_MAX_REPORTED_ERRORS]

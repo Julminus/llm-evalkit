@@ -228,6 +228,78 @@ def test_draft04_id_scoping_and_vendor_keywords() -> None:
     assert check.check('{"alamat": {"kota": 1}}').failed
 
 
+D7 = "http://json-schema.org/draft-07/schema#"
+TYPO = {"$ref": "#/$defs/Typo"}
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [
+        # $defs isn't a draft-07 keyword, but a ref into it makes it a schema.
+        {
+            "$schema": D7,
+            "properties": {"p": {"$ref": "#/$defs/P"}},
+            "$defs": {"P": {"properties": {"q": TYPO}}},
+        },
+        # So does an OpenAPI-style or vendor location.
+        {"properties": {"p": {"$ref": "#/x-defs/P"}}, "x-defs": {"P": {"properties": {"q": TYPO}}}},
+        # draft-07 dependencies mixing an array and a schema.
+        {"$schema": D7, "dependencies": {"a": ["b"], "c": {"$ref": "#/definitions/Typo"}}},
+    ],
+)
+def test_dangling_ref_reached_through_another_ref_is_rejected(schema: dict) -> None:
+    with pytest.raises(ValidationError, match="unresolvable"):
+        JsonSchemaCheck.model_validate({"type": "json_schema", "schema": schema})
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [
+        {"$defs": {"n": {"properties": {"next": {"$ref": "#/$defs/n"}}}}, "$ref": "#/$defs/n"},
+        {"$ref": "#/x-defs/a", "x-defs": {"a": {"type": "string"}}},
+    ],
+)
+def test_recursive_and_vendor_location_refs_are_fine(schema: dict) -> None:
+    JsonSchemaCheck.model_validate({"type": "json_schema", "schema": schema})
+
+
+def test_an_unresolvable_ref_at_grade_time_skips_instead_of_crashing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A safety net behind the load-time check: if a ref ever slips through,
+    # grading reports it instead of crashing a paid run.
+    from evalkit.checks import structure
+
+    check = JsonSchemaCheck.model_validate({"type": "json_schema", "schema": PERSON})
+    monkeypatch.setattr(structure, "_VALIDATORS", {})
+    monkeypatch.setattr(structure, "_new_validator", lambda s: _validator_for_broken_ref())
+    result = check.check('{"ketua": {}}')
+    assert result.status.value == "skip"
+    assert "unresolvable reference" in result.message
+
+
+def _validator_for_broken_ref():
+    from jsonschema.validators import validator_for
+
+    schema = {"properties": {"ketua": {"$ref": "#/$defs/Nope"}}}
+    return validator_for(schema)(schema)
+
+
+def test_int_keys_from_yaml_mean_json_keys(tmp_path: Path) -> None:
+    # YAML reads `1:` as an int; a JSON Schema's property names are strings.
+    suite = tmp_path / "s.yaml"
+    suite.write_text(
+        "name: t\ncases:\n  - id: a\n    language: en\n    prompt: p\n"
+        "    response_language: any\n    constraints:\n"
+        "      - type: json_schema\n        schema:\n          type: object\n"
+        "          properties: {1: {enum: [A, B]}}\n",
+        encoding="utf-8",
+    )
+    check = load_suite(suite).cases[0].constraints[0]
+    assert check.check('{"1": "A"}').passed
+    assert check.check('{"1": "Z"}').failed
+
+
 def test_schema_that_json_cannot_represent_still_loads(tmp_path: Path) -> None:
     # YAML reads `2024-01-31` as a date and an unquoted `no:` key as False;
     # neither survives json.dumps, which the schema memo uses as its key.
