@@ -223,9 +223,12 @@ def _build_provider(
 def _print_run(result: RunResult, provider: Provider) -> None:
     c = result.counts()
     console.print(
-        f"run [bold]{escape(result.run_id)}[/] ({escape(provider.spec)}): {c['cases']} cases in "
-        f"{result.duration_s:.1f} s; {c['generated']} generated, {c['cached']} from cache, "
-        f"{c['errors']} failed; {c['input_tokens']} input / {c['output_tokens']} output tokens"
+        f"run [bold]{escape(result.run_id)}[/] ({escape(provider.spec)}): "
+        f"{c['cases']} cases in {result.duration_s:.1f} s"
+    )
+    console.print(
+        f"  {c['generated']} generated, {c['cached']} from cache, {c['errors']} failed; "
+        f"{c['input_tokens']} input / {c['output_tokens']} output tokens"
     )
     if result.truncated:
         console.print(
