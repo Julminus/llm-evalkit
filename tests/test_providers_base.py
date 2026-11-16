@@ -117,6 +117,13 @@ def test_completion_text_never_holds_a_lone_surrogate() -> None:
     completion = Completion(text="ok \ud83d!", model="m", finish_reason="stop")
     assert completion.text == "ok \N{REPLACEMENT CHARACTER}!"
     assert Completion(text="ok \U0001f600", model="m", finish_reason="stop").text == "ok \U0001f600"
+    # Found in the round-3 review: the served model name reached the run log too.
+    odd = Completion(
+        text="x", model="m" + chr(0xD83D), finish_reason="other", raw_finish_reason=chr(0xDC00)
+    )
+    assert odd.model == "m\N{REPLACEMENT CHARACTER}"
+    assert odd.raw_finish_reason == "\N{REPLACEMENT CHARACTER}"
+    assert Completion(text="x", model="m", finish_reason="stop").raw_finish_reason is None
 
 
 def test_effective_and_ignored_params() -> None:

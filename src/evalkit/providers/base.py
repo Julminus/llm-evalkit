@@ -86,10 +86,11 @@ class Completion(BaseModel):
     input_tokens: int | None = None
     output_tokens: int | None = None
 
-    @field_validator("text")
+    @field_validator("text", "model", "raw_finish_reason")
     @classmethod
-    def _valid_unicode(cls, text: str) -> str:
-        return scrub_surrogates(text)
+    def _valid_unicode(cls, value: str | None) -> str | None:
+        # Every string here comes from a server and ends up in a log.
+        return None if value is None else scrub_surrogates(value)
 
 
 class ProviderError(Exception):
