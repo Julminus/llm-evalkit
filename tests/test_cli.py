@@ -134,14 +134,16 @@ def test_check_strict_fails_on_unknown_responses(tmp_path: Path) -> None:
     assert "responses with no matching case: ghost" in result.output
 
 
+@pytest.mark.parametrize("errors", ["strict", "surrogateescape"])
 def test_redirected_cp1252_output_escapes_instead_of_crashing(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, errors: str
 ) -> None:
-    # A redirected stream on Windows defaults to cp1252, which cannot encode
-    # "→". The encoding is kept (PowerShell 5.1 would garble UTF-8 box
-    # drawing); unencodable characters are escaped.
+    # A redirected stdout on Windows is cp1252 with errors="surrogateescape"
+    # (measured on this PC), and neither handler can encode "→". The encoding
+    # is kept (PowerShell 5.1 would garble UTF-8 box drawing); unencodable
+    # characters are escaped.
     raw = io.BytesIO()
-    stream = io.TextIOWrapper(raw, encoding="cp1252")
+    stream = io.TextIOWrapper(raw, encoding="cp1252", errors=errors)
     monkeypatch.setattr(sys, "stdout", stream)
     cli._never_crash_on_output()
     stream.write("café → 好")

@@ -99,7 +99,7 @@ The corpus, the generation script and the scoring script are in the repo
 numbers. `uv run --with langdetect==1.0.9 python scripts/measure_langdetect.py` reproduces both
 rows of the table, including the baseline's wrong guesses.
 
-**Engineering.** 4 providers, 11 check types, 472 tests (3 of them opt-in live tests), 99.4% branch
+**Engineering.** 4 providers, 11 check types, 483 tests (3 of them opt-in live tests), 99.4% branch
 coverage, strict mypy. Every provider is tested offline against the request and response shapes of
 its API (the Anthropic one through the real SDK with a mock transport), and
 `EVALKIT_LIVE_OLLAMA=1 uv run pytest -m live` runs the Ollama paths for real. CI runs the tests on
@@ -267,9 +267,10 @@ itself runs requests in parallel. The OpenAI-compatible provider sends `max_toke
 compatible servers accept but OpenAI's reasoning models replace with `max_completion_tokens`. The
 Anthropic provider is tested against the SDK with a mock transport, not against the live API.
 Prompts are single-turn. Malay is detected as Indonesian, and slang forms ("gak", "udah") aren't in
-the word lists. Sentence splitting is rule-based: a lone capital letter after an ordinary word ends
-a sentence, so it reads "the answer is C." correctly but splits "written by J. Smith." after the
-initial.
+the word lists. Sentence splitting is rule-based: a capital letter followed by a dot is an initial
+only at the start of a sentence or next to another initial ("J. K. Rowling"). Anywhere else it ends
+the sentence, so "the answer is C.", "Vitamin C." and "World War I." are read correctly, but a lone
+middle initial is not: "John F. Kennedy" and "by J. Smith" split after the letter.
 
 ## What's next
 

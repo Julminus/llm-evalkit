@@ -13,23 +13,13 @@ a file, and two runs writing the same cache entry can't interleave.
 from __future__ import annotations
 
 import os
-import tempfile
 import time
+import uuid
 from pathlib import Path
 
 _UTF16_BOMS = (b"\xff\xfe", b"\xfe\xff")
 _REPLACE_ATTEMPTS = 5
 _REPLACE_FIRST_DELAY = 0.02  # seconds; doubles each attempt, ~0.3 s in total
-
-
-def _file_mode() -> int:
-    """The mode ``open()`` would give a new file: 0o666 minus the umask."""
-    umask = os.umask(0)  # the only way to read the umask is to set it
-    os.umask(umask)
-    return 0o666 & ~umask
-
-
-_FILE_MODE = _file_mode()
 
 
 def replace_file(src: str | Path, dst: str | Path) -> None:
@@ -53,18 +43,18 @@ def replace_file(src: str | Path, dst: str | Path) -> None:
 def write_text_atomic(path: Path, text: str) -> None:
     """Write ``text`` as UTF-8 with LF endings, all or nothing.
 
-    The file gets the usual umask-based mode. mkstemp creates 0600, and the
-    rename keeps it, so a run log written in the Docker image (uid 1000) to a
-    bind mount would otherwise be unreadable to the host user.
+    The temp file is created with a plain exclusive ``open()``, so it gets
+    the usual umask-based mode. ``mkstemp`` would give 0600, and the rename
+    keeps the mode, so a run log written in the Docker image (uid 1000) to a
+    bind mount would be unreadable to the host user.
     """
-    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    tmp = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
     try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
+        with tmp.open("x", encoding="utf-8", newline="\n") as fh:
             fh.write(text)
-        os.chmod(tmp, _FILE_MODE)
         replace_file(tmp, path)
     except BaseException:
-        Path(tmp).unlink(missing_ok=True)
+        tmp.unlink(missing_ok=True)
         raise
 
 

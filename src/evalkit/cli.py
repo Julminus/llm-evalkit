@@ -75,10 +75,19 @@ def _never_crash_on_output() -> None:
     ``\\u2192``-style escapes. ``--json`` escapes non-ASCII itself on such a
     stream, so JSON output stays exact. Terminals are unaffected: Python
     writes to the Windows console as UTF-16.
+
+    Windows gives a redirected stdout ``errors="surrogateescape"``, which still
+    raises on a character like "→", so every handler that can raise is
+    replaced, not only "strict".
     """
     for stream in (sys.stdout, sys.stderr):
-        if isinstance(stream, io.TextIOWrapper) and stream.errors == "strict":
+        if isinstance(stream, io.TextIOWrapper) and stream.errors not in _NON_RAISING:
             stream.reconfigure(errors="backslashreplace")
+
+
+_NON_RAISING = frozenset(
+    {"backslashreplace", "replace", "ignore", "xmlcharrefreplace", "namereplace"}
+)
 
 
 def _stdout_is_utf8() -> bool:

@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -60,7 +61,13 @@ def test_atomic_write_uses_the_normal_file_mode(tmp_path: Path) -> None:
     plain.write_text("x", encoding="utf-8")
     mode = (tmp_path / "manifest.json").stat().st_mode & 0o777
     assert mode == plain.stat().st_mode & 0o777
-    assert mode & 0o044  # group/other can read under a typical umask
+    # The umask is read at write time, not once at import.
+    old = os.umask(0o027)
+    try:
+        files.write_text_atomic(tmp_path / "strict.json", "{}\n")
+    finally:
+        os.umask(old)
+    assert (tmp_path / "strict.json").stat().st_mode & 0o777 == 0o640
 
 
 def test_atomic_write_round_trip(tmp_path: Path) -> None:
