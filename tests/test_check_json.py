@@ -263,6 +263,56 @@ def test_recursive_and_vendor_location_refs_are_fine(schema: dict) -> None:
     JsonSchemaCheck.model_validate({"type": "json_schema", "schema": schema})
 
 
+def test_draft07_dependencies_with_a_schema_then_an_array() -> None:
+    # The example from the JSON Schema docs; it crashed validate before.
+    schema = {
+        "$schema": D7,
+        "type": "object",
+        "dependencies": {
+            "billing_address": {"required": ["credit_card"]},
+            "credit_card": ["billing_address"],
+        },
+    }
+    check = JsonSchemaCheck.model_validate({"type": "json_schema", "schema": schema})
+    assert check.check('{"credit_card": 1, "billing_address": "x"}').passed
+    assert check.check('{"billing_address": "x"}').failed
+
+
+def test_dependencies_is_not_a_keyword_in_2020_12() -> None:
+    # jsonschema ignores it there, so a ref inside it is not checked either.
+    schema = {"dependencies": {"c": {"$ref": "#/definitions/Missing"}}}
+    JsonSchemaCheck.model_validate({"type": "json_schema", "schema": schema})
+
+
+def test_a_long_chain_of_defs_does_not_hit_the_recursion_limit() -> None:
+    n = 1500
+    defs = {
+        f"T{i}": {
+            "type": "object",
+            "properties": {"children": {"type": "array", "items": {"$ref": f"#/$defs/T{i + 1}"}}},
+        }
+        for i in range(n)
+    }
+    defs[f"T{n}"] = {"type": "object"}
+    schema = {"$defs": defs, "$ref": "#/$defs/T0"}
+    JsonSchemaCheck.model_validate({"type": "json_schema", "schema": schema})
+    defs[f"T{n - 1}"]["properties"]["children"]["items"]["$ref"] = "#/$defs/Typo"
+    with pytest.raises(ValidationError, match="unresolvable"):
+        JsonSchemaCheck.model_validate({"type": "json_schema", "schema": schema})
+
+
+def test_dynamic_ref_typo_is_rejected_and_a_valid_one_loads() -> None:
+    tree = {
+        "$dynamicAnchor": "node",
+        "type": "object",
+        "properties": {"children": {"type": "array", "items": {"$dynamicRef": "#node"}}},
+    }
+    JsonSchemaCheck.model_validate({"type": "json_schema", "schema": tree})
+    broken = {**tree, "properties": {"children": {"items": {"$dynamicRef": "#nodes"}}}}
+    with pytest.raises(ValidationError, match="unresolvable"):
+        JsonSchemaCheck.model_validate({"type": "json_schema", "schema": broken})
+
+
 def test_an_unresolvable_ref_at_grade_time_skips_instead_of_crashing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

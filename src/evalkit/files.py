@@ -46,11 +46,14 @@ def write_text_atomic(path: Path, text: str) -> None:
     The temp file is created with a plain exclusive ``open()``, so it gets
     the usual umask-based mode. ``mkstemp`` would give 0600, and the rename
     keeps the mode, so a run log written in the Docker image (uid 1000) to a
-    bind mount would be unreadable to the host user.
+    bind mount would be unreadable to the host user. Its name is short
+    (shorter than a cache entry's), so it never pushes a path past Windows'
+    260-character limit when the target itself fits.
     """
-    tmp = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    tmp = path.with_name(f".tmp-{uuid.uuid4().hex[:12]}")
+    fh = tmp.open("x", encoding="utf-8", newline="\n")  # fails before creating anything
     try:
-        with tmp.open("x", encoding="utf-8", newline="\n") as fh:
+        with fh:
             fh.write(text)
         replace_file(tmp, path)
     except BaseException:

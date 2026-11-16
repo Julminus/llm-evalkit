@@ -70,6 +70,32 @@ def test_atomic_write_uses_the_normal_file_mode(tmp_path: Path) -> None:
     assert (tmp_path / "strict.json").stat().st_mode & 0o777 == 0o640
 
 
+def test_temp_name_is_shorter_than_a_cache_entry_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # On Windows without long paths, a longer temp name than the target's
+    # could fail where the target itself fits.
+    seen: list[str] = []
+    real = files.replace_file
+    monkeypatch.setattr(files, "replace_file", lambda s, d: (seen.append(Path(s).name), real(s, d)))
+    target = tmp_path / ("ab" * 32 + ".json")  # a cache entry name
+    files.write_text_atomic(target, "{}")
+    assert len(seen[0]) < len(target.name)
+
+
+def test_an_existing_temp_name_is_not_deleted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # If the exclusive create fails, the file that is already there belongs
+    # to someone else and must survive.
+    monkeypatch.setattr(files.uuid, "uuid4", lambda: type("U", (), {"hex": "0" * 32})())
+    other = tmp_path / ".tmp-000000000000"
+    other.write_text("not mine", encoding="utf-8")
+    with pytest.raises(FileExistsError):
+        files.write_text_atomic(tmp_path / "x.json", "{}")
+    assert other.read_text(encoding="utf-8") == "not mine"
+
+
 def test_atomic_write_round_trip(tmp_path: Path) -> None:
     target = tmp_path / "x.json"
     files.write_text_atomic(target, "satu\ndua\n")

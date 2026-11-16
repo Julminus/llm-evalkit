@@ -70,7 +70,8 @@ def _unresolvable_refs(schema: dict[str, Any], validator_cls: type[Validator]) -
     target, because a ref can point anywhere (``#/x-defs/A``, or ``$defs``
     under draft-07), and jsonschema then uses that target as a schema. A
     "$ref" inside ``enum`` data or an unreferenced vendor keyword such as
-    ``x-docs`` is data and is not checked.
+    ``x-docs`` is data and is not checked. ``$dynamicRef`` is checked like
+    ``$ref``: its first resolution is static, so a typo shows there too.
     """
     spec = referencing.jsonschema.specification_with(
         validator_cls.META_SCHEMA.get("$schema", ""), default=referencing.jsonschema.DRAFT202012
@@ -78,35 +79,45 @@ def _unresolvable_refs(schema: dict[str, Any], validator_cls: type[Validator]) -
     ours = _node_ids(schema)  # follow refs only into this schema, not the metaschemas
     seen: set[int] = set()
     bad: list[str] = []
-
-    def walk(resource: Resource[Any], resolver: Any) -> None:
+    root = spec.create_resource(schema)
+    # An explicit stack, not recursion: a long chain of $defs must not hit
+    # Python's recursion limit.
+    stack: list[tuple[Resource[Any], Any]] = [(root, _METASCHEMAS.resolver_with_root(root))]
+    while stack:
+        resource, resolver = stack.pop()
         contents = resource.contents
-        if id(contents) in seen:
-            return
+        if not isinstance(contents, dict) or id(contents) in seen:
+            continue
         seen.add(id(contents))
-        if not isinstance(contents, dict):
-            return
-        ref = contents.get("$ref")
-        if isinstance(ref, str):
+        for keyword in ("$ref", "$dynamicRef"):
+            ref = contents.get(keyword)
+            if not isinstance(ref, str):
+                continue
             try:
                 resolved = resolver.lookup(ref)
             except Unresolvable:
                 bad.append(ref)
-            else:
-                if id(resolved.contents) in ours:
-                    walk(spec.create_resource(resolved.contents), resolved.resolver)
-        subresources = list(resource.subresources())
-        # draft-06/07 "dependencies" mixes arrays and schemas; referencing
-        # yields its schemas only when the first value is one.
+                continue
+            if id(resolved.contents) in ours:
+                stack.append((spec.create_resource(resolved.contents), resolved.resolver))
+        # Only object schemas can hold refs (booleans can't, and draft-07
+        # "dependencies" values may be arrays of property names).
+        subresources = [s for s in resource.subresources() if isinstance(s.contents, dict)]
+        # referencing yields "dependencies" schemas only when the first value
+        # is a schema; walk them all on the drafts where the keyword exists.
         deps = contents.get("dependencies")
-        if isinstance(deps, dict):
+        if spec in _DEPENDENCIES_DRAFTS and isinstance(deps, dict):
             subresources += [spec.create_resource(v) for v in deps.values() if isinstance(v, dict)]
-        for sub in subresources:
-            walk(sub, resolver.in_subresource(sub))
-
-    root = spec.create_resource(schema)
-    walk(root, _METASCHEMAS.resolver_with_root(root))
+        stack.extend((sub, resolver.in_subresource(sub)) for sub in subresources)
     return bad
+
+
+_DEPENDENCIES_DRAFTS = (
+    referencing.jsonschema.DRAFT3,
+    referencing.jsonschema.DRAFT4,
+    referencing.jsonschema.DRAFT6,
+    referencing.jsonschema.DRAFT7,
+)
 
 
 def _node_ids(node: Any) -> set[int]:
