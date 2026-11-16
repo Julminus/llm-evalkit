@@ -49,13 +49,17 @@ class TestSentences:
             ("The correct answer is C. Photosynthesis needs light.", 2),
             ("Jawabannya B. Karena itu benar.", 2),
             ("Pilihan a. Lalu pilihan b.", 2),
-            # Middle initials between capitalised name words stay inside the sentence.
-            ("John F. Kennedy was president.", 1),
-            ("Jalan Mohammad H. Thamrin ramai.", 1),
-            ("President John F. Kennedy spoke. Then he left.", 2),
-            # Ambiguous shape: A-E after the first word reads as an answer letter.
             ("Jawaban: C. Karena itu benar.", 2),
-            ("Franklin D. Roosevelt won.", 2),  # the documented cost of that rule
+            # A capital after a capitalised word ends the sentence too.
+            ("The correct answer is Option C. It is the only one.", 2),
+            ("Jawaban yang benar adalah Pilihan C. Karena itu tepat.", 2),
+            ("Take Vitamin C. It helps.", 2),
+            ("This was after World War I. The economy grew.", 2),
+            ("Dia murid Kelas X. Dia rajin.", 2),
+            # The documented cost of that rule: a lone middle initial splits.
+            ("John F. Kennedy was president.", 2),
+            # A line that is only an answer letter is a sentence, not a list marker.
+            ("B. \nKarena itu benar.", 2),
             # "No." abbreviates only before a number; otherwise it is the answer word.
             ("No. The capital is Canberra.", 2),
             ("Lihat UU No. 27 Tahun 2022.", 1),

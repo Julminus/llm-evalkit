@@ -25,9 +25,11 @@ _URL_RE = re.compile(r"(?:https?://|www\.)\S+?(?=[.,;:!?)\]\"']*(?:\s|$))")
 
 # Leading list markers and Markdown headings are structure, not sentence text.
 # Markers: bullets, "1." / "1)", lettered options "a." / "B)", and short roman
-# numerals "iv." / "IV)".
+# numerals "iv." / "IV)". A letter or numeral is a marker only when text
+# follows on the line: a line that is just "B." is the answer itself.
 _LINE_PREFIX_RE = re.compile(
-    r"^\s*(?:#{1,6}\s+|>\s*|[-*+•]\s+|\d+[.)]\s+|[A-Za-z][.)]\s+|(?:[ivx]{1,4}|[IVX]{1,4})[.)]\s+)"
+    r"^\s*(?:#{1,6}\s+|>\s*|[-*+•]\s+|\d+[.)]\s+"
+    r"|(?:[A-Za-z]|[ivx]{1,4}|[IVX]{1,4})[.)]\s+(?=\S))"
 )
 
 # Candidate sentence end: terminal punctuation, optional closing quotes or
@@ -103,16 +105,13 @@ def _is_initial_token(token: str) -> bool:
 def _is_initial(before: list[str], rest: str) -> bool:
     """True if ``before[-1]``, a single character before a dot, is a name initial.
 
-    Initials come in names: at the start of the sentence ("H. Agus Salim
-    wrote"), next to another initial ("J. K. Rowling"), or between two
-    capitalised name words ("John F. Kennedy", "Mohammad H. Thamrin"). A lone
-    capital after an ordinary word, as in "the answer is C. It ...", is an
-    answer and ends the sentence, and so is a lowercase letter ("pilihan a.").
-
-    One case is ambiguous: "Jawabannya B. Karena ..." and "Franklin D.
-    Roosevelt ..." have the same shape (capitalised first word, letter,
-    capitalised word). Multiple-choice letters A-E are read as answers there,
-    any other letter as an initial.
+    One predictable rule rather than a guess: a capital letter is an initial
+    at the start of the sentence ("H. Agus Salim wrote") or next to another
+    initial ("by J. K. Rowling"). Anywhere else it ends the sentence, which is
+    right for "the answer is C. It ...", "Vitamin C. It ..." and "World War
+    I. The ...", and wrong for a lone middle initial ("John F. Kennedy" counts
+    as two sentences; see Known limits in the README). A lowercase letter is
+    never an initial ("pilihan a.").
     """
     letter = before[-1].lstrip(_OPENING_PUNCT)
     if not letter.isupper():
@@ -120,13 +119,7 @@ def _is_initial(before: list[str], rest: str) -> bool:
     if len(before) == 1 or _is_initial_token(before[-2]):
         return True
     following = rest.split(maxsplit=1)
-    after = following[0] if following else ""
-    if _is_initial_token(after):
-        return True
-    previous = before[-2].lstrip(_OPENING_PUNCT)
-    if previous[:1].isupper() and previous.isalpha() and after[:1].isupper():
-        return not (len(before) == 2 and letter in "ABCDE")
-    return False
+    return bool(following) and _is_initial_token(following[0])
 
 
 def _is_abbreviation_stop(line: str, start: int, boundary: re.Match[str]) -> bool:
