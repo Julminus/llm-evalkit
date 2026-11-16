@@ -190,7 +190,7 @@ its API (the Anthropic one through the real SDK with a mock transport), and
 `EVALKIT_LIVE_OLLAMA=1 uv run pytest -m live` runs the Ollama paths for real. CI runs the tests on
 Python 3.11, 3.12 and 3.13 (Linux) plus the whole pipeline with the mock provider and the mock
 judge, natively and in the Docker image; I also run them on Windows, where file locking and console
-encodings differ. `evalkit --help` starts in about 0.25 s.
+encodings differ. `evalkit --help` starts in about 0.27 s (median of 10 runs on this PC).
 
 ## How it works
 
