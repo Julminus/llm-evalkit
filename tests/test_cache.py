@@ -102,7 +102,7 @@ class TestStore:
         def boom(src: str, dst: object) -> None:
             raise OSError("disk full")
 
-        monkeypatch.setattr("evalkit.cache.os.replace", boom)
+        monkeypatch.setattr("evalkit.files.os.replace", boom)
         with pytest.raises(OSError, match="disk full"):
             cache.put("12" * 32, COMPLETION, latency_s=1, request={})
         assert list((tmp_path / "12").iterdir()) == []

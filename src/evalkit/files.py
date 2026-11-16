@@ -1,14 +1,19 @@
-"""File helpers: reading input files, replacing output files atomically.
+"""File helpers: reading input files, writing output files atomically.
 
 Inputs (suites, responses) are UTF-8. A UTF-8 byte-order mark is accepted,
 since Windows editors add one. Anything else gets a message that says what the
 file actually is, because the usual cause is Windows PowerShell 5.1, whose
 ``>`` writes UTF-16.
+
+Outputs (cache entries, run logs, manifests) are written to a temp file next
+to the target and renamed into place, so a crash or Ctrl-C never leaves half
+a file, and two runs writing the same cache entry can't interleave.
 """
 
 from __future__ import annotations
 
 import os
+import tempfile
 import time
 from pathlib import Path
 
@@ -33,6 +38,18 @@ def replace_file(src: str | Path, dst: str | Path) -> None:
             if attempt == _REPLACE_ATTEMPTS - 1:
                 raise
             time.sleep(_REPLACE_FIRST_DELAY * 2**attempt)
+
+
+def write_text_atomic(path: Path, text: str) -> None:
+    """Write ``text`` as UTF-8 with LF endings, all or nothing."""
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(text)
+        replace_file(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
 
 
 class NotUtf8Error(ValueError):

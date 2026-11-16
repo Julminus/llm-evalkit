@@ -39,7 +39,7 @@ from pydantic import BaseModel, ConfigDict
 
 from evalkit import __version__
 from evalkit.cache import ResponseCache, cache_key
-from evalkit.files import replace_file
+from evalkit.files import write_text_atomic
 from evalkit.prompts import Prompt, build_prompt
 from evalkit.providers.base import (
     Completion,
@@ -286,15 +286,7 @@ class RunLog:
         still complete and valid ``evalkit check`` input.
         """
         self.close()
-        tmp = self.path.with_name(self.path.name + ".tmp")
-        try:
-            with tmp.open("w", encoding="utf-8", newline="\n") as fh:
-                for record in records:
-                    fh.write(record.model_dump_json() + "\n")
-            replace_file(tmp, self.path)
-        except BaseException:
-            tmp.unlink(missing_ok=True)
-            raise
+        write_text_atomic(self.path, "".join(r.model_dump_json() + "\n" for r in records))
 
 
 @dataclass
@@ -389,11 +381,7 @@ def _select(suite: Suite, case_ids: Sequence[str] | None) -> list[EvalCase]:
 
 
 def _write_json(path: Path, data: dict[str, Any]) -> None:
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(
-        json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n"
-    )
-    replace_file(tmp, path)
+    write_text_atomic(path, json.dumps(data, ensure_ascii=False, indent=2) + "\n")
 
 
 async def run_suite(

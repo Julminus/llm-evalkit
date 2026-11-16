@@ -25,8 +25,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
-import tempfile
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
@@ -34,7 +32,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from evalkit.files import replace_file
+from evalkit.files import write_text_atomic
 from evalkit.prompts import Prompt
 from evalkit.providers.base import Completion
 
@@ -110,12 +108,5 @@ class ResponseCache:
         )
         target = self.path(key)
         target.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=target.parent, prefix=".tmp-", suffix=".json")
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
-                fh.write(entry.model_dump_json(indent=2))
-            replace_file(tmp, target)
-        except BaseException:
-            Path(tmp).unlink(missing_ok=True)
-            raise
+        write_text_atomic(target, entry.model_dump_json(indent=2))
         return entry

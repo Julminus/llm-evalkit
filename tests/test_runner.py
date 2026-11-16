@@ -8,7 +8,7 @@ from typing import Any, ClassVar
 
 import pytest
 
-from evalkit import runner as runner_module
+from evalkit import files
 from evalkit.cache import ResponseCache
 from evalkit.evaluate import load_responses
 from evalkit.prompts import Prompt
@@ -388,21 +388,24 @@ class TestRunSuite:
         # On Windows, `Get-Content -Wait responses.jsonl` holds the file open,
         # so the final suite-order rewrite fails. Before, that skipped the
         # manifest update: its status stayed "running" forever.
-        real_replace = runner_module.replace_file
+        real_replace = files.replace_file
 
         def locked(src: Any, dst: Any) -> None:
             if Path(dst).name == "responses.jsonl":
                 raise PermissionError(13, "The process cannot access the file")
             real_replace(src, dst)
 
-        monkeypatch.setattr(runner_module, "replace_file", locked)
+        monkeypatch.setattr(files, "replace_file", locked)
         result = run(run_suite(make_suite(3), Scripted(), out_dir=tmp_path, run_id="held"))
         manifest = json.loads((tmp_path / "held" / "manifest.json").read_text(encoding="utf-8"))
         assert manifest["status"] == "complete"
         assert "completion order" in manifest["warnings"][0]
         assert result.warnings == manifest["warnings"]
         assert len(load_responses(tmp_path / "held" / "responses.jsonl")) == 3
-        assert not (tmp_path / "held" / "responses.jsonl.tmp").exists()
+        assert sorted(p.name for p in (tmp_path / "held").iterdir()) == [
+            "manifest.json",
+            "responses.jsonl",
+        ]  # no temp file left behind
 
     def test_a_crash_is_recorded_as_crashed(self, tmp_path: Path) -> None:
         def broken(record: RunRecord) -> None:
