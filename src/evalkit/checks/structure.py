@@ -25,7 +25,9 @@ from evalkit.text import fold_quotes, normalize
 
 # ---------------------------------------------------------------- JSON
 
-_FENCE_RE = re.compile(r"```[ \t]*(?:json|JSON)?[ \t]*\r?\n(.*?)\r?\n[ \t]*```", re.DOTALL)
+# Possessive quantifiers (Python 3.11+): the same matches as the plain ones,
+# without backtracking, which made "```" plus 30,000 spaces take 2.8 s.
+_FENCE_RE = re.compile(r"```[ \t]*+(?:json|JSON)?+[ \t]*+\r?\n(.*?)\r?\n[ \t]*```", re.DOTALL)
 _JSON_START_RE = re.compile(r"[{\[]")
 _MAX_REPORTED_ERRORS = 3
 _MEMO_LIMIT = 256

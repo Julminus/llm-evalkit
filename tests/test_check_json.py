@@ -30,6 +30,16 @@ def test_valid_json(check: JsonSchemaCheck) -> None:
     assert result.observed == {"errors": 0, "found_in": "whole response"}
 
 
+def test_a_long_run_of_spaces_after_backticks_is_quick(check: JsonSchemaCheck) -> None:
+    # Found in the S3 sanity check: the fence pattern backtracked for 2.8 s.
+    import time
+
+    start = time.perf_counter()
+    result = check.check("```" + " " * 30_000 + "x")
+    assert time.perf_counter() - start < 0.5
+    assert result.failed
+
+
 def test_whitespace_around_json_is_fine(check: JsonSchemaCheck) -> None:
     assert check.check('\n  {"nama": "Ayu", "umur": 21}  \n').passed
 
