@@ -7,7 +7,7 @@ broken down by true language and response length. Rows labelled ``null``
 
 If the third-party ``langdetect`` package is importable, it is scored on the
 same rows as a baseline:
-    uv run --with langdetect python scripts/measure_langdetect.py
+    uv run --with langdetect==1.0.9 python scripts/measure_langdetect.py
 """
 
 from __future__ import annotations
@@ -77,18 +77,42 @@ def _pct(num: int, den: int) -> str:
     return f"{num}/{den} ({num / den:.1%})" if den else "n/a"
 
 
-def baseline_langdetect(rows: list[dict[str, Any]]) -> str | None:
+def baseline_langdetect(rows: list[dict[str, Any]]) -> list[str] | None:
+    """Score seeded ``langdetect`` on the same rows, split the way the README reports it:
+    the rows evalkit decided, the rows it abstained on, and every wrong guess."""
     try:
         from langdetect import DetectorFactory, detect
     except ImportError:
         return None
     DetectorFactory.seed = 0  # langdetect is randomized unless seeded
     labelled = [r for r in rows if r["label"] is not None]
-    correct = 0
+    hits: dict[str, Counter[str]] = {"decided": Counter(), "abstained": Counter()}
+    wrong: list[str] = []
     for r in labelled:
+        guess = "error"
         with contextlib.suppress(Exception):  # raises on text with no letters
-            correct += detect(r["text"]) == r["label"]
-    return _pct(correct, len(labelled))
+            guess = detect(r["text"])
+        ours = LanguageCheck(expected=r["label"]).check(r["text"]).status
+        group = hits["abstained" if ours is Status.SKIP else "decided"]
+        group["rows"] += 1
+        group["correct"] += guess == r["label"]
+        if guess != r["label"]:
+            wrong.append(f"{r['id']} (true {r['label']}): {guess!r} for {r['text'][:30]!r}")
+    total = sum(g["correct"] for g in hits.values())
+    lines = [
+        f"all labelled rows: {_pct(total, len(labelled))}",
+        "  on rows evalkit decided:   " + _pct(hits["decided"]["correct"], hits["decided"]["rows"]),
+        "  on rows evalkit abstained: "
+        + _pct(hits["abstained"]["correct"], hits["abstained"]["rows"]),
+    ]
+    lines += [f"  wrong: {w}" for w in wrong]
+    neutral = [r for r in rows if r["label"] is None]
+    for r in neutral:
+        guess = "error"
+        with contextlib.suppress(Exception):
+            guess = detect(r["text"])
+        lines.append(f"  neutral row {r['id']}: {guess!r} for {r['text'][:30]!r}")
+    return lines
 
 
 def main() -> int:
@@ -120,7 +144,9 @@ def main() -> int:
             print(f"  {rid} (true {label}): {message}; hits={guess.hits} :: {snippet!r}")
     baseline = baseline_langdetect(rows)
     if baseline:
-        print(f"baseline langdetect (seeded), all labelled rows: {baseline}")
+        print("baseline langdetect 1.0.9 (seeded):")
+        for line in baseline:
+            print(f"  {line}")
     return 0
 
 

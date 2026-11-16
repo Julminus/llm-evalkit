@@ -30,7 +30,14 @@ def test_corpus_shape(rows: list[dict]) -> None:
     assert labels.count(None) == 2
 
 
-def test_no_false_alarms_and_high_coverage(rows: list[dict]) -> None:
+def test_published_numbers(rows: list[dict]) -> None:
+    """The README's figures, exactly: 72/78 decided, 72/72 correct, 0 false alarms.
+
+    Any change to the detector or its word lists that moves these numbers
+    fails here, so the README can't silently go stale. If a change is an
+    improvement, re-run ``scripts/measure_langdetect.py`` and update the
+    README, PROGRESS and this test together.
+    """
     outcomes = [
         LanguageCheck(expected=r["label"]).check(r["text"]).status
         for r in rows
@@ -38,8 +45,8 @@ def test_no_false_alarms_and_high_coverage(rows: list[dict]) -> None:
     ]
     # Every response really is in the expected language, so any FAIL is a false alarm.
     assert outcomes.count(Status.FAIL) == 0
-    decided = len(outcomes) - outcomes.count(Status.SKIP)
-    assert decided / len(outcomes) >= 0.90
+    assert outcomes.count(Status.PASS) == 72
+    assert outcomes.count(Status.SKIP) == 6
 
 
 def test_wrong_expectation_is_caught(rows: list[dict]) -> None:
@@ -51,4 +58,4 @@ def test_wrong_expectation_is_caught(rows: list[dict]) -> None:
         if r["label"] is not None
     ]
     assert outcomes.count(Status.PASS) == 0
-    assert outcomes.count(Status.FAIL) >= 70
+    assert outcomes.count(Status.FAIL) == 72
