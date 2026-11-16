@@ -136,12 +136,17 @@ class TestLoadResponses:
         # Found in the post-S3 review: `judge` crashed on one while hashing the file.
         path = self._write(tmp_path, '{"id": "a", "response": "40000 \\ud83d"}')
         response = load_responses(path)["a"]
-        assert response == "40000 �"
+        assert response == "40000 \N{REPLACEMENT CHARACTER}"
         response.encode("utf-8")
 
     def test_a_real_surrogate_pair_is_kept(self, tmp_path: Path) -> None:
         path = self._write(tmp_path, '{"id": "a", "response": "ok \\ud83d\\ude00"}')
         assert load_responses(path)["a"] == "ok \U0001f600"
+
+    def test_lone_surrogate_in_an_id_is_replaced_too(self, tmp_path: Path) -> None:
+        # Found in the fix review: only the response was cleaned.
+        path = self._write(tmp_path, '{"id": "a\\ud83d", "response": "x"}')
+        assert list(load_responses(path)) == ["a\N{REPLACEMENT CHARACTER}"]
 
     @pytest.mark.parametrize(
         ("line", "message"),

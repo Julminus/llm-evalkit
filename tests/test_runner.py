@@ -106,6 +106,18 @@ class TestRetryPolicy:
 
 
 class TestRunner:
+    def test_error_text_from_the_server_is_writable(self) -> None:
+        # Found in the post-S3 fix review: a lone surrogate in an error body
+        # reached the record and crashed the log write.
+        bad = ProviderError("fake: HTTP 400 " + chr(0xD83D), retryable=False)
+        crash = RuntimeError("odd " + chr(0xD83D))
+        provider = Scripted({"prompt 0": [bad], "prompt 1": [crash]})
+        records = run(Runner(provider).run(make_suite(2).cases))
+        assert records[0].error == "fake: HTTP 400 \N{REPLACEMENT CHARACTER}"
+        assert records[1].error == "fake: unexpected RuntimeError: odd \N{REPLACEMENT CHARACTER}"
+        for record in records:
+            record.model_dump_json()
+
     def test_concurrency_limit_is_respected(self) -> None:
         provider = Scripted(delay={f"prompt {i}": 0.02 for i in range(12)})
         records = run(Runner(provider, concurrency=3).run(make_suite(12).cases))

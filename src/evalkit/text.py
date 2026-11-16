@@ -76,7 +76,7 @@ def scrub_surrogates(text: str) -> str:
     response or a judge reply would crash the run log. Valid characters,
     emoji included, are never surrogates in a Python ``str``.
     """
-    return _LONE_SURROGATE_RE.sub("�", text)
+    return _LONE_SURROGATE_RE.sub("\N{REPLACEMENT CHARACTER}", text)
 
 
 def normalize(text: str) -> str:

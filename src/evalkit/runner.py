@@ -49,6 +49,7 @@ from evalkit.providers.base import (
     ProviderError,
 )
 from evalkit.schema import EvalCase, Suite
+from evalkit.text import scrub_surrogates
 
 __all__ = [
     "Outcome",
@@ -275,7 +276,8 @@ class Runner:
                 retries_used = attempts - 1
                 if not exc.retryable or retries_used >= self.retry.max_retries:
                     message = f"{exc} (after {attempts} attempts)" if attempts > 1 else str(exc)
-                    return message, 0.0, attempts
+                    # Error text comes from the server; keep it writable to the log.
+                    return scrub_surrogates(message), 0.0, attempts
                 delay = self.retry.delay(retries_used, retry_after=exc.retry_after, rng=self._rng)
                 await self._sleep(delay)
                 continue
@@ -283,11 +285,8 @@ class Runner:
                 # Anything else from a provider (a decoding error, an SDK
                 # validation error, a bug) fails this case only, not retried,
                 # so one bad response can't cancel the cases in flight.
-                return (
-                    f"{self.provider.name}: unexpected {type(exc).__name__}: {exc}",
-                    0.0,
-                    attempts,
-                )
+                message = f"{self.provider.name}: unexpected {type(exc).__name__}: {exc}"
+                return scrub_surrogates(message), 0.0, attempts
             return completion, self._clock() - start, attempts
 
 

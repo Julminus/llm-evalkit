@@ -92,6 +92,8 @@ def load_responses(path: str | Path) -> dict[str, str]:
             obj = json.loads(line)
         except json.JSONDecodeError as exc:
             raise ResponsesError(f"{path}:{n}: invalid JSON ({exc.msg})") from exc
+        if isinstance(obj, dict):  # ids too: a lone surrogate can't be written out
+            obj = {k: scrub_surrogates(v) if isinstance(v, str) else v for k, v in obj.items()}
         if not isinstance(obj, dict) or not isinstance(obj.get("id"), str):
             raise ResponsesError(f"{path}:{n}: each line needs a string 'id'")
         if obj["id"] in out or obj["id"] in failed:
@@ -101,7 +103,7 @@ def load_responses(path: str | Path) -> dict[str, str]:
             continue
         if not isinstance(obj.get("response"), str):
             raise ResponsesError(f"{path}:{n}: each line needs a string 'response'")
-        out[obj["id"]] = scrub_surrogates(obj["response"])
+        out[obj["id"]] = obj["response"]
     return out
 
 
