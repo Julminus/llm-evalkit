@@ -47,6 +47,9 @@ modes is applied when tags are counted (:attr:`JudgeRecord.failure_modes`)."""
 
 LANGUAGE_NAMES = {"en": "English", "id": "Indonesian"}
 
+MAX_QUOTED_REPLY_CHARS = 2000
+"""How much of an unusable reply a re-ask quotes. Typical replies are ~500."""
+
 QUESTIONS: dict[Dimension, str] = {
     Dimension.INSTRUCTION_FOLLOWING: (
         "Does the response do what was asked, within every stated constraint (length, format, "
@@ -120,12 +123,13 @@ _TAGS = (
     "response",
     "previous_reply",
 )
-# "<" before one of our tag names, also with spaces or invisible characters
-# around the "/" ("< /response", "</ response", "<​/response").
-_GAP = r"[\s​-‏⁠﻿]*"
-_TAG_RE = re.compile(
-    r"<(?=" + _GAP + r"/?" + _GAP + r"(?:" + "|".join(_TAGS) + r")\b)", re.IGNORECASE
-)
+# "<" right before one of our tag names ("<response", "</response"), and a
+# closing tag with whitespace or zero-width characters around its "/"
+# ("< /response", "</ response"). A gap without a "/" is not a tag: "i < request".
+_INVISIBLE = "".join(chr(c) for c in (*range(0x200B, 0x2010), 0x2060, 0xFEFF))
+_GAP = r"[\s" + re.escape(_INVISIBLE) + r"]*"
+_NAMES = r"(?:" + "|".join(_TAGS) + r")\b"
+_TAG_RE = re.compile(r"<(?=/?" + _NAMES + r"|" + _GAP + r"/" + _GAP + _NAMES + r")", re.IGNORECASE)
 
 
 def _quote(text: str) -> str:
@@ -244,12 +248,21 @@ def build_repair_prompt(original: Prompt, reply: str, problems: Sequence[str]) -
     A single-turn prompt (the task, then the previous reply, then the problems),
     so it works the same on every provider. A plain retry would be pointless:
     at temperature 0 it returns the same reply, and the cache would replay it.
+    The quoted reply is cut to ``MAX_QUOTED_REPLY_CHARS``: a reply long enough
+    to need a re-ask (one that ran to the token limit, say) would otherwise
+    push the re-ask past a small local context.
     """
+    shown, was_cut = cut_response(reply, MAX_QUOTED_REPLY_CHARS)
+    note = (
+        f"\n(Only the first {len(shown):,} of its {len(reply.strip()):,} characters are shown.)"
+        if was_cut
+        else ""
+    )
     listed = "\n".join(f"- {p}" for p in problems)
     user = (
         f"{original.user}\n\n"
         "Your previous reply to this task could not be used. It was:\n"
-        f"<previous_reply>\n{_quote(reply)}\n</previous_reply>\n\n"
+        f"<previous_reply>\n{_quote(shown)}\n</previous_reply>{note}\n\n"
         f"Problems:\n{listed}\n\n"
         "Reply again with only the corrected JSON object."
     )
