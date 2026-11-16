@@ -184,8 +184,8 @@ The corpus, the generation script and the scoring script are in the repo
 numbers. `uv run --with langdetect==1.0.9 python scripts/measure_langdetect.py` reproduces both
 rows of the table, including the baseline's wrong guesses.
 
-**Engineering.** 4 providers, 11 check types, an LLM judge, 660 tests (3 of them opt-in live
-tests), 99.1% branch coverage, strict mypy. Every provider is tested offline against the request and response shapes of
+**Engineering.** 4 providers, 11 check types, an LLM judge, 657 tests (3 of them opt-in live
+tests), 99.2% branch coverage, strict mypy. Every provider is tested offline against the request and response shapes of
 its API (the Anthropic one through the real SDK with a mock transport), and
 `EVALKIT_LIVE_OLLAMA=1 uv run pytest -m live` runs the Ollama paths for real. CI runs the tests on
 Python 3.11, 3.12 and 3.13 (Linux) plus the whole pipeline with the mock provider and the mock
@@ -404,9 +404,11 @@ list-checks` lists the constraint types. To install the Anthropic SDK without th
   written as a Python dict (single quotes, trailing comma) is fixed in code, for free, and the
   repair is recorded. A missing score, a score of 4.5, a nested `{"score": 4, "reason": ...}`, an
   unknown failure mode or a key given twice goes back to the judge, because guessing would put
-  words in its mouth. When a reply holds several JSON objects (an echoed template, a quoted
-  response, then the verdict), the first one with all three expected keys is the judgment, and if
-  there is more than one such object, the repairs say so. The re-ask is the original task plus the
+  words in its mouth. A reply must hold one object: one code fence around it, or text before its
+  first `{` and after its last `}`, is removed, and anything else (two objects, a draft and then a
+  verdict, an echoed template) is re-asked with a request for only the JSON object. Three rounds of
+  smarter selection rules each got a realistic reply wrong, while all 981 judge replies measured
+  so far were a single object, so the simple rule won. The re-ask is the original task plus the
   unusable reply (its first 2,000 characters) plus the list of problems; a plain retry would be
   pointless at temperature 0, and the cache would replay the same reply anyway. Python dicts are
   read with `ast.literal_eval`, which evaluates literals only, never code. No reply can crash the
@@ -460,9 +462,8 @@ still try to talk the judge into a better score; how often that works is not mea
 escaping knows whitespace and the common zero-width characters, not every invisible Unicode
 character (most bidi controls such as U+202E, soft hyphens). An `openai:` judge gets no output cap
 unless you pass `--max-tokens` (the server's default applies; Ollama's `/v1` has none), so pass
-one, e.g. 1024. The reply search only tries a `{` followed by a quote or `}`, the only way a JSON
-object can start, and gives up after 1,000 such starts that fail; none of the 981 saved judge
-replies has even one.
+one, e.g. 1024. A judgment with braces outside its object (LaTeX or code before it, a draft
+after it) is re-asked rather than searched for, which costs one request.
 
 ## What's next
 
