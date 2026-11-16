@@ -259,4 +259,4 @@ def test_judging_nothing_fails(dirs: list[str], tmp_path: Path) -> None:
     other.write_text('{"id": "not-a-case", "response": "x"}\n', encoding="utf-8")
     result = runner.invoke(app, ["judge", str(SMOKE_SUITE), str(other), "-j", "mock", *dirs])
     assert result.exit_code == 1
-    assert "no response in the file matches a case in the suite" in result.output
+    assert "nothing to judge: no selected case has a response in the file" in result.output

@@ -761,7 +761,7 @@ def judge(
         _print_judgments(result, judge_, verbose=verbose)
     if not result.records:
         # Judging nothing is a wrong responses file, not a pass.
-        raise _exit_error("no response in the file matches a case in the suite")
+        raise _exit_error("nothing to judge: no selected case has a response in the file")
     if result.summary.errors:
         raise typer.Exit(1)
 
