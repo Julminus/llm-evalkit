@@ -118,8 +118,14 @@ _TAGS = (
     "reference_answer",
     "automated_checks",
     "response",
+    "previous_reply",
 )
-_TAG_RE = re.compile(r"<(?=/?(?:" + "|".join(_TAGS) + r")\b)", re.IGNORECASE)
+# "<" before one of our tag names, also with spaces or invisible characters
+# around the "/" ("< /response", "</ response", "<​/response").
+_GAP = r"[\s​-‏⁠﻿]*"
+_TAG_RE = re.compile(
+    r"<(?=" + _GAP + r"/?" + _GAP + r"(?:" + "|".join(_TAGS) + r")\b)", re.IGNORECASE
+)
 
 
 def _quote(text: str) -> str:
@@ -243,7 +249,7 @@ def build_repair_prompt(original: Prompt, reply: str, problems: Sequence[str]) -
     user = (
         f"{original.user}\n\n"
         "Your previous reply to this task could not be used. It was:\n"
-        f"<previous_reply>\n{reply.strip()}\n</previous_reply>\n\n"
+        f"<previous_reply>\n{_quote(reply)}\n</previous_reply>\n\n"
         f"Problems:\n{listed}\n\n"
         "Reply again with only the corrected JSON object."
     )
