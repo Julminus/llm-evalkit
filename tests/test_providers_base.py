@@ -115,7 +115,7 @@ class TestSpec:
 def test_completion_text_never_holds_a_lone_surrogate() -> None:
     # A JSON escape like "\ud83d" from a server would otherwise crash the run log.
     completion = Completion(text="ok \ud83d!", model="m", finish_reason="stop")
-    assert completion.text == "ok �!"
+    assert completion.text == "ok \N{REPLACEMENT CHARACTER}!"
     assert Completion(text="ok \U0001f600", model="m", finish_reason="stop").text == "ok \U0001f600"
 
 
@@ -127,6 +127,8 @@ def test_effective_and_ignored_params() -> None:
     assert claude.effective_params(params) == {"max_tokens": 64}
     assert claude.ignored_params(params) == ["seed", "temperature"]
     assert MockProvider().ignored_params(params) == []
+    # The cap the API requires is part of the sent settings, so manifests show it.
+    assert claude.effective_params(GenerationParams()) == {"max_tokens": 16000}
 
 
 def test_cli_does_not_import_the_anthropic_sdk() -> None:

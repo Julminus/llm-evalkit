@@ -106,12 +106,19 @@ class AnthropicProvider(Provider):
         # A proxy or gateway may route the same model name elsewhere.
         return {**super().identity(), "base_url": str(self._client.base_url).rstrip("/")}
 
+    def effective_params(self, params: GenerationParams) -> dict[str, Any]:
+        """The settings sent, including the default ``max_tokens`` the API requires,
+        so the manifest and the cache key show the cap that is really used."""
+        sent = super().effective_params(params)
+        sent.setdefault("max_tokens", DEFAULT_MAX_TOKENS)
+        return sent
+
     async def generate(self, prompt: Prompt, params: GenerationParams) -> Completion:
         p = self.effective_params(params)
         try:
             msg = await self._client.messages.create(
                 model=self.model,
-                max_tokens=p.get("max_tokens", DEFAULT_MAX_TOKENS),
+                max_tokens=p["max_tokens"],
                 system=prompt.system if prompt.system else anthropic.omit,
                 stop_sequences=p.get("stop", anthropic.omit),
                 messages=[{"role": "user", "content": prompt.user}],
