@@ -44,8 +44,14 @@ jobs:
         run: uv run pytest --cov --cov-report=term-missing
       - name: CLI smoke test
         run: |
-          uv run evalkit validate examples/suites/smoke.yaml
+          uv run evalkit validate examples/suites/*.yaml
           uv run evalkit check examples/suites/smoke.yaml examples/responses/smoke.jsonl
+      - name: Pipeline test (mock provider, no network)
+        run: |
+          uv run evalkit run examples/suites/smoke.yaml -p mock --mock-responses examples/responses/smoke.jsonl
+          # The second run must be served entirely from the response cache.
+          uv run evalkit run examples/suites/smoke.yaml -p mock --mock-responses examples/responses/smoke.jsonl | tee second-run.txt
+          grep -q "0 generated, 10 from cache" second-run.txt
 
   docker:
     runs-on: ubuntu-latest
@@ -54,4 +60,8 @@ jobs:
       - name: build image
         run: docker build -t llm-evalkit:ci .
       - name: run image
-        run: docker run --rm llm-evalkit:ci list-checks
+        run: |
+          docker run --rm llm-evalkit:ci list-checks
+          docker run --rm -v "$PWD/examples:/work/examples:ro" llm-evalkit:ci \
+            run examples/suites/smoke.yaml -p mock --mock-responses examples/responses/smoke.jsonl \
+            --out /tmp/runs --cache-dir /tmp/cache
