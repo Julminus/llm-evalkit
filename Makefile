@@ -3,9 +3,11 @@
 
 SUITE ?= examples/suites/smoke.yaml
 RESPONSES ?= examples/responses/smoke.jsonl
+JUDGMENTS ?= examples/judgments/smoke.jsonl
 MODEL ?= qwen2.5:7b
+JUDGE ?= qwen2.5:14b
 
-.PHONY: help setup lint format typecheck test cov run run-ollama docker clean
+.PHONY: help setup lint format typecheck test cov run run-ollama judge judge-ollama docker clean
 
 help:
 	@echo "setup       install deps + pre-commit hooks"
@@ -15,6 +17,8 @@ help:
 	@echo "test        pytest with coverage"
 	@echo "run         validate the example suite, check example responses, replay them via the mock"
 	@echo "run-ollama  run SUITE on a local Ollama model (MODEL=qwen2.5:7b)"
+	@echo "judge       judge the example responses with the mock judge (canned replies)"
+	@echo "judge-ollama  judge RESPONSES with a local Ollama judge (JUDGE=qwen2.5:14b)"
 	@echo "docker      build the CLI image"
 
 setup:
@@ -42,6 +46,12 @@ run:
 
 run-ollama:
 	uv run evalkit run $(SUITE) -p ollama:$(MODEL)
+
+judge:
+	uv run evalkit judge $(SUITE) $(RESPONSES) -j mock --mock-judgments $(JUDGMENTS)
+
+judge-ollama:
+	uv run evalkit judge $(SUITE) $(RESPONSES) -j ollama:$(JUDGE)
 
 docker:
 	docker build -t llm-evalkit:dev .

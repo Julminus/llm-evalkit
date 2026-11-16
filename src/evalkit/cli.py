@@ -1,10 +1,10 @@
-"""Command-line interface: ``evalkit validate | check | run | list-checks``.
+"""Command-line interface: ``evalkit validate | check | run | judge | list-checks | taxonomy``.
 
 Exit codes: 0 = success; 1 = a suite/responses file is invalid, a provider
-can't be set up, a case got no response (``run``), or (with ``--strict``) at
-least one case failed its checks or, for ``check``, had no response, or a
-response matched no case; 130 = interrupted. Typer itself uses 2 for bad
-usage.
+can't be set up, a case got no response (``run``) or no judgment
+(``judge``), or (with ``--strict``) at least one case failed its checks or,
+for ``check``, had no response, or a response matched no case; 130 =
+interrupted. Typer itself uses 2 for bad usage.
 """
 
 from __future__ import annotations
@@ -14,8 +14,9 @@ import io
 import json
 import sys
 from collections import Counter
+from collections.abc import Callable, Coroutine
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, TypeVar
 
 import typer
 from rich.console import Console
@@ -26,7 +27,8 @@ from rich.table import Table
 from evalkit import __version__
 from evalkit.cache import ResponseCache
 from evalkit.checks import CHECK_TYPES, Status
-from evalkit.evaluate import CheckSummary, ResponsesError, check_suite, load_responses
+from evalkit.evaluate import CheckSummary, ResponsesError, check_case, check_suite, load_responses
+from evalkit.judge import Judge, JudgeRecord, JudgeResult, build_judge_prompt, judge_suite
 from evalkit.providers import (
     GenerationParams,
     MockProvider,
@@ -37,7 +39,10 @@ from evalkit.providers import (
     parse_spec,
 )
 from evalkit.runner import RetryPolicy, RunRecord, RunResult, run_suite
-from evalkit.schema import Suite, SuiteError, load_suite
+from evalkit.schema import Dimension, EvalCase, Suite, SuiteError, load_suite
+from evalkit.taxonomy import DESCRIPTIONS, FailureMode
+
+_T = TypeVar("_T")
 
 app = typer.Typer(
     name="evalkit",
@@ -55,6 +60,43 @@ _STATUS_STYLE = {Status.PASS: "green", Status.FAIL: "red", Status.SKIP: "yellow"
 SuitePath = Annotated[
     Path, typer.Argument(exists=True, dir_okay=False, readable=True, help="Suite YAML file.")
 ]
+ResponsesPath = Annotated[
+    Path,
+    typer.Argument(
+        exists=True,
+        dir_okay=False,
+        readable=True,
+        help='JSONL with one {"id": ..., "response": ...} per line (a run log works).',
+    ),
+]
+
+# Options shared by `run` and `judge`.
+Temperature = Annotated[
+    float | None,
+    typer.Option(
+        min=0.0, max=2.0, help="Sampling temperature. Default: 0 where the provider accepts it."
+    ),
+]
+Seed = Annotated[
+    int | None, typer.Option(help="Sampling seed. Default: 0 where the provider accepts it.")
+]
+Concurrency = Annotated[
+    int, typer.Option("--concurrency", "-c", min=1, help="Requests in flight at once.")
+]
+Retries = Annotated[int, typer.Option(min=0, help="Retries per request for transient errors.")]
+Timeout = Annotated[float, typer.Option(min=1.0, help="Seconds per request.")]
+BaseUrl = Annotated[
+    str | None,
+    typer.Option(help="Server URL; overrides OLLAMA_HOST / OPENAI_BASE_URL / ANTHROPIC_BASE_URL."),
+]
+CacheDir = Annotated[Path, typer.Option(help="Response cache directory.")]
+NoCache = Annotated[bool, typer.Option("--no-cache", help="Neither read nor write the cache.")]
+OutDir = Annotated[Path, typer.Option(help="Directory for run logs.")]
+RunId = Annotated[str | None, typer.Option(help="Run directory name. Default: time + model.")]
+CaseIds = Annotated[
+    list[str] | None, typer.Option("--case", help="Only this case id (repeatable).")
+]
+AsJson = Annotated[bool, typer.Option("--json", help="Print JSON instead of tables.")]
 
 
 def _version_callback(value: bool) -> None:
@@ -254,6 +296,60 @@ def _exit_error(message: str, code: int = 1) -> typer.Exit:
     return typer.Exit(code)
 
 
+def _selected_or_exit(suite: Suite, suite_path: Path, case: list[str] | None) -> list[EvalCase]:
+    unknown = sorted(set(case or []) - {c.id for c in suite.cases})
+    if unknown:
+        raise _exit_error(f"no such case id(s) in {suite_path}: {', '.join(unknown)}")
+    return [c for c in suite.cases if not case or c.id in case]
+
+
+def _params_for(
+    provider: Provider, *, temperature: float | None, seed: int | None, max_tokens: int | None
+) -> GenerationParams:
+    """Deterministic by default, but only where the provider takes the setting,
+    so the Anthropic provider is not "told" about settings nobody asked for."""
+    accepts = provider.supported_params
+    if temperature is None and "temperature" in accepts:
+        temperature = 0.0
+    if seed is None and "seed" in accepts:
+        seed = 0
+    params = GenerationParams(temperature=temperature, seed=seed, max_tokens=max_tokens)
+    ignored = provider.ignored_params(params)
+    if ignored:
+        err_console.print(
+            f"[yellow]note:[/] {provider.name} does not accept {', '.join(ignored)}; "
+            "those settings are not sent"
+        )
+    return params
+
+
+def _progress() -> Progress:
+    return Progress(
+        TextColumn("{task.description}"),
+        BarColumn(),
+        MofNCompleteColumn(),
+        TimeElapsedColumn(),
+        console=err_console,
+        transient=True,
+        disable=not err_console.is_terminal,
+    )
+
+
+def _run_async(main: Callable[[], Coroutine[Any, Any, _T]], progress: Progress, *, what: str) -> _T:
+    """Run ``main`` with a progress bar; turn provider errors and Ctrl-C into exits."""
+    try:
+        with progress:
+            return asyncio.run(main())
+    except ProviderError as exc:
+        raise _exit_error(str(exc)) from exc
+    except KeyboardInterrupt as exc:
+        err_console.print(
+            f"[yellow]interrupted.[/] Completed {what} are in the run log and the cache; "
+            "run the same command again to continue."
+        )
+        raise typer.Exit(130) from exc
+
+
 def _build_provider(
     spec: str, *, suite: Suite, mock_responses: Path | None, timeout: float, base_url: str | None
 ) -> Provider:
@@ -304,42 +400,20 @@ def run(
             help="mock | ollama:MODEL | openai:MODEL | anthropic:MODEL (e.g. ollama:qwen2.5:7b).",
         ),
     ],
-    temperature: Annotated[
-        float | None,
-        typer.Option(
-            min=0.0, max=2.0, help="Sampling temperature. Default: 0 where the provider accepts it."
-        ),
-    ] = None,
-    seed: Annotated[
-        int | None, typer.Option(help="Sampling seed. Default: 0 where the provider accepts it.")
-    ] = None,
+    temperature: Temperature = None,
+    seed: Seed = None,
     max_tokens: Annotated[
         int | None, typer.Option(min=1, help="Output token limit. Default: the provider's.")
     ] = None,
-    concurrency: Annotated[
-        int, typer.Option("--concurrency", "-c", min=1, help="Requests in flight at once.")
-    ] = 4,
-    retries: Annotated[int, typer.Option(min=0, help="Retries per case for transient errors.")] = 3,
-    timeout: Annotated[float, typer.Option(min=1.0, help="Seconds per request.")] = 300.0,
-    base_url: Annotated[
-        str | None,
-        typer.Option(
-            help="Server URL; overrides OLLAMA_HOST / OPENAI_BASE_URL / ANTHROPIC_BASE_URL."
-        ),
-    ] = None,
-    cache_dir: Annotated[Path, typer.Option(help="Response cache directory.")] = Path(
-        ".evalkit-cache"
-    ),
-    no_cache: Annotated[
-        bool, typer.Option("--no-cache", help="Neither read nor write the cache.")
-    ] = False,
-    out: Annotated[Path, typer.Option(help="Directory for run logs.")] = Path("runs"),
-    run_id: Annotated[
-        str | None, typer.Option(help="Run directory name. Default: time + model.")
-    ] = None,
-    case: Annotated[
-        list[str] | None, typer.Option("--case", help="Only run this case id (repeatable).")
-    ] = None,
+    concurrency: Concurrency = 4,
+    retries: Retries = 3,
+    timeout: Timeout = 300.0,
+    base_url: BaseUrl = None,
+    cache_dir: CacheDir = Path(".evalkit-cache"),
+    no_cache: NoCache = False,
+    out: OutDir = Path("runs"),
+    run_id: RunId = None,
+    case: CaseIds = None,
     mock_responses: Annotated[
         Path | None,
         typer.Option(
@@ -348,7 +422,7 @@ def run(
             help='With --provider mock: JSONL of {"id", "response"} to answer with.',
         ),
     ] = None,
-    as_json: Annotated[bool, typer.Option("--json", help="Print JSON instead of tables.")] = False,
+    as_json: AsJson = False,
     verbose: Annotated[
         bool, typer.Option("--verbose", "-v", help="Show passing checks too.")
     ] = False,
@@ -358,10 +432,7 @@ def run(
 ) -> None:
     """Generate responses for a suite with a model, log them, and check them."""
     suite = _load_or_exit(suite_path)
-    selected = [c for c in suite.cases if not case or c.id in case]
-    unknown = sorted(set(case or []) - {c.id for c in suite.cases})
-    if unknown:
-        raise _exit_error(f"no such case id(s) in {suite_path}: {', '.join(unknown)}")
+    selected = _selected_or_exit(suite, suite_path, case)
 
     provider = _build_provider(
         provider_spec,
@@ -370,31 +441,10 @@ def run(
         timeout=timeout,
         base_url=base_url,
     )
-    # Deterministic by default, but only where the provider takes the setting,
-    # so the Anthropic provider is not "told" about settings nobody asked for.
-    accepts = provider.supported_params
-    if temperature is None and "temperature" in accepts:
-        temperature = 0.0
-    if seed is None and "seed" in accepts:
-        seed = 0
-    params = GenerationParams(temperature=temperature, seed=seed, max_tokens=max_tokens)
-    ignored = provider.ignored_params(params)
-    if ignored:
-        err_console.print(
-            f"[yellow]note:[/] {provider.name} does not accept {', '.join(ignored)}; "
-            "those settings are not sent"
-        )
+    params = _params_for(provider, temperature=temperature, seed=seed, max_tokens=max_tokens)
     cache = None if no_cache else ResponseCache(cache_dir)
 
-    progress = Progress(
-        TextColumn("{task.description}"),
-        BarColumn(),
-        MofNCompleteColumn(),
-        TimeElapsedColumn(),
-        console=err_console,
-        transient=True,
-        disable=not err_console.is_terminal,
-    )
+    progress = _progress()
     task = progress.add_task(escape(provider.spec), total=len(selected))
 
     def advance(_: RunRecord) -> None:
@@ -417,18 +467,7 @@ def run(
                 on_record=advance,
             )
 
-    try:
-        with progress:
-            result = asyncio.run(main())
-    except ProviderError as exc:
-        raise _exit_error(str(exc)) from exc
-    except KeyboardInterrupt as exc:
-        err_console.print(
-            "[yellow]interrupted.[/] Completed responses are in the run log and the cache; "
-            "run the same command again to continue."
-        )
-        raise typer.Exit(130) from exc
-
+    result = _run_async(main, progress, what="responses")
     summary = check_suite(suite.model_copy(update={"cases": selected}), result.responses())
     if as_json:
         payload = {
@@ -452,6 +491,248 @@ def run(
         raise typer.Exit(1)
 
 
+_DIM_SHORT = {
+    Dimension.INSTRUCTION_FOLLOWING: "IF",
+    Dimension.REASONING_QUALITY: "RQ",
+    Dimension.FAITHFULNESS: "FA",
+    Dimension.HELPFULNESS: "HE",
+}
+
+
+def _build_judge(
+    spec: str,
+    *,
+    selected: list[EvalCase],
+    responses: dict[str, str],
+    include_checks: bool,
+    mock_judgments: Path | None,
+    timeout: float,
+    base_url: str | None,
+) -> Provider:
+    """The judge's provider. With ``--mock-judgments``, a mock that answers each
+    case's judge prompt with that case's canned reply (re-asks get a placeholder)."""
+    try:
+        if mock_judgments is None:
+            return make_provider(spec, timeout=timeout, base_url=base_url)
+        name, model = parse_spec(spec)
+        if name != "mock":
+            raise ProviderConfigError("--mock-judgments only works with --judge mock")
+        canned = load_responses(mock_judgments)
+        table = {}
+        for case in selected:
+            if case.id in canned and case.id in responses:
+                response = responses[case.id]
+                checks = check_case(case, response).results if include_checks else None
+                table[build_judge_prompt(case, response, checks)] = canned[case.id]
+        return MockProvider(model, table)
+    except (ProviderConfigError, ResponsesError) as exc:
+        raise _exit_error(str(exc)) from exc
+
+
+def _modes_text(record: JudgeRecord) -> str:
+    parts = []
+    for mode in record.failure_modes:
+        sources = [
+            name
+            for name, modes in (
+                ("check", record.check_failure_modes),
+                ("judge", record.judge_failure_modes),
+            )
+            if mode in modes
+        ]
+        parts.append(f"{mode.value} ({'+'.join(sources)})")
+    return "\n".join(parts)
+
+
+def _print_judgments(result: JudgeResult, judge: Judge, *, verbose: bool) -> None:
+    summary = result.summary
+    table = Table(title=f"LLM judge: {escape(judge.provider.spec)}")
+    table.add_column("case")
+    table.add_column("lang")
+    table.add_column("checks")
+    for short in _DIM_SHORT.values():
+        table.add_column(short, justify="right")
+    table.add_column("failure modes (found by)", overflow="fold")
+    for r in result.records:
+        style = _STATUS_STYLE[r.check_status]
+        row = [r.id, r.language, f"[{style}]{r.check_status}[/]"]
+        if r.ok:
+            row += [str(r.scores[d]) if d in r.scores else "-" for d in _DIM_SHORT]
+            row.append(escape(_modes_text(r)))
+        else:
+            row += ["-"] * len(_DIM_SHORT)
+            row.append("[red]no judgment (see below)[/]")
+        table.add_row(*row)
+    console.print(table)
+    if verbose:
+        for r in summary.judged:
+            notes = [f"repairs: {'; '.join(r.repairs)}"] if r.repairs else []
+            if r.reasks:
+                notes.append(f"re-asked {r.reasks}x")
+            extra = f" [dim]({escape(', '.join(notes))})[/]" if notes else ""
+            console.print(f"[bold]{escape(r.id)}[/]: {escape(r.rationale or '')}{extra}")
+
+    parse = summary.parse_outcomes()
+    console.print(
+        f"judged {len(summary.judged)}/{len(result.records)} cases: {parse['clean']} clean, "
+        f"{parse['repaired']} repaired locally, {parse['reasked']} after a re-ask; "
+        f"{parse['unusable']} unusable, {parse['request_failed']} failed requests"
+    )
+    legend = ", ".join(f"{s} = {d.value}" for d, s in _DIM_SHORT.items())
+    console.print(f"[dim]{legend}[/]")
+
+    def means(language: str | None) -> str:
+        return ", ".join(
+            f"{_DIM_SHORT[d]} {v:.2f}"
+            for d, v in summary.mean_scores(language).items()
+            if v is not None
+        )
+
+    if summary.judged:
+        console.print(f"mean scores (1-5): {means(None)}")
+        for lang in summary.languages():
+            console.print(f"  {lang}: {means(lang)}")
+    modes = summary.failure_modes()
+    if modes:
+        shown = []
+        for mode, c in modes.items():
+            found = ", ".join(f"{k} {v}" for k, v in c.items() if v)
+            shown.append(f"{mode.value} {sum(c.values())} ({found})")
+        console.print("failure modes: " + "; ".join(shown))
+    if summary.missing:
+        console.print(f"[yellow]no response for:[/] {escape(', '.join(summary.missing))}")
+    if summary.unknown:
+        console.print(
+            f"[yellow]responses with no matching case:[/] {escape(', '.join(summary.unknown))}"
+        )
+    c = result.counts()
+    console.print(
+        f"run [bold]{escape(result.run_id)}[/]: {c['cases']} cases in {result.duration_s:.1f} s; "
+        f"{c['requests']} requests, {c['cached']} cases from cache, {c['reasks']} re-asks; "
+        f"{c['input_tokens']} input / {c['output_tokens']} output tokens"
+    )
+    for warning in result.warnings:
+        err_console.print(f"[yellow]warning:[/] {escape(warning)}")
+    for record in summary.errors:
+        err_console.print(f"[red]no judgment[/] {escape(record.id)}: {escape(record.error or '')}")
+    if result.run_dir is not None:
+        console.print(f"log: {escape(str(result.run_dir / 'judgments.jsonl'))}")
+
+
+@app.command()
+def judge(
+    suite_path: SuitePath,
+    responses_path: ResponsesPath,
+    judge_spec: Annotated[
+        str,
+        typer.Option(
+            "--judge",
+            "-j",
+            help="The judge model: mock | ollama:MODEL | openai:MODEL | anthropic:MODEL.",
+        ),
+    ],
+    no_checks: Annotated[
+        bool,
+        typer.Option("--no-checks", help="Don't show the judge the deterministic check results."),
+    ] = False,
+    max_reasks: Annotated[
+        int, typer.Option(min=0, help="Times to re-ask the judge after an unusable reply.")
+    ] = 2,
+    temperature: Temperature = None,
+    seed: Seed = None,
+    max_tokens: Annotated[int, typer.Option(min=1, help="Token limit per judge reply.")] = 1024,
+    concurrency: Concurrency = 4,
+    retries: Retries = 3,
+    timeout: Timeout = 300.0,
+    base_url: BaseUrl = None,
+    cache_dir: CacheDir = Path(".evalkit-cache"),
+    no_cache: NoCache = False,
+    out: OutDir = Path("runs"),
+    run_id: RunId = None,
+    case: CaseIds = None,
+    mock_judgments: Annotated[
+        Path | None,
+        typer.Option(
+            exists=True,
+            dir_okay=False,
+            help='With --judge mock: JSONL of {"id", "response"}, the judge reply for each case.',
+        ),
+    ] = None,
+    as_json: AsJson = False,
+    verbose: Annotated[
+        bool, typer.Option("--verbose", "-v", help="Show each rationale and repair.")
+    ] = False,
+) -> None:
+    """Score responses 1-5 with an LLM judge and tag their failure modes."""
+    suite = _load_or_exit(suite_path)
+    selected = _selected_or_exit(suite, suite_path, case)
+    try:
+        responses = load_responses(responses_path)
+    except ResponsesError as exc:
+        raise _exit_error(str(exc)) from exc
+    provider = _build_judge(
+        judge_spec,
+        selected=selected,
+        responses=responses,
+        include_checks=not no_checks,
+        mock_judgments=mock_judgments,
+        timeout=timeout,
+        base_url=base_url,
+    )
+    params = _params_for(provider, temperature=temperature, seed=seed, max_tokens=max_tokens)
+    judge_ = Judge(
+        provider,
+        params=params,
+        concurrency=concurrency,
+        retry=RetryPolicy(max_retries=retries),
+        cache=None if no_cache else ResponseCache(cache_dir),
+        include_checks=not no_checks,
+        max_reasks=max_reasks,
+    )
+    progress = _progress()
+    task = progress.add_task(
+        f"judge {escape(provider.spec)}", total=sum(c.id in responses for c in selected)
+    )
+
+    def advance(_: JudgeRecord) -> None:
+        progress.advance(task)
+
+    async def main() -> JudgeResult:
+        async with provider:
+            await provider.preflight()
+            return await judge_suite(
+                suite,
+                responses,
+                judge_,
+                out_dir=out,
+                run_id=run_id,
+                case_ids=[c.id for c in selected] if case else None,
+                suite_path=suite_path,
+                responses_path=responses_path,
+                on_record=advance,
+            )
+
+    result = _run_async(main, progress, what="judgments")
+    if as_json:
+        payload = {
+            "run": {
+                "run_id": result.run_id,
+                "run_dir": str(result.run_dir) if result.run_dir else None,
+                "judge": provider.spec,
+                "duration_s": result.duration_s,
+                "counts": result.counts(),
+                "warnings": result.warnings,
+            },
+            "summary": result.summary.to_dict(),
+            "cases": [r.model_dump(mode="json") for r in result.records],
+        }
+        typer.echo(_dumps(payload))
+    else:
+        _print_judgments(result, judge_, verbose=verbose)
+    if result.summary.errors:
+        raise typer.Exit(1)
+
+
 @app.command("list-checks")
 def list_checks() -> None:
     """List the available constraint types."""
@@ -464,3 +745,20 @@ def list_checks() -> None:
         # Summaries contain "[min, max]", which Rich would otherwise eat as markup.
         table.add_row(type_name, cls.default_failure_mode.value, escape(cls.summary))
     console.print(table)
+
+
+@app.command()
+def taxonomy() -> None:
+    """List the failure modes, and which of them the deterministic checks can raise."""
+    raised_by: dict[FailureMode, list[str]] = {m: [] for m in FailureMode}
+    for cls in CHECK_TYPES:
+        raised_by[cls.default_failure_mode].append(cls.model_fields["type"].default)
+    table = Table(title="Failure modes")
+    table.add_column("failure mode")
+    table.add_column("raised by")
+    table.add_column("meaning", overflow="fold")
+    for mode, text in DESCRIPTIONS.items():
+        checks = ", ".join(raised_by[mode])
+        table.add_row(mode.value, f"judge, checks ({checks})" if checks else "judge", escape(text))
+    console.print(table)
+    console.print("[dim]Any check can be re-tagged with `fails_as` in the suite.[/]")
