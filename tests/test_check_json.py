@@ -119,6 +119,79 @@ def test_invalid_schema_rejected_at_load() -> None:
         JsonSchemaCheck.model_validate({"type": "json_schema", "schema": {"type": "strng"}})
 
 
+PERSON = {
+    "$defs": {"Person": {"type": "object", "required": ["nama"]}},
+    "type": "object",
+    "properties": {"ketua": {"$ref": "#/$defs/Person"}},
+}
+
+
+def test_local_refs_resolve() -> None:
+    check = JsonSchemaCheck.model_validate({"type": "json_schema", "schema": PERSON})
+    assert check.check('{"ketua": {"nama": "Ayu"}}').passed
+    assert check.check('{"ketua": {}}').failed
+
+
+@pytest.mark.parametrize("ref", ["#/$defs/Persn", "https://example.com/person.json"])
+def test_unresolvable_ref_rejected_at_load(ref: str) -> None:
+    # jsonschema resolves refs lazily, so without this the typo would only
+    # surface as a crash when a response reached that property.
+    schema = {**PERSON, "properties": {"ketua": {"$ref": ref}}}
+    with pytest.raises(ValidationError, match="unresolvable"):
+        JsonSchemaCheck.model_validate({"type": "json_schema", "schema": schema})
+
+
+def test_ref_shaped_data_in_enum_is_not_a_ref() -> None:
+    schema = {"enum": [{"$ref": "not-a-reference"}]}
+    check = JsonSchemaCheck.model_validate({"type": "json_schema", "schema": schema})
+    assert check.check('{"$ref": "not-a-reference"}').passed
+
+
+def test_ref_relative_to_a_nested_id() -> None:
+    schema = {
+        "type": "object",
+        "properties": {
+            "alamat": {
+                "$id": "https://example.com/alamat",
+                "$defs": {"Kota": {"type": "string"}},
+                "type": "object",
+                "properties": {"kota": {"$ref": "#/$defs/Kota"}},
+            }
+        },
+    }
+    check = JsonSchemaCheck.model_validate({"type": "json_schema", "schema": schema})
+    assert check.check('{"alamat": {"kota": "Yogyakarta"}}').passed
+    assert check.check('{"alamat": {"kota": 1}}').failed
+
+
+def test_crlf_code_fence(check: JsonSchemaCheck) -> None:
+    assert check.check('```json\r\n{"nama": "Ayu", "umur": 21}\r\n```').passed
+
+
+@pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity"])
+def test_nan_and_infinity_are_not_json(constant: str) -> None:
+    schema = {"type": "object", "properties": {"x": {"type": "number"}}}
+    check = JsonSchemaCheck.model_validate({"type": "json_schema", "schema": schema})
+    result = check.check(f'{{"x": {constant}}}')
+    assert result.failed
+    assert f"{constant.lstrip('-')} is not valid JSON" in result.message
+
+
+def test_embedded_json_prefers_a_candidate_that_matches() -> None:
+    check = JsonSchemaCheck.model_validate(
+        {"type": "json_schema", "schema": SCHEMA, "allow_surrounding_text": True}
+    )
+    # "[1]" is a citation; the object after it is the answer.
+    assert check.check('Menurut [1], datanya: {"nama": "Ayu", "umur": 21}').passed
+    # With no matching candidate, the first object is reported, not the citation.
+    result = check.check('Menurut [1], datanya: {"nama": "Ayu"}')
+    assert result.failed
+    assert "'umur' is a required property" in result.message
+    only_arrays = check.check("Menurut [1] dan [2].")
+    assert only_arrays.failed
+    assert "is not of type 'object'" in only_arrays.message
+
+
 def test_parse_uses_schema_alias(parse) -> None:
     check = parse({"type": "json_schema", "schema": {"type": "array"}})
     assert isinstance(check, JsonSchemaCheck)

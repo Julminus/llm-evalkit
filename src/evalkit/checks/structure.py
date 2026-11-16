@@ -4,21 +4,30 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Iterator
+from functools import lru_cache
 from typing import Any, ClassVar, Literal, Self
 
+import referencing.jsonschema
 from jsonschema import FormatChecker
 from jsonschema.exceptions import SchemaError
+from jsonschema.protocols import Validator
 from jsonschema.validators import validator_for
 from pydantic import Field, field_validator, model_validator
+from referencing import Registry
+from referencing.exceptions import Unresolvable
 
 from evalkit.checks.base import BaseCheck, CheckResult
 from evalkit.taxonomy import FailureMode
-from evalkit.text import normalize
+from evalkit.text import fold_quotes, normalize
 
 # ---------------------------------------------------------------- JSON
 
-_FENCE_RE = re.compile(r"```[ \t]*(?:json|JSON)?[ \t]*\n(.*?)\n[ \t]*```", re.DOTALL)
+_FENCE_RE = re.compile(r"```[ \t]*(?:json|JSON)?[ \t]*\r?\n(.*?)\r?\n[ \t]*```", re.DOTALL)
 _MAX_REPORTED_ERRORS = 3
+# Keywords whose values are data, not subschemas, so a "$ref" key inside them
+# is not a reference.
+_DATA_KEYWORDS = frozenset({"const", "enum", "default", "examples"})
 
 
 def _json_path(path: Any) -> str:
@@ -28,12 +37,75 @@ def _json_path(path: Any) -> str:
     return out
 
 
+def _reject_constant(name: str) -> Any:
+    raise ValueError(f"{name} is not valid JSON")
+
+
+# Python's json module accepts NaN and Infinity; the JSON standard does not.
+_DECODER = json.JSONDecoder(parse_constant=_reject_constant)
+
+
+def _loads(text: str) -> Any:
+    return _DECODER.decode(text)
+
+
+def _decode_error(exc: ValueError) -> str:
+    if isinstance(exc, json.JSONDecodeError):
+        return f"{exc.msg} (line {exc.lineno}, column {exc.colno})"
+    return str(exc)
+
+
+def _unresolvable_refs(schema: dict[str, Any], validator_cls: type[Validator]) -> list[str]:
+    """Every ``$ref`` in ``schema`` that cannot be resolved locally.
+
+    jsonschema resolves references lazily, so a typo such as
+    ``#/$defs/Persn`` would otherwise surface only when a response reaches
+    that part of the schema, as a crash in the middle of a run.
+    """
+    spec = referencing.jsonschema.specification_with(
+        validator_cls.META_SCHEMA.get("$schema", ""), default=referencing.jsonschema.DRAFT202012
+    )
+    bad: list[str] = []
+
+    def walk(node: Any, resolver: Any) -> None:
+        if isinstance(node, list):
+            for item in node:
+                walk(item, resolver)
+            return
+        if not isinstance(node, dict):
+            return
+        if isinstance(node.get("$id"), str):
+            resolver = resolver.in_subresource(spec.create_resource(node))
+        ref = node.get("$ref")
+        if isinstance(ref, str):
+            try:
+                resolver.lookup(ref)
+            except Unresolvable:
+                bad.append(ref)
+        for key, value in node.items():
+            if key not in _DATA_KEYWORDS:
+                walk(value, resolver)
+
+    walk(schema, Registry().resolver_with_root(spec.create_resource(schema)))
+    return bad
+
+
+@lru_cache(maxsize=256)
+def _compiled_validator(schema_json: str) -> Validator:
+    schema = json.loads(schema_json)
+    validator: Validator = validator_for(schema)(schema, format_checker=FormatChecker())
+    return validator
+
+
 class JsonSchemaCheck(BaseCheck):
     """The response must be JSON that validates against a JSON Schema.
 
     By default the whole response must be JSON, optionally wrapped in a single
     Markdown code fence. ``allow_surrounding_text: true`` accepts JSON embedded
-    in prose (the first fenced block, else the first JSON object or array).
+    in prose: the first fenced block, else the first JSON object or array that
+    matches the schema (so a citation like "[1]" before the real object does
+    not hide it), else the first object. NaN and Infinity are rejected, as the
+    JSON standard requires.
     """
 
     type: Literal["json_schema"] = "json_schema"
@@ -46,40 +118,60 @@ class JsonSchemaCheck(BaseCheck):
     @field_validator("json_schema")
     @classmethod
     def _valid_schema(cls, schema: dict[str, Any]) -> dict[str, Any]:
+        validator_cls = validator_for(schema)
         try:
-            validator_for(schema).check_schema(schema)
+            validator_cls.check_schema(schema)
         except SchemaError as exc:
             raise ValueError(f"invalid JSON Schema: {exc.message}") from exc
+        bad = _unresolvable_refs(schema, validator_cls)
+        if bad:
+            raise ValueError(
+                f"JSON Schema has unresolvable $ref {bad}; "
+                "point it at a definition in this schema (remote refs are not fetched)"
+            )
         return schema
+
+    @property
+    def _validator(self) -> Validator:
+        return _compiled_validator(json.dumps(self.json_schema, sort_keys=True))
+
+    def _embedded(self, text: str) -> Iterator[Any]:
+        """Every JSON object or array that starts somewhere in ``text``."""
+        for i, ch in enumerate(text):
+            if ch in "{[":
+                try:
+                    data, _ = _DECODER.raw_decode(text, i)
+                except ValueError:
+                    continue
+                yield data
 
     def _extract(self, response: str) -> tuple[Any, str] | str:
         """Return (data, where-it-was-found), or an error message."""
         stripped = response.strip()
         try:
-            return json.loads(stripped), "whole response"
-        except json.JSONDecodeError as exc:
-            first_error = f"not valid JSON: {exc.msg} (line {exc.lineno}, column {exc.colno})"
+            return _loads(stripped), "whole response"
+        except ValueError as exc:
+            first_error = f"not valid JSON: {_decode_error(exc)}"
 
         fence = _FENCE_RE.search(stripped)
         whole_fence = fence is not None and fence.span() == (0, len(stripped))
         if fence and ((whole_fence and self.allow_code_fence) or self.allow_surrounding_text):
             try:
-                return json.loads(fence.group(1)), "code fence"
-            except json.JSONDecodeError as exc:
-                return f"fenced block is not valid JSON: {exc.msg} (line {exc.lineno})"
+                return _loads(fence.group(1)), "code fence"
+            except ValueError as exc:
+                return f"fenced block is not valid JSON: {_decode_error(exc)}"
 
         if whole_fence and not self.allow_code_fence:
             return "JSON is wrapped in a code fence, which this case does not allow"
         if self.allow_surrounding_text:
-            decoder = json.JSONDecoder()
-            for i, ch in enumerate(stripped):
-                if ch in "{[":
-                    try:
-                        data, _ = decoder.raw_decode(stripped, i)
-                    except json.JSONDecodeError:
-                        continue
-                    return data, "embedded in text"
-            return "no JSON object or array found in the response"
+            candidates = list(self._embedded(stripped))
+            if not candidates:
+                return "no JSON object or array found in the response"
+            # The first candidate that matches; failing that, the first object,
+            # since a bracketed citation like "[1]" is rarely the answer.
+            fallback = next((c for c in candidates if isinstance(c, dict)), candidates[0])
+            matching = (c for c in candidates if self._validator.is_valid(c))
+            return next(matching, fallback), "embedded in text"
         return first_error
 
     def check(self, response: str) -> CheckResult:
@@ -87,9 +179,7 @@ class JsonSchemaCheck(BaseCheck):
         if isinstance(extracted, str):
             return self._fail(extracted)
         data, where = extracted
-        validator_cls = validator_for(self.json_schema)
-        validator = validator_cls(self.json_schema, format_checker=FormatChecker())
-        errors = sorted(validator.iter_errors(data), key=lambda e: list(e.absolute_path))
+        errors = sorted(self._validator.iter_errors(data), key=lambda e: list(e.absolute_path))
         if errors:
             shown = "; ".join(
                 f"{_json_path(e.absolute_path)}: {e.message}" for e in errors[:_MAX_REPORTED_ERRORS]
@@ -109,6 +199,24 @@ class JsonSchemaCheck(BaseCheck):
 
 _UNORDERED_RE = re.compile(r"^(?P<indent>[ \t]*)[-*+•][ \t]+\S")
 _ORDERED_RE = re.compile(r"^(?P<indent>[ \t]*)\d{1,3}[.)][ \t]+\S")
+# A thematic break ("---", "* * *", "___") looks like a marker but is not an item.
+_RULE_RE = re.compile(r"^[ \t]*([-*_])(?:[ \t]*\1){2,}[ \t]*$")
+_FENCE_LINE_RE = re.compile(r"^[ \t]*(```|~~~)")
+
+
+def _prose_lines(lines: list[str]) -> Iterator[tuple[int, str]]:
+    """(index, line) for lines outside fenced code blocks and thematic breaks."""
+    fence: str | None = None
+    for i, line in enumerate(lines):
+        m = _FENCE_LINE_RE.match(line)
+        if m:
+            if fence is None:
+                fence = m.group(1)
+            elif m.group(1) == fence:
+                fence = None
+            continue
+        if fence is None and not _RULE_RE.match(line):
+            yield i, line
 
 
 def _indent_width(indent: str) -> int:
@@ -119,8 +227,10 @@ class BulletListCheck(BaseCheck):
     """The response must contain a Markdown list with a given number of items.
 
     Only top-level items are counted (the least-indented markers), so nested
-    sub-points do not inflate the count. ``style`` restricts the marker type;
-    ``only_list: true`` forbids prose outside the list, such as a preamble.
+    sub-points do not inflate the count. Lines inside fenced code blocks and
+    thematic breaks (``* * *``) are never items. ``style`` restricts the
+    marker type; ``only_list: true`` forbids text outside the list, such as a
+    preamble or a code block.
     """
 
     type: Literal["bullet_list"] = "bullet_list"
@@ -144,7 +254,7 @@ class BulletListCheck(BaseCheck):
     def check(self, response: str) -> CheckResult:
         items: list[tuple[int, int, str]] = []  # (line index, indent, kind)
         lines = response.splitlines()
-        for i, line in enumerate(lines):
+        for i, line in _prose_lines(lines):
             for kind, rx in (("unordered", _UNORDERED_RE), ("ordered", _ORDERED_RE)):
                 m = rx.match(line)
                 if m:
@@ -166,7 +276,7 @@ class BulletListCheck(BaseCheck):
         if self.only_list:
             item_lines = {i for i, _, _ in items}
             for i, line in enumerate(lines):
-                if not line.strip() or i in item_lines:
+                if not line.strip() or i in item_lines or _RULE_RE.match(line):
                     continue
                 continuation = _indent_width(line[: len(line) - len(line.lstrip())]) > top_indent
                 if not continuation:
@@ -191,10 +301,20 @@ class _AffixCheck(BaseCheck):
     text: str = Field(min_length=1)
     case_sensitive: bool = False
     loose: bool = True
-    """Ignore Markdown emphasis/heading markers at the edge (``**Done.**`` ends with "Done.")."""
+    """Ignore Markdown emphasis/heading markers at the edge (``**Done.**`` ends with "Done."),
+    in the response and in ``text`` alike."""
+
+    @model_validator(mode="after")
+    def _not_only_markup(self) -> Self:
+        if self.loose and not self.text.strip(_EDGE_MARKUP):
+            raise ValueError(
+                f"text {self.text!r} is only Markdown markup, which loose mode ignores; "
+                "set 'loose: false' to match it literally"
+            )
+        return self
 
     def _prepare(self, value: str) -> str:
-        value = normalize(value)
+        value = fold_quotes(normalize(value))
         return value if self.case_sensitive else value.casefold()
 
 
@@ -207,7 +327,8 @@ class StartsWith(_AffixCheck):
 
     def check(self, response: str) -> CheckResult:
         body = response.lstrip(_EDGE_MARKUP) if self.loose else response.lstrip()
-        if self._prepare(body).startswith(self._prepare(self.text)):
+        expected = self.text.lstrip(_EDGE_MARKUP) if self.loose else self.text
+        if self._prepare(body).startswith(self._prepare(expected)):
             return self._pass(f"starts with {self.text!r}")
         return self._fail(f"does not start with {self.text!r}; starts {body.strip()[:40]!r}")
 
