@@ -32,7 +32,7 @@ __all__ = [
 
 
 class Dimension(StrEnum):
-    """Judge scoring dimensions (each scored 1-5 from S3 on)."""
+    """Judge scoring dimensions, each scored 1-5 (anchors in :mod:`evalkit.judge.prompt`)."""
 
     INSTRUCTION_FOLLOWING = "instruction_following"
     REASONING_QUALITY = "reasoning_quality"
@@ -53,8 +53,17 @@ class Rubric(_Strict):
     reference_answer: str | None = None
     """An example of a good answer. Guidance for the judge, not an exact target."""
 
-    dimensions: list[Dimension] = Field(default_factory=lambda: list(Dimension))
-    """Which dimensions apply. Faithfulness only makes sense when there is a context."""
+    dimensions: list[Dimension] = Field(default_factory=lambda: list(Dimension), min_length=1)
+    """Which dimensions the judge scores (default: all four). Faithfulness is
+    judged against the case's context when it has one, and against fact
+    otherwise; leave it out where neither applies."""
+
+    @field_validator("dimensions")
+    @classmethod
+    def _canonical_order(cls, dims: list[Dimension]) -> list[Dimension]:
+        # Deduplicate, and always list them in the same order, so the judge's
+        # prompt (and with it the cache key) doesn't depend on how YAML lists them.
+        return [d for d in Dimension if d in dims]
 
 
 class EvalCase(_Strict):

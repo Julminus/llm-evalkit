@@ -88,6 +88,23 @@ class TestEvalCase:
         assert case.rubric is not None
         assert case.rubric.dimensions == list(Dimension)
 
+    def test_rubric_dimensions_are_deduplicated_into_one_order(self) -> None:
+        # The judge's prompt (and so its cache key) must not depend on YAML order.
+        dims = ["helpfulness", "faithfulness", "helpfulness"]
+        case = EvalCase.model_validate(_case(rubric={"dimensions": dims}))
+        assert case.rubric is not None
+        assert case.rubric.dimensions == [Dimension.FAITHFULNESS, Dimension.HELPFULNESS]
+
+    def test_rubric_single_dimension_still_accepted(self) -> None:
+        case = EvalCase.model_validate(_case(rubric={"dimensions": ["helpfulness"]}))
+        assert case.rubric is not None
+        assert case.rubric.dimensions == [Dimension.HELPFULNESS]
+
+    @pytest.mark.parametrize("dims", [[], ["relevance"]])
+    def test_rubric_needs_known_dimensions(self, dims: list[str]) -> None:
+        with pytest.raises(ValidationError):
+            EvalCase.model_validate(_case(rubric={"dimensions": dims}))
+
     def test_fails_as_override(self) -> None:
         case = EvalCase.model_validate(
             _case(
