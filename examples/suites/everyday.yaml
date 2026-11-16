@@ -1,0 +1,227 @@
+# 20 everyday prompts, each asked in English and in Indonesian (40 cases).
+#
+# The prompts are the ones used to build the language-detection corpus
+# (scripts/build_lang_corpus.py), word for word. Each case checks only what its
+# prompt explicitly asks for: a sentence or paragraph count, a one-word answer,
+# or a fact with one right answer. Vague requests ("short", "brief", "a short
+# list") get no constraint, because any number picked for them would be the
+# suite author's opinion, not the user's instruction. Every case also gets the
+# automatic response-language check.
+#
+# This is a small example and a runner workload, not the benchmark (that is a
+# separate, harder, hand-written suite).
+name: everyday
+version: "1"
+description: 20 everyday EN/ID prompt pairs; checks only constraints the prompt states.
+cases:
+  - id: en-01
+    language: en
+    prompt: Explain why the sky is blue in two sentences.
+    constraints: [{type: sentence_count, min: 2, max: 2}]
+    tags: [sentences]
+  - id: id-01
+    language: id
+    prompt: Jelaskan mengapa langit berwarna biru dalam dua kalimat.
+    constraints: [{type: sentence_count, min: 2, max: 2}]
+    tags: [sentences]
+
+  - id: en-02
+    language: en
+    prompt: Give one tip for staying focused while studying. One sentence.
+    constraints: [{type: sentence_count, min: 1, max: 1}]
+    tags: [sentences]
+  - id: id-02
+    language: id
+    prompt: Berikan satu tips agar tetap fokus saat belajar. Satu kalimat saja.
+    constraints: [{type: sentence_count, min: 1, max: 1}]
+    tags: [sentences]
+
+  - id: en-03
+    language: en
+    prompt: What is a database index? Answer in 2-3 sentences.
+    constraints: [{type: sentence_count, min: 2, max: 3}]
+    tags: [sentences]
+  - id: id-03
+    language: id
+    prompt: Apa itu indeks pada database? Jawab dalam 2-3 kalimat.
+    constraints: [{type: sentence_count, min: 2, max: 3}]
+    tags: [sentences]
+
+  - id: en-04
+    language: en
+    prompt: Write a short, friendly message reminding a colleague about tomorrow's meeting.
+    tags: [open]
+  - id: id-04
+    language: id
+    prompt: Tulis pesan singkat dan ramah untuk mengingatkan rekan kerja tentang rapat besok.
+    tags: [open]
+
+  - id: en-05
+    language: en
+    prompt: List three healthy breakfast ideas.
+    tags: [open]
+  - id: id-05
+    language: id
+    prompt: Sebutkan tiga ide sarapan sehat.
+    tags: [open]
+
+  - id: en-06
+    language: en
+    prompt: In a few words, what is the capital of Japan?
+    constraints: [{type: required_phrases, phrases: [Tokyo]}]
+    tags: [factual]
+  - id: id-06
+    language: id
+    prompt: Dalam beberapa kata, apa ibu kota Jepang?
+    constraints: [{type: required_phrases, phrases: [Tokyo]}]
+    tags: [factual]
+
+  - id: en-07
+    language: en
+    prompt: Describe the taste of durian to someone who has never tried it, in two sentences.
+    constraints: [{type: sentence_count, min: 2, max: 2}]
+    tags: [sentences]
+  - id: id-07
+    language: id
+    prompt: Gambarkan rasa durian kepada orang yang belum pernah mencobanya, dalam dua kalimat.
+    constraints: [{type: sentence_count, min: 2, max: 2}]
+    tags: [sentences]
+
+  - id: en-08
+    language: en
+    prompt: What does a data engineer do? Keep it brief.
+    tags: [open]
+  - id: id-08
+    language: id
+    prompt: Apa pekerjaan seorang data engineer? Jawab singkat.
+    tags: [open]
+
+  - id: en-09
+    language: en
+    prompt: Explain overfitting in machine learning to a beginner in three sentences.
+    constraints: [{type: sentence_count, min: 3, max: 3}]
+    tags: [sentences]
+  - id: id-09
+    language: id
+    prompt: Jelaskan overfitting dalam machine learning kepada pemula dalam tiga kalimat.
+    constraints: [{type: sentence_count, min: 3, max: 3}]
+    tags: [sentences]
+
+  - id: en-10
+    language: en
+    prompt: Reply casually to a friend who asks if you want to get coffee later.
+    tags: [open]
+  - id: id-10
+    language: id
+    prompt: Balas dengan bahasa santai ke teman yang ngajak ngopi nanti sore.
+    tags: [open]
+
+  - id: en-11
+    language: en
+    prompt: Summarize the plot of Cinderella in two sentences.
+    constraints: [{type: sentence_count, min: 2, max: 2}]
+    tags: [sentences]
+  - id: id-11
+    language: id
+    prompt: Ringkas cerita Cinderella dalam dua kalimat.
+    constraints: [{type: sentence_count, min: 2, max: 2}]
+    tags: [sentences]
+
+  - id: en-12
+    language: en
+    prompt: Why is regular exercise important? One short paragraph.
+    constraints: [{type: paragraph_count, min: 1, max: 1}]
+    tags: [paragraphs]
+  - id: id-12
+    language: id
+    prompt: Mengapa olahraga teratur itu penting? Satu paragraf pendek.
+    constraints: [{type: paragraph_count, min: 1, max: 1}]
+    tags: [paragraphs]
+
+  - id: en-13
+    language: en
+    prompt: "How do I fix a 'permission denied' error when running a script on Linux? Brief answer."
+    tags: [open]
+  - id: id-13
+    language: id
+    prompt: "Bagaimana cara mengatasi error 'permission denied' saat menjalankan script di Linux? Jawab singkat."
+    tags: [open]
+
+  - id: en-14
+    language: en
+    prompt: Say thank you to a customer for their order in one sentence.
+    constraints: [{type: sentence_count, min: 1, max: 1}]
+    tags: [sentences]
+  - id: id-14
+    language: id
+    prompt: Ucapkan terima kasih kepada pelanggan atas pesanannya dalam satu kalimat.
+    constraints: [{type: sentence_count, min: 1, max: 1}]
+    tags: [sentences]
+
+  - id: en-15
+    language: en
+    prompt: Is it better to rent or buy a house? Give a balanced answer in three sentences.
+    constraints: [{type: sentence_count, min: 3, max: 3}]
+    tags: [sentences]
+  - id: id-15
+    language: id
+    prompt: Lebih baik menyewa atau membeli rumah? Berikan jawaban yang seimbang dalam tiga kalimat.
+    constraints: [{type: sentence_count, min: 3, max: 3}]
+    tags: [sentences]
+
+  - id: en-16
+    language: en
+    prompt: Explain what a GPU is in one sentence.
+    constraints: [{type: sentence_count, min: 1, max: 1}]
+    tags: [sentences]
+  - id: id-16
+    language: id
+    prompt: Jelaskan apa itu GPU dalam satu kalimat.
+    constraints: [{type: sentence_count, min: 1, max: 1}]
+    tags: [sentences]
+
+  - id: en-17
+    language: en
+    prompt: Give a two-sentence weather report for a rainy day in Jakarta.
+    constraints: [{type: sentence_count, min: 2, max: 2}]
+    tags: [sentences]
+  - id: id-17
+    language: id
+    prompt: Buat laporan cuaca dua kalimat untuk hari hujan di Jakarta.
+    constraints: [{type: sentence_count, min: 2, max: 2}]
+    tags: [sentences]
+
+  - id: en-18
+    language: en
+    prompt: What should I pack for a three-day hiking trip? Short list.
+    tags: [open]
+  - id: id-18
+    language: id
+    prompt: Apa saja yang perlu dibawa untuk mendaki gunung selama tiga hari? Daftar singkat.
+    tags: [open]
+
+  - id: en-19
+    language: en
+    prompt: "Respond with one word: what color is a ripe banana?"
+    constraints:
+      - {type: word_count, min: 1, max: 1}
+      - {type: required_phrases, phrases: [yellow]}
+    tags: [one-word, factual]
+  - id: id-19
+    language: id
+    prompt: "Jawab dengan satu kata: apa warna pisang yang matang?"
+    constraints:
+      - {type: word_count, min: 1, max: 1}
+      - {type: required_phrases, phrases: [kuning]}
+    tags: [one-word, factual]
+
+  - id: en-20
+    language: en
+    prompt: Tell me a fun fact about octopuses in one sentence.
+    constraints: [{type: sentence_count, min: 1, max: 1}]
+    tags: [sentences]
+  - id: id-20
+    language: id
+    prompt: Ceritakan satu fakta menarik tentang gurita dalam satu kalimat.
+    constraints: [{type: sentence_count, min: 1, max: 1}]
+    tags: [sentences]
