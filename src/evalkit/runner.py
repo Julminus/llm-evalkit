@@ -51,7 +51,9 @@ from evalkit.providers.base import (
 from evalkit.schema import EvalCase, Suite
 
 __all__ = [
+    "Outcome",
     "RetryPolicy",
+    "RunDir",
     "RunLog",
     "RunRecord",
     "RunResult",
@@ -113,6 +115,20 @@ class RunRecord(BaseModel):
     @property
     def ok(self) -> bool:
         return self.response is not None
+
+
+@dataclass(frozen=True)
+class Outcome:
+    """What :meth:`Runner.complete` got for one prompt: a completion or an error."""
+
+    cache_key: str
+    completion: Completion | None
+    error: str | None = None
+    latency_s: float = 0.0
+    """Request time; for a cache hit, the time of the original request."""
+    attempts: int = 0
+    """Requests sent (0 for a cache hit)."""
+    cached: bool = False
 
 
 def _from_completion(
@@ -183,18 +199,31 @@ class Runner:
         return [done[c.id] for c in cases]
 
     async def run_case(self, case: EvalCase, slots: asyncio.Semaphore | None = None) -> RunRecord:
-        prompt = build_prompt(case)
-        params = self.provider.effective_params(self.params)
-        identity = self.provider.identity()
-        key = cache_key(identity, prompt, params)
+        out = await self.complete(build_prompt(case), slots, label=case.id)
         base: dict[str, Any] = {
             "id": case.id,
             "provider": self.provider.name,
             "model": self.provider.model,
-            "cache_key": key,
+            "cache_key": out.cache_key,
         }
+        if out.completion is None:
+            return RunRecord(**base, response=None, error=out.error, attempts=out.attempts)
+        return _from_completion(
+            base, out.completion, latency_s=out.latency_s, attempts=out.attempts, cached=out.cached
+        )
+
+    async def complete(
+        self, prompt: Prompt, slots: asyncio.Semaphore | None = None, *, label: str = ""
+    ) -> Outcome:
+        """One prompt through the cache, the concurrency limit and the retries.
+
+        ``label`` names the request in cache-write warnings (a case id).
+        """
+        params = self.provider.effective_params(self.params)
+        identity = self.provider.identity()
+        key = cache_key(identity, prompt, params)
         if self.cache is None:
-            return await self._fresh(prompt, base, slots)
+            return await self._fresh(prompt, key, slots, label=label)
 
         # One lock per request: a second case with the identical request waits
         # for the first, then finds its answer in the cache. Without this both
@@ -202,34 +231,32 @@ class Runner:
         async with self._key_locks.setdefault(key, asyncio.Lock()):
             entry = self.cache.get(key)
             if entry is not None:
-                return _from_completion(
-                    base, entry.completion, latency_s=entry.latency_s, attempts=0, cached=True
-                )
+                return Outcome(key, entry.completion, latency_s=entry.latency_s, cached=True)
             request = {"identity": identity, "prompt": prompt.model_dump(), "params": params}
-            return await self._fresh(prompt, base, slots, cache_as=(key, request))
+            return await self._fresh(prompt, key, slots, label=label, request=request)
 
     async def _fresh(
         self,
         prompt: Prompt,
-        base: dict[str, Any],
+        key: str,
         slots: asyncio.Semaphore | None,
         *,
-        cache_as: tuple[str, dict[str, Any]] | None = None,
-    ) -> RunRecord:
-        """Generate (with retries) and, on success, store under ``cache_as``."""
+        label: str,
+        request: dict[str, Any] | None = None,
+    ) -> Outcome:
+        """Generate (with retries) and, on success and given a ``request``, cache it."""
         async with slots or asyncio.Semaphore(1):
             outcome, latency, attempts = await self._generate(prompt)
         if isinstance(outcome, str):
-            return RunRecord(**base, response=None, error=outcome, attempts=attempts)
-        if cache_as is not None and self.cache is not None:
-            key, request = cache_as
+            return Outcome(key, None, error=outcome, attempts=attempts)
+        if request is not None and self.cache is not None:
             try:
                 self.cache.put(key, outcome, latency_s=latency, request=request)
             except OSError as exc:
                 # The response is still in the run log; only a re-run will
                 # have to generate it again.
-                self.cache_write_errors.append(f"{base['id']}: {exc}")
-        return _from_completion(base, outcome, latency_s=latency, attempts=attempts, cached=False)
+                self.cache_write_errors.append(f"{label or key[:12]}: {exc}")
+        return Outcome(key, outcome, latency_s=latency, attempts=attempts)
 
     async def _generate(self, prompt: Prompt) -> tuple[Completion | str, float, int]:
         """Try until success, a non-retryable error, or no retries left.
@@ -265,13 +292,13 @@ class Runner:
 
 
 class RunLog:
-    """JSONL log of run records: appended while running, sorted at the end."""
+    """JSONL log of records (one model per line): appended while running, sorted at the end."""
 
     def __init__(self, path: Path) -> None:
         self.path = path
         self._fh = path.open("w", encoding="utf-8", newline="\n")
 
-    def write(self, record: RunRecord) -> None:
+    def write(self, record: BaseModel) -> None:
         self._fh.write(record.model_dump_json() + "\n")
         self._fh.flush()
 
@@ -279,7 +306,7 @@ class RunLog:
         if not self._fh.closed:
             self._fh.close()
 
-    def finalize(self, records: Sequence[RunRecord]) -> None:
+    def finalize(self, records: Sequence[BaseModel]) -> None:
         """Replace the log with ``records`` in the given (suite) order.
 
         If the replace fails, the log keeps its completion order, which is
@@ -366,11 +393,23 @@ def _unique_dir(path: Path) -> Path:
         return candidate
 
 
-def _suite_digest(suite: Suite) -> str:
+def suite_digest(suite: Suite) -> str:
     return hashlib.sha256(suite.model_dump_json().encode("utf-8")).hexdigest()[:16]
 
 
-def _select(suite: Suite, case_ids: Sequence[str] | None) -> list[EvalCase]:
+def suite_info(suite: Suite, path: Path | None, selected: int) -> dict[str, Any]:
+    """The manifest's ``suite`` block."""
+    return {
+        "name": suite.name,
+        "version": suite.version,
+        "path": str(path) if path else None,
+        "digest": suite_digest(suite),
+        "cases_selected": selected,
+        "cases_total": len(suite.cases),
+    }
+
+
+def select_cases(suite: Suite, case_ids: Sequence[str] | None) -> list[EvalCase]:
     if not case_ids:
         return list(suite.cases)
     wanted = set(case_ids)
@@ -382,6 +421,59 @@ def _select(suite: Suite, case_ids: Sequence[str] | None) -> list[EvalCase]:
 
 def _write_json(path: Path, data: dict[str, Any]) -> None:
     write_text_atomic(path, json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+
+
+def cache_warnings(runner: Runner) -> list[str]:
+    """One warning summarising the cache writes that failed, if any did."""
+    errors = runner.cache_write_errors
+    if not errors:
+        return []
+    return [
+        f"{len(errors)} response(s) could not be written to the cache "
+        f"(first: {errors[0]}); they are in the run log, but a re-run will generate them again"
+    ]
+
+
+RunStatus = Literal["running", "complete", "interrupted", "crashed"]
+
+
+class RunDir:
+    """``<out_dir>/<run_id>/``: ``manifest.json`` plus one JSONL log.
+
+    The directory name gets a ``-2``, ``-3``... suffix if it already exists.
+    Records are appended to the log as they arrive; :meth:`close` rewrites it
+    in the given order once the run is complete. Used by ``run`` and ``judge``.
+    """
+
+    def __init__(self, out_dir: Path, run_id: str, log_name: str) -> None:
+        self.path = _unique_dir(out_dir / run_id)
+        self.log = RunLog(self.path / log_name)
+        self.manifest: dict[str, Any] = {}
+
+    @property
+    def run_id(self) -> str:
+        return self.path.name
+
+    def write_manifest(self, **fields: Any) -> None:
+        """Merge ``fields`` into the manifest and rewrite it (atomically)."""
+        self.manifest.update(fields)
+        _write_json(self.path / "manifest.json", self.manifest)
+
+    def close(self, status: RunStatus, records: Sequence[BaseModel]) -> str | None:
+        """Close the log, in ``records`` order if complete. Returns a warning, or None."""
+        try:
+            if status == "complete":
+                self.log.finalize(records)
+            else:
+                self.log.close()
+        except OSError as exc:
+            # The appended log is complete; only the in-order rewrite failed.
+            self.log.close()
+            return (
+                f"could not rewrite {self.log.path} in suite order ({exc}); "
+                "it is complete but in completion order"
+            )
+        return None
 
 
 async def run_suite(
@@ -405,28 +497,21 @@ async def run_suite(
     """
     params = params or GenerationParams()
     retry = retry or RetryPolicy()
-    cases = _select(suite, case_ids)
+    cases = select_cases(suite, case_ids)
     started = datetime.now(UTC)
     run_id = run_id or make_run_id(provider, started)
     runner = Runner(
         provider, params=params, concurrency=concurrency, retry=retry, cache=cache, sleep=sleep
     )
 
-    run_dir = _unique_dir(out_dir / run_id) if out_dir is not None else None
-    if run_dir is not None:
-        run_id = run_dir.name
+    rundir = RunDir(out_dir, run_id, "responses.jsonl") if out_dir is not None else None
+    if rundir is not None:
+        run_id = rundir.run_id
     manifest: dict[str, Any] = {
         "run_id": run_id,
         "status": "running",
         "evalkit_version": __version__,
-        "suite": {
-            "name": suite.name,
-            "version": suite.version,
-            "path": str(suite_path) if suite_path else None,
-            "digest": _suite_digest(suite),
-            "cases_selected": len(cases),
-            "cases_total": len(suite.cases),
-        },
+        "suite": suite_info(suite, suite_path, len(cases)),
         "provider": {**provider.identity(), "spec": provider.spec},
         "params": {
             "requested": params.explicit(),
@@ -442,24 +527,22 @@ async def run_suite(
         "cache": str(cache.root) if cache is not None else None,
         "started_at": started.isoformat(timespec="seconds"),
     }
-    manifest_path = run_dir / "manifest.json" if run_dir is not None else None
-    log = RunLog(run_dir / "responses.jsonl") if run_dir is not None else None
-    if manifest_path is not None:
-        _write_json(manifest_path, manifest)
+    if rundir is not None:
+        rundir.write_manifest(**manifest)
 
     seen: list[RunRecord] = []
 
     def record_done(record: RunRecord) -> None:
         seen.append(record)
-        if log is not None:
-            log.write(record)
+        if rundir is not None:
+            rundir.log.write(record)
         if on_record is not None:
             on_record(record)
 
     t0 = time.perf_counter()
     # "interrupted" covers Ctrl-C and cancellation (BaseException); an
     # exception from evalkit itself is a crash, and the manifest says so.
-    status: Literal["complete", "interrupted", "crashed"] = "interrupted"
+    status: RunStatus = "interrupted"
     records: list[RunRecord] = seen
     try:
         records = await runner.run(cases, on_record=record_done)
@@ -469,35 +552,18 @@ async def run_suite(
         raise
     finally:
         duration = time.perf_counter() - t0
+        run_dir = rundir.path if rundir is not None else None
         result = RunResult(run_id, run_dir, list(records), round(duration, 3), started)
-        if runner.cache_write_errors:
-            n = len(runner.cache_write_errors)
-            result.warnings.append(
-                f"{n} response(s) could not be written to the cache "
-                f"(first: {runner.cache_write_errors[0]}); they are in the run log, "
-                "but a re-run will generate them again"
-            )
-        if log is not None:
-            try:
-                if status == "complete":
-                    log.finalize(records)
-                else:
-                    log.close()
-            except OSError as exc:
-                # The appended log is complete; only the suite-order rewrite failed.
-                log.close()
-                result.warnings.append(
-                    f"could not rewrite {log.path} in suite order ({exc}); "
-                    "it is complete but in completion order"
-                )
-        if manifest_path is not None:
-            manifest.update(
+        result.warnings.extend(cache_warnings(runner))
+        if rundir is not None:
+            warning = rundir.close(status, records)
+            if warning:
+                result.warnings.append(warning)
+            rundir.write_manifest(
                 status=status,
                 finished_at=datetime.now(UTC).isoformat(timespec="seconds"),
                 duration_s=result.duration_s,
                 counts=result.counts(),
+                **({"warnings": result.warnings} if result.warnings else {}),
             )
-            if result.warnings:
-                manifest["warnings"] = result.warnings
-            _write_json(manifest_path, manifest)
     return result
