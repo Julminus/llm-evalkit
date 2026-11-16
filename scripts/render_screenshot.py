@@ -14,9 +14,11 @@ from __future__ import annotations
 import argparse
 import io
 from pathlib import Path
+from typing import Any
 
 import typer
 from rich.console import Console
+from rich.progress import Progress
 
 from evalkit import cli
 from evalkit.evaluate import check_suite, load_responses
@@ -39,7 +41,7 @@ def _save(console: Console, title: str, out: Path) -> None:
     clean = "\n".join(line.rstrip() for line in svg.splitlines()) + "\n"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(clean, encoding="utf-8", newline="\n")
-    print(f"wrote {out.relative_to(ROOT)}")
+    print(f"wrote {out}")
 
 
 def render_check() -> None:
@@ -49,10 +51,20 @@ def render_check() -> None:
     _save(cli.console, f"evalkit check {SUITE} {RESPONSES}", IMG / "check-output.svg")
 
 
-def render_run(provider: str, out_dir: Path) -> None:
+class _NoProgress(Progress):
+    """The live progress bar is transient in a terminal, but a recording
+    console keeps every frame, which left a stray bar at the top of the image."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        kwargs["disable"] = True
+        super().__init__(*args, **kwargs)
+
+
+def render_run(provider: str, out_dir: Path, *, image: Path = IMG / "run-output.svg") -> None:
     recorder = _recording()
     cli.console = recorder
     cli.err_console = recorder  # failures and notes go to stderr; show them too
+    cli.Progress = _NoProgress  # type: ignore[misc]
     # --no-cache: the image should show a real generation, not a cache replay.
     args = ["run", SUITE, "-p", provider, "--out", str(out_dir), "--no-cache"]
     command = typer.main.get_command(cli.app)
@@ -62,7 +74,7 @@ def render_run(provider: str, out_dir: Path) -> None:
         if exc.exit_code not in (0, 1):
             raise
     # --out is relative by default, so the log path in the image is not this PC's.
-    _save(recorder, f"evalkit run {SUITE} -p {provider}", IMG / "run-output.svg")
+    _save(recorder, f"evalkit run {SUITE} -p {provider}", image)
 
 
 def main() -> None:

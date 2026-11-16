@@ -10,3 +10,9 @@ graphify-out
 runs
 .evalkit-cache
 .env
+.coverage.*
+dist
+build
+# local-only Claude Code files (see .git/info/exclude)
+.claude
+CLAUDE.md
