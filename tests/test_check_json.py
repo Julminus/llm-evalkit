@@ -1,7 +1,10 @@
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
 from evalkit.checks import JsonSchemaCheck
+from evalkit.schema import load_suite
 from evalkit.taxonomy import FailureMode
 
 SCHEMA = {
@@ -175,6 +178,71 @@ def test_nan_and_infinity_are_not_json(constant: str) -> None:
     result = check.check(f'{{"x": {constant}}}')
     assert result.failed
     assert f"{constant.lstrip('-')} is not valid JSON" in result.message
+
+
+def test_nested_value_is_not_a_candidate_of_its_own() -> None:
+    # Wrapping the answer in an extra key is the format error this check
+    # exists to catch; the inner object must not be graded on its own.
+    check = JsonSchemaCheck.model_validate(
+        {"type": "json_schema", "schema": SCHEMA, "allow_surrounding_text": True}
+    )
+    assert check.check('Sure: {"person": {"nama": "Ayu", "umur": 21}}').failed
+    arrays = JsonSchemaCheck.model_validate(
+        {
+            "type": "json_schema",
+            "schema": {"type": "array", "items": {"type": "integer"}},
+            "allow_surrounding_text": True,
+        }
+    )
+    assert arrays.check('Result: {"values": [1, 2, 3], "ok": false}').failed
+    assert arrays.check("Result: [1, 2, 3] and then [4]").passed
+
+
+@pytest.mark.parametrize(
+    "ref",
+    ["https://json-schema.org/draft/2020-12/schema", "http://json-schema.org/draft-07/schema#"],
+)
+def test_ref_to_a_standard_metaschema_is_allowed(ref: str) -> None:
+    # A "write a JSON Schema" case: jsonschema resolves these offline.
+    schema = {"type": "object", "properties": {"skema": {"$ref": ref}}}
+    check = JsonSchemaCheck.model_validate({"type": "json_schema", "schema": schema})
+    assert check.check('{"skema": {"type": "string"}}').passed
+    assert check.check('{"skema": {"type": 12}}').failed
+
+
+def test_draft04_id_scoping_and_vendor_keywords() -> None:
+    schema = {
+        "$schema": "http://json-schema.org/draft-04/schema#",
+        "type": "object",
+        "x-docs": {"$ref": "see-the-wiki"},  # vendor keyword: data, not a ref
+        "properties": {
+            "alamat": {
+                "id": "http://example.com/alamat",
+                "definitions": {"Kota": {"type": "string"}},
+                "properties": {"kota": {"$ref": "#/definitions/Kota"}},
+            }
+        },
+    }
+    check = JsonSchemaCheck.model_validate({"type": "json_schema", "schema": schema})
+    assert check.check('{"alamat": {"kota": "Yogyakarta"}}').passed
+    assert check.check('{"alamat": {"kota": 1}}').failed
+
+
+def test_schema_that_json_cannot_represent_still_loads(tmp_path: Path) -> None:
+    # YAML reads `2024-01-31` as a date and an unquoted `no:` key as False;
+    # neither survives json.dumps, which the schema memo uses as its key.
+    suite = tmp_path / "s.yaml"
+    suite.write_text(
+        "name: t\ncases:\n  - id: a\n    language: en\n    prompt: p\n"
+        "    response_language: any\n    constraints:\n"
+        "      - type: json_schema\n        schema:\n          type: object\n"
+        "          examples: [2024-01-31]\n"
+        "          properties: {no: {type: string}, tanggal: {type: string}}\n",
+        encoding="utf-8",
+    )
+    loaded = load_suite(suite)
+    check = loaded.cases[0].constraints[0]
+    assert check.check('{"tanggal": "x"}').passed
 
 
 def test_embedded_json_prefers_a_candidate_that_matches() -> None:

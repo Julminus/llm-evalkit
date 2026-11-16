@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Iterator
-from functools import lru_cache
 from typing import Any, ClassVar, Literal, Self
 
 import referencing.jsonschema
@@ -13,8 +12,11 @@ from jsonschema import FormatChecker
 from jsonschema.exceptions import SchemaError
 from jsonschema.protocols import Validator
 from jsonschema.validators import validator_for
+
+# The standard metaschemas, bundled with jsonschema (a dependency of it).
+from jsonschema_specifications import REGISTRY as _METASCHEMAS  # type: ignore[import-untyped]
 from pydantic import Field, field_validator, model_validator
-from referencing import Registry
+from referencing import Resource
 from referencing.exceptions import Unresolvable
 
 from evalkit.checks.base import BaseCheck, CheckResult
@@ -24,10 +26,9 @@ from evalkit.text import fold_quotes, normalize
 # ---------------------------------------------------------------- JSON
 
 _FENCE_RE = re.compile(r"```[ \t]*(?:json|JSON)?[ \t]*\r?\n(.*?)\r?\n[ \t]*```", re.DOTALL)
+_JSON_START_RE = re.compile(r"[{\[]")
 _MAX_REPORTED_ERRORS = 3
-# Keywords whose values are data, not subschemas, so a "$ref" key inside them
-# is not a reference.
-_DATA_KEYWORDS = frozenset({"const", "enum", "default", "examples"})
+_MEMO_LIMIT = 256
 
 
 def _json_path(path: Any) -> str:
@@ -56,44 +57,39 @@ def _decode_error(exc: ValueError) -> str:
 
 
 def _unresolvable_refs(schema: dict[str, Any], validator_cls: type[Validator]) -> list[str]:
-    """Every ``$ref`` in ``schema`` that cannot be resolved locally.
+    """Every ``$ref`` in ``schema`` that can't be resolved offline.
 
     jsonschema resolves references lazily, so a typo such as
     ``#/$defs/Persn`` would otherwise surface only when a response reaches
-    that part of the schema, as a crash in the middle of a run.
+    that part of the schema, as a crash in the middle of a run. A ref may
+    point inside the schema or at a standard metaschema (bundled, as
+    jsonschema itself resolves them). Only real subschemas are walked, as the
+    schema's draft defines them (draft-04 ``id`` scoping included), so a
+    "$ref" inside ``enum`` data or a vendor keyword like ``x-docs`` is data.
     """
     spec = referencing.jsonschema.specification_with(
         validator_cls.META_SCHEMA.get("$schema", ""), default=referencing.jsonschema.DRAFT202012
     )
     bad: list[str] = []
 
-    def walk(node: Any, resolver: Any) -> None:
-        if isinstance(node, list):
-            for item in node:
-                walk(item, resolver)
-            return
-        if not isinstance(node, dict):
-            return
-        if isinstance(node.get("$id"), str):
-            resolver = resolver.in_subresource(spec.create_resource(node))
-        ref = node.get("$ref")
+    def walk(resource: Resource[Any], resolver: Any) -> None:
+        contents = resource.contents
+        ref = contents.get("$ref") if isinstance(contents, dict) else None
         if isinstance(ref, str):
             try:
                 resolver.lookup(ref)
             except Unresolvable:
                 bad.append(ref)
-        for key, value in node.items():
-            if key not in _DATA_KEYWORDS:
-                walk(value, resolver)
+        for sub in resource.subresources():
+            walk(sub, resolver.in_subresource(sub))
 
-    walk(schema, Registry().resolver_with_root(spec.create_resource(schema)))
+    root = spec.create_resource(schema)
+    walk(root, _METASCHEMAS.resolver_with_root(root))
     return bad
 
 
-@lru_cache(maxsize=256)
-def _schema_problem(schema_json: str) -> str | None:
-    """Why a schema is unusable, or None. Memoised: a metaschema check costs ~0.8 ms."""
-    schema = json.loads(schema_json)
+def _schema_problem(schema: dict[str, Any]) -> str | None:
+    """Why a schema is unusable, or None."""
     validator_cls = validator_for(schema)
     try:
         validator_cls.check_schema(schema)
@@ -102,17 +98,41 @@ def _schema_problem(schema_json: str) -> str | None:
     bad = _unresolvable_refs(schema, validator_cls)
     if bad:
         return (
-            f"JSON Schema has unresolvable $ref {bad}; "
-            "point it at a definition in this schema (remote refs are not fetched)"
+            f"JSON Schema has unresolvable $ref {bad}; point it at a definition in this "
+            "schema or a standard metaschema (other remote refs are not fetched)"
         )
     return None
 
 
-@lru_cache(maxsize=256)
-def _compiled_validator(schema_json: str) -> Validator:
-    schema = json.loads(schema_json)
+def _new_validator(schema: dict[str, Any]) -> Validator:
     validator: Validator = validator_for(schema)(schema, format_checker=FormatChecker())
     return validator
+
+
+# Memoised per distinct schema: a suite often repeats one schema across many
+# cases, and the metaschema check costs ~0.8 ms. The key is the schema as
+# sorted JSON; a schema JSON can't represent (YAML dates, mixed key types) is
+# simply not memoised.
+_PROBLEMS: dict[str, str | None] = {}
+_VALIDATORS: dict[str, Validator] = {}
+
+
+def _schema_key(schema: dict[str, Any]) -> str | None:
+    try:
+        return json.dumps(schema, sort_keys=True)
+    except (TypeError, ValueError):
+        return None
+
+
+def _memo(cache: dict[str, Any], schema: dict[str, Any], build: Any) -> Any:
+    key = _schema_key(schema)
+    if key is None:
+        return build(schema)
+    if key not in cache:
+        if len(cache) >= _MEMO_LIMIT:
+            cache.clear()
+        cache[key] = build(schema)
+    return cache[key]
 
 
 class JsonSchemaCheck(BaseCheck):
@@ -136,24 +156,32 @@ class JsonSchemaCheck(BaseCheck):
     @field_validator("json_schema")
     @classmethod
     def _valid_schema(cls, schema: dict[str, Any]) -> dict[str, Any]:
-        error = _schema_problem(json.dumps(schema, sort_keys=True))
+        error = _memo(_PROBLEMS, schema, _schema_problem)
         if error is not None:
             raise ValueError(error)
         return schema
 
     @property
     def _validator(self) -> Validator:
-        return _compiled_validator(json.dumps(self.json_schema, sort_keys=True))
+        validator: Validator = _memo(_VALIDATORS, self.json_schema, _new_validator)
+        return validator
 
     def _embedded(self, text: str) -> Iterator[Any]:
-        """Every JSON object or array that starts somewhere in ``text``."""
-        for i, ch in enumerate(text):
-            if ch in "{[":
-                try:
-                    data, _ = _DECODER.raw_decode(text, i)
-                except ValueError:
-                    continue
-                yield data
+        """Every top-level JSON object or array in ``text``, left to right.
+
+        Scanning resumes after each decoded value, so a value nested inside
+        another is never a candidate of its own: ``{"person": {...}}`` must
+        not pass a schema for the inner object.
+        """
+        resume = 0
+        for m in _JSON_START_RE.finditer(text):
+            if m.start() < resume:
+                continue
+            try:
+                data, resume = _DECODER.raw_decode(text, m.start())
+            except ValueError:
+                continue
+            yield data
 
     def _extract(self, response: str) -> tuple[Any, str] | str:
         """Return (data, where-it-was-found), or an error message."""
