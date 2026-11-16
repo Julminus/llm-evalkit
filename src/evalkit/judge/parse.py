@@ -36,7 +36,7 @@ import json
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, NamedTuple
 
 from evalkit.schema import Dimension
 from evalkit.taxonomy import FailureMode
@@ -44,7 +44,7 @@ from evalkit.text import scrub_surrogates
 
 __all__ = ["JudgmentError", "ParsedJudgment", "parse_judgment"]
 
-_FENCE_RE = re.compile(r"```[ \t]*[A-Za-z]*[ \t]*\r?\n(.*?)```", re.DOTALL)
+_FENCE_RE = re.compile(r"```[ \t]*+[A-Za-z]*+[ \t]*+\r?\n(.*?)```", re.DOTALL)
 _INT_TEXT_RE = re.compile(r"\d{1,3}")
 _MODE_NAMES = {m.value: m for m in FailureMode}
 _SHOWN_CHARS = 60
@@ -85,58 +85,77 @@ def _unique_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 _DECODER = json.JSONDecoder(object_pairs_hook=_unique_pairs)
 
 
-def _decode(text: str) -> dict[str, Any] | str:
-    """A JSON object, or why ``text`` is not one."""
+class _Unread(NamedTuple):
+    """Why a piece of the reply is not an object."""
+
+    problem: str
+
+
+def _decode(text: str, origin: str, offset: int) -> dict[str, Any] | _Unread:
+    """``text`` (found at ``offset`` in ``origin``) as a JSON object.
+
+    Error positions count from the start of ``origin``, the reply the judge
+    will be shown, not from ``text``.
+    """
     try:
         data = _DECODER.decode(text)
     except _DuplicateKey as exc:
-        return _duplicate(exc)
+        return _Unread(_duplicate(exc.args[0]))
     except json.JSONDecodeError as exc:
-        return f"not valid JSON: {exc.msg} (line {exc.lineno}, column {exc.colno})"
+        pos = offset + exc.pos
+        line = origin.count("\n", 0, pos) + 1
+        column = pos - origin.rfind("\n", 0, pos)
+        problem = f"not valid JSON: {exc.msg} (line {line}, column {column})"
+        return _Unread(problem)
     except RecursionError:
-        return "not valid JSON: nested too deeply"
+        return _Unread("not valid JSON: nested too deeply")
     except ValueError:  # e.g. a number with more digits than Python converts
-        return "not valid JSON: a number is too long"
+        return _Unread("not valid JSON: a number is too long")
     if not isinstance(data, dict):
-        return f"the reply must be a JSON object, not a JSON {type(data).__name__}"
+        return _Unread(f"the reply must be a JSON object, not a JSON {type(data).__name__}")
     return data
 
 
-def _duplicate(exc: _DuplicateKey) -> str:
-    return f"the key {_show(exc.args[0])} appears twice; give each key once"
+def _duplicate(key: object) -> str:
+    return f"the key {_show(key)} appears twice; give each key once"
 
 
-def _has_duplicate_keys(node: ast.AST) -> bool:
-    if not isinstance(node, ast.Dict):
-        return False
-    keys = [k.value for k in node.keys if isinstance(k, ast.Constant)]
-    try:
-        return len(set(keys)) != len(keys)
-    except TypeError:  # an unhashable constant can't be a dict key anyway
-        return True
+def _repeated_key(node: ast.AST) -> tuple[bool, object]:
+    """``(True, key)`` if ``node`` is a dict display that gives a constant key twice."""
+    if isinstance(node, ast.Dict):
+        seen: set[object] = set()
+        for key in node.keys:
+            if isinstance(key, ast.Constant):
+                if key.value in seen:
+                    return True, key.value
+                seen.add(key.value)
+    return False, None
 
 
-def _python_literal(text: str) -> dict[str, Any] | None:
-    """``text`` as a Python dict literal (no code runs), or None."""
+def _python_literal(text: str) -> dict[str, Any] | _Unread | None:
+    """``text`` as a Python dict literal (no code runs); a repeated key is a
+    problem; anything else that isn't a dict literal is None."""
     try:
         tree = ast.parse(text, mode="eval")
-        if any(_has_duplicate_keys(node) for node in ast.walk(tree)):
-            return None
+        for node in ast.walk(tree):
+            repeated, key = _repeated_key(node)
+            if repeated:
+                return _Unread(_duplicate(key))
         data = ast.literal_eval(tree)
     except Exception:  # any failure (an OverflowError, say) just means "not a literal"
         return None
     return data if isinstance(data, dict) else None
 
 
-def _object(text: str) -> tuple[dict[str, Any], list[str]] | str:
+def _object(text: str, origin: str, offset: int = 0) -> tuple[dict[str, Any], list[str]] | _Unread:
     """``text`` as a JSON object, else as a Python-style one; or why neither works."""
-    data = _decode(text)
+    data = _decode(text, origin, offset)
     if isinstance(data, dict):
         return data, []
     literal = _python_literal(text)
-    if literal is not None:
+    if isinstance(literal, dict):
         return literal, ["read a Python-style object"]
-    return data
+    return literal if isinstance(literal, _Unread) else data
 
 
 _ONLY_ONE = "reply with only the JSON object, with no other text or objects around it"
@@ -148,39 +167,43 @@ def _extract(text: str) -> tuple[dict[str, Any], list[str]]:
     Tried in order, each as JSON and then as a Python literal: the whole
     reply; the inside of its one code fence, if it has exactly one and no
     ``{`` outside it; the span from the first ``{`` to the last ``}``.
-    Anything else is re-asked.
+    Anything else is re-asked, with the reason and a request for the object
+    alone.
     """
     stripped = text.strip()
     if len(stripped) > _MAX_REPLY_CHARS:
         raise JudgmentError([f"the reply is {len(stripped):,} characters long; {_ONLY_ONE}"])
-    found = _object(stripped)
-    if not isinstance(found, str):
-        return found
+    whole = _object(stripped, stripped)
+    if not isinstance(whole, _Unread):
+        return whole
 
     fences = list(_FENCE_RE.finditer(stripped))
     if len(fences) == 1:
         fence = fences[0]
         outside = stripped[: fence.start()] + stripped[fence.end() :]
         if "{" not in outside:
-            fenced = _object(fence.group(1).strip())
-            if not isinstance(fenced, str):
-                note = (
-                    "removed a code fence"
-                    if not outside.strip()
-                    else "took the JSON from a code fence"
+            raw = fence.group(1)
+            body_at = fence.start(1) + len(raw) - len(raw.lstrip())
+            fenced = _object(raw.strip(), stripped, body_at)
+            if not isinstance(fenced, _Unread):
+                where = (
+                    "took the JSON from a code fence" if outside.strip() else "removed a code fence"
                 )
-                return fenced[0], [note, *fenced[1]]
-            raise JudgmentError([fenced] if not outside.strip() else [fenced, _ONLY_ONE])
+                return fenced[0], [where, *fenced[1]]
 
     start, end = stripped.find("{"), stripped.rfind("}")
     if start == -1:
         raise JudgmentError(["the reply contains no JSON object"])
-    if end < start:  # an object that is never closed: cut off, say
-        raise JudgmentError([found])
-    span = _object(stripped[start : end + 1])
-    if not isinstance(span, str):
-        return span[0], ["took the JSON object out of surrounding text", *span[1]]
-    raise JudgmentError([span, _ONLY_ONE])
+    if end > start:
+        span = _object(stripped[start : end + 1], stripped, start)
+        if not isinstance(span, _Unread):
+            return span[0], ["took the JSON object out of surrounding text", *span[1]]
+    if start == 0:
+        # The reply starts as one object: its own error says where it breaks.
+        raise JudgmentError([whole.problem, _ONLY_ONE])
+    tail = _object(stripped[start:], stripped, start)
+    problem = tail.problem if isinstance(tail, _Unread) else whole.problem
+    raise JudgmentError([problem, _ONLY_ONE])
 
 
 def _show(value: Any) -> str:

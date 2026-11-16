@@ -151,7 +151,8 @@ class TestReasked:
         assert problems("") == ["the reply contains no JSON object"]
 
     def test_truncated_object_reports_the_decode_error(self) -> None:
-        [problem] = problems(text()[:40])
+        problem, hint = problems(text()[:40])
+        assert hint == ONLY_ONE
         assert problem.startswith("not valid JSON:")
         assert "line 1" in problem
 
@@ -159,7 +160,7 @@ class TestReasked:
         assert problems("[1, 2]") == ["the reply contains no JSON object"]
 
     def test_a_list_holding_a_broken_object(self) -> None:
-        [problem] = problems('["x", {"rationale": ]')
+        problem, _ = problems('["x", {"rationale": ]')
         assert problem.startswith("not valid JSON")
 
     def test_object_inside_a_list_is_taken(self) -> None:
@@ -253,7 +254,7 @@ class TestOddReplies:
 
     def test_deep_array_nesting(self) -> None:
         raw = '{"rationale": "x", "scores": ' + "[" * 5000
-        [problem] = problems(raw)
+        problem, _ = problems(raw)
         assert problem.startswith("not valid JSON")
 
     def test_number_too_long_for_python(self) -> None:
@@ -287,14 +288,13 @@ class TestOddReplies:
         raw = '{"rationale": "x", ' + low + ", " + high + ', "failure_modes": []}'
         assert problems(raw) == ['the key "scores" appears twice; give each key once', ONLY_ONE]
 
-    def test_duplicate_python_key_is_not_read(self) -> None:
+    def test_duplicate_python_key_is_named(self) -> None:
+        # Found in the round-5 review: this got a message about double quotes.
         raw = (
             "{'rationale': 'x', 'scores': {'instruction_following': 1, 'faithfulness': 1}, "
             "'scores': {'instruction_following': 4, 'faithfulness': 5}, 'failure_modes': []}"
         )
-        problem, hint = problems(raw)
-        assert problem.startswith("not valid JSON")
-        assert hint == ONLY_ONE
+        assert problems(raw) == ['the key "scores" appears twice; give each key once', ONLY_ONE]
 
 
 class TestOneObject:
@@ -402,3 +402,33 @@ class TestBounds:
         assert problem.endswith("appears twice; give each key once")
         problem.encode("utf-8")
         assert hint == ONLY_ONE
+
+
+class TestRoundFive:
+    """Found in the round-5 review of the one-object rule."""
+
+    def test_backticks_inside_a_fenced_string_fall_through_to_the_span(self) -> None:
+        inner = text()[:-1] + ', "note": "kept the ``` fences"}'
+        parsed = parse_judgment(f"```json\n{inner}\n```", IF_FA)
+        assert parsed.scores[Dimension.INSTRUCTION_FOLLOWING] == 4
+        assert parsed.repairs == ["took the JSON object out of surrounding text"]
+
+    def test_a_fenced_list_holding_the_object_is_read(self) -> None:
+        parsed = parse_judgment(f"```json\n[{text()}]\n```", IF_FA)
+        assert parsed.rationale == "Does what was asked."
+
+    def test_error_positions_count_from_the_reply_shown_to_the_judge(self) -> None:
+        raw = 'Here is my evaluation:\n{"rationale": "It says "hi" well.", "scores": {}}'
+        problem, hint = problems(raw)
+        assert problem.startswith("not valid JSON: Expecting ',' delimiter (line 2, column ")
+        assert hint == ONLY_ONE
+
+    def test_a_cut_off_object_after_prose_points_into_the_object(self) -> None:
+        problem, _ = problems('Here is my evaluation: {"rationale": "The response is go')
+        assert "Unterminated string starting at (line 1, column 38)" in problem
+
+    def test_a_long_run_of_spaces_after_backticks_is_quick(self) -> None:
+        start = time.perf_counter()
+        with pytest.raises(JudgmentError):
+            parse_judgment("```" + " " * 29_986 + "x", IF_FA)
+        assert time.perf_counter() - start < 0.5
