@@ -10,6 +10,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from evalkit.checks import CheckResult, Status
+from evalkit.files import NotUtf8Error, read_utf8
 from evalkit.langdetect import Language
 from evalkit.schema import EvalCase, Suite
 from evalkit.taxonomy import FailureMode
@@ -71,9 +72,15 @@ def load_responses(path: str | Path) -> dict[str, str]:
     """
     path = Path(path)
     try:
-        lines = path.read_text(encoding="utf-8").splitlines()
+        # Split on "\n" only. str.splitlines() also splits on U+2028, U+2029
+        # and U+0085, which JSON allows unescaped inside strings and which
+        # model_dump_json writes raw, so a response containing one would
+        # break its own run log.
+        lines = read_utf8(path).split("\n")
     except OSError as exc:
         raise ResponsesError(f"{path}: cannot read file ({exc.strerror})") from exc
+    except NotUtf8Error as exc:
+        raise ResponsesError(f"{path}: {exc}") from exc
     out: dict[str, str] = {}
     failed: set[str] = set()
     for n, line in enumerate(lines, start=1):

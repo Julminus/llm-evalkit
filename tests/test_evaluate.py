@@ -171,3 +171,37 @@ class TestLoadResponses:
     def test_missing_file(self, tmp_path: Path) -> None:
         with pytest.raises(ResponsesError, match="cannot read file"):
             load_responses(tmp_path / "nope.jsonl")
+
+    @pytest.mark.parametrize("separator", [" ", " ", "\x85"])
+    def test_unicode_line_separators_inside_a_response(
+        self, tmp_path: Path, separator: str
+    ) -> None:
+        # JSON allows these unescaped inside strings, and model_dump_json
+        # writes them raw, so they must not split the line.
+        response = f"satu{separator}dua"
+        path = self._write(
+            tmp_path, json.dumps({"id": "a", "response": response}, ensure_ascii=False)
+        )
+        assert load_responses(path) == {"a": response}
+
+    def test_crlf_file(self, tmp_path: Path) -> None:
+        path = tmp_path / "r.jsonl"
+        path.write_bytes(b'{"id": "a", "response": "x"}\r\n{"id": "b", "response": "y"}\r\n')
+        assert load_responses(path) == {"a": "x", "b": "y"}
+
+    def test_utf8_bom_is_accepted(self, tmp_path: Path) -> None:
+        path = tmp_path / "r.jsonl"
+        path.write_bytes(b'\xef\xbb\xbf{"id": "a", "response": "x"}\n')
+        assert load_responses(path) == {"a": "x"}
+
+    def test_utf16_file_gets_a_clear_error(self, tmp_path: Path) -> None:
+        path = tmp_path / "r.jsonl"
+        path.write_text('{"id": "a", "response": "x"}\n', encoding="utf-16")
+        with pytest.raises(ResponsesError, match="UTF-16, not UTF-8"):
+            load_responses(path)
+
+    def test_non_utf8_file_gets_a_clear_error(self, tmp_path: Path) -> None:
+        path = tmp_path / "r.jsonl"
+        path.write_bytes('{"id": "a", "response": "café"}\n'.encode("cp1252"))
+        with pytest.raises(ResponsesError, match=r"not UTF-8 \(byte 0xe9"):
+            load_responses(path)

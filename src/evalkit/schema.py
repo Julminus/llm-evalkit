@@ -17,6 +17,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from evalkit.checks import Constraint, LanguageCheck
+from evalkit.files import NotUtf8Error, read_utf8
 from evalkit.langdetect import Language
 
 __all__ = [
@@ -169,13 +170,50 @@ def parse_suite(raw: object, source: str = "<suite>") -> Suite:
         raise SuiteError(f"{source}: {n} validation error(s)\n{detail}") from exc
 
 
+class _UniqueKeyLoader(yaml.SafeLoader):
+    """SafeLoader that rejects duplicate mapping keys.
+
+    Plain YAML keeps the last value, so a case with two ``constraints:`` keys
+    would silently lose the first list and still validate.
+    """
+
+
+def _construct_unique_mapping(loader: _UniqueKeyLoader, node: yaml.MappingNode) -> object:
+    seen: dict[object, int] = {}
+    for key_node, _ in node.value:
+        if key_node.tag == "tag:yaml.org,2002:merge":
+            continue  # "<<" merge keys may be overridden, as YAML intends
+        key = loader.construct_object(key_node)
+        try:
+            duplicate = key in seen
+        except TypeError:
+            continue  # unhashable key; construct_mapping reports it
+        if duplicate:
+            raise yaml.constructor.ConstructorError(
+                None,
+                None,
+                f"duplicate key {key!r} (first defined on line {seen[key] + 1})",
+                key_node.start_mark,
+            )
+        seen[key] = key_node.start_mark.line
+    return loader.construct_mapping(node)
+
+
+_UniqueKeyLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+    _construct_unique_mapping,
+)
+
+
 def load_suite(path: str | Path) -> Suite:
-    """Load and validate a suite from a YAML file."""
+    """Load and validate a suite from a YAML file (UTF-8; duplicate keys are an error)."""
     path = Path(path)
     try:
-        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+        raw = yaml.load(read_utf8(path), Loader=_UniqueKeyLoader)  # a SafeLoader subclass
     except OSError as exc:
         raise SuiteError(f"{path}: cannot read file ({exc.strerror})") from exc
+    except NotUtf8Error as exc:
+        raise SuiteError(f"{path}: {exc}") from exc
     except yaml.YAMLError as exc:
         raise SuiteError(f"{path}: invalid YAML\n  {exc}") from exc
     return parse_suite(raw, source=str(path))

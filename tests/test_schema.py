@@ -169,3 +169,53 @@ class TestLoadSuite:
         path.write_text("", encoding="utf-8")
         with pytest.raises(SuiteError, match="mapping"):
             load_suite(path)
+
+    def test_duplicate_key_rejected(self, tmp_path: Path) -> None:
+        # Plain YAML keeps the last value, which would silently drop the first list.
+        path = tmp_path / "dup.yaml"
+        path.write_text(
+            "name: demo\ncases:\n  - id: id-001\n    language: id\n    prompt: Halo!\n"
+            "    constraints: [{type: word_count, max: 5}]\n"
+            "    constraints: [{type: word_count, min: 1}]\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(
+            SuiteError, match=r"duplicate key 'constraints' \(first defined on line 6\)"
+        ):
+            load_suite(path)
+
+    def test_duplicate_key_in_a_flow_mapping(self, tmp_path: Path) -> None:
+        path = tmp_path / "dup.yaml"
+        path.write_text("{name: a, name: b, cases: []}\n", encoding="utf-8")
+        with pytest.raises(SuiteError, match="duplicate key 'name'"):
+            load_suite(path)
+
+    def test_merge_keys_may_be_overridden(self, tmp_path: Path) -> None:
+        path = tmp_path / "merge.yaml"
+        path.write_text(
+            "base: &base {language: id, prompt: Halo!}\n"
+            "name: demo\ncases:\n  - <<: *base\n    id: id-001\n    prompt: Hai!\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(SuiteError, match="base"):  # "base" is an unknown top-level key
+            load_suite(path)
+        path.write_text(
+            "name: demo\ncases:\n  - &c {id: id-001, language: id, prompt: Halo!}\n"
+            "  - <<: *c\n    id: id-002\n    prompt: Hai!\n",
+            encoding="utf-8",
+        )
+        suite = load_suite(path)
+        assert [c.prompt for c in suite.cases] == ["Halo!", "Hai!"]
+
+    def test_utf8_bom_is_accepted(self, tmp_path: Path) -> None:
+        path = tmp_path / "s.yaml"
+        path.write_bytes(
+            b"\xef\xbb\xbfname: demo\ncases:\n  - {id: id-001, language: id, prompt: Halo!}\n"
+        )
+        assert load_suite(path).name == "demo"
+
+    def test_utf16_file_gets_a_clear_error(self, tmp_path: Path) -> None:
+        path = tmp_path / "s.yaml"
+        path.write_text("name: demo\n", encoding="utf-16")
+        with pytest.raises(SuiteError, match="UTF-16, not UTF-8"):
+            load_suite(path)
