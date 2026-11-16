@@ -49,6 +49,13 @@ class TestSentences:
             ("The correct answer is C. Photosynthesis needs light.", 2),
             ("Jawabannya B. Karena itu benar.", 2),
             ("Pilihan a. Lalu pilihan b.", 2),
+            # Middle initials between capitalised name words stay inside the sentence.
+            ("John F. Kennedy was president.", 1),
+            ("Jalan Mohammad H. Thamrin ramai.", 1),
+            ("President John F. Kennedy spoke. Then he left.", 2),
+            # Ambiguous shape: A-E after the first word reads as an answer letter.
+            ("Jawaban: C. Karena itu benar.", 2),
+            ("Franklin D. Roosevelt won.", 2),  # the documented cost of that rule
             # "No." abbreviates only before a number; otherwise it is the answer word.
             ("No. The capital is Canberra.", 2),
             ("Lihat UU No. 27 Tahun 2022.", 1),
@@ -67,6 +74,18 @@ class TestSentences:
 
     def test_list_marker_number_is_not_a_sentence(self) -> None:
         assert text.sentences("1. Satu.\n2. Dua.") == ["Satu.", "Dua."]
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            "a. Jakarta\nb. Bandung\nc. Surabaya",
+            "A) Jakarta\nB) Bandung\nC) Surabaya",
+            "i. Jakarta\nii. Bandung\niii. Surabaya",
+            "I. Jakarta\nII. Bandung\nIV. Surabaya",
+        ],
+    )
+    def test_lettered_and_roman_list_markers_are_not_sentences(self, source: str) -> None:
+        assert text.sentences(source) == ["Jakarta", "Bandung", "Surabaya"]
 
     def test_code_and_urls_are_ignored(self) -> None:
         source = "Run this.\n```python\nprint('x. y. z.')\n```\nSee https://example.com/a.b. Done."
