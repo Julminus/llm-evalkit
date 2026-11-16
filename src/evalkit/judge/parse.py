@@ -89,6 +89,7 @@ class _Unread(NamedTuple):
     """Why a piece of the reply is not an object."""
 
     problem: str
+    repeated_key: bool = False
 
 
 def _decode(text: str, origin: str, offset: int) -> dict[str, Any] | _Unread:
@@ -100,7 +101,7 @@ def _decode(text: str, origin: str, offset: int) -> dict[str, Any] | _Unread:
     try:
         data = _DECODER.decode(text)
     except _DuplicateKey as exc:
-        return _Unread(_duplicate(exc.args[0]))
+        return _Unread(_duplicate(exc.args[0]), repeated_key=True)
     except json.JSONDecodeError as exc:
         pos = offset + exc.pos
         line = origin.count("\n", 0, pos) + 1
@@ -140,7 +141,7 @@ def _python_literal(text: str) -> dict[str, Any] | _Unread | None:
         for node in ast.walk(tree):
             repeated, key = _repeated_key(node)
             if repeated:
-                return _Unread(_duplicate(key))
+                return _Unread(_duplicate(key), repeated_key=True)
         data = ast.literal_eval(tree)
     except Exception:  # any failure (an OverflowError, say) just means "not a literal"
         return None
@@ -176,6 +177,7 @@ def _extract(text: str) -> tuple[dict[str, Any], list[str]]:
     whole = _object(stripped, stripped)
     if not isinstance(whole, _Unread):
         return whole
+    failed = [whole]  # every read that failed; a repeated key is the most useful thing to report
 
     fences = list(_FENCE_RE.finditer(stripped))
     if len(fences) == 1:
@@ -185,7 +187,9 @@ def _extract(text: str) -> tuple[dict[str, Any], list[str]]:
             raw = fence.group(1)
             body_at = fence.start(1) + len(raw) - len(raw.lstrip())
             fenced = _object(raw.strip(), stripped, body_at)
-            if not isinstance(fenced, _Unread):
+            if isinstance(fenced, _Unread):
+                failed.append(fenced)
+            else:
                 where = (
                     "took the JSON from a code fence" if outside.strip() else "removed a code fence"
                 )
@@ -198,6 +202,10 @@ def _extract(text: str) -> tuple[dict[str, Any], list[str]]:
         span = _object(stripped[start : end + 1], stripped, start)
         if not isinstance(span, _Unread):
             return span[0], ["took the JSON object out of surrounding text", *span[1]]
+        failed.append(span)
+    repeated = next((u.problem for u in failed if u.repeated_key), None)
+    if repeated is not None:
+        raise JudgmentError([repeated, _ONLY_ONE])
     if start == 0:
         # The reply starts as one object: its own error says where it breaks.
         raise JudgmentError([whole.problem, _ONLY_ONE])

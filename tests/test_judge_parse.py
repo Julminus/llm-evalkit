@@ -427,6 +427,21 @@ class TestRoundFive:
         problem, _ = problems('Here is my evaluation: {"rationale": "The response is go')
         assert "Unterminated string starting at (line 1, column 38)" in problem
 
+    @pytest.mark.parametrize(
+        "wrap",
+        ["{}", "```python\n{}\n```", "Verdict: {} Thanks.", "Here:\n```\n{}\n```\nDone."],
+    )
+    def test_a_repeated_python_key_is_named_wherever_the_dict_is(self, wrap: str) -> None:
+        # Found in the round-6 review: only a dict at the end of the reply was named.
+        body = (
+            "{'rationale': 'ok', 'scores': {'instruction_following': 1, 'faithfulness': 1}, "
+            "'scores': {'instruction_following': 4, 'faithfulness': 5}, 'failure_modes': []}"
+        )
+        assert problems(wrap.replace("{}", body)) == [
+            'the key "scores" appears twice; give each key once',
+            ONLY_ONE,
+        ]
+
     def test_a_long_run_of_spaces_after_backticks_is_quick(self) -> None:
         start = time.perf_counter()
         with pytest.raises(JudgmentError):
