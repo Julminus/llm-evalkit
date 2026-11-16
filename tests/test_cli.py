@@ -1,10 +1,12 @@
+import io
 import json
 from pathlib import Path
 
 import pytest
+from rich.console import Console
 from typer.testing import CliRunner
 
-from evalkit import __version__
+from evalkit import __version__, cli
 from evalkit.cli import app
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -129,3 +131,30 @@ def test_list_checks() -> None:
     assert result.exit_code == 0
     for name in ("word_count", "json_schema", "language", "bullet_list", "ends_with"):
         assert name in result.output
+
+
+def test_list_checks_keeps_square_brackets(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Regression: Rich parsed "[min, max]" in the summaries as a markup tag and dropped it.
+    # A wide console keeps each summary on one line so the assertion sees it whole.
+    wide = Console(width=200, record=True, file=io.StringIO())
+    monkeypatch.setattr(cli, "console", wide)
+    result = runner.invoke(app, ["list-checks"])
+    assert result.exit_code == 0
+    text = wide.export_text()
+    assert "Word count within [min, max]" in text
+    assert "[min_items, max_items]" in text
+
+
+def test_bracketed_tags_and_ids_are_printed_literally(tmp_path: Path) -> None:
+    suite = tmp_path / "s.yaml"
+    suite.write_text(
+        "name: s\ncases:\n  - id: a\n    language: en\n    prompt: hi\n    tags: ['[draft]']\n",
+        encoding="utf-8",
+    )
+    validated = runner.invoke(app, ["validate", str(suite)])
+    assert "[draft] (1)" in validated.output
+
+    responses = tmp_path / "r.jsonl"
+    responses.write_text('{"id": "[bold]x", "response": "hi"}\n', encoding="utf-8")
+    checked = runner.invoke(app, ["check", str(suite), str(responses)])
+    assert "responses with no matching case: [bold]x" in checked.output

@@ -89,7 +89,8 @@ def validate(
         )
         console.print("  checks: " + ", ".join(f"{t} ({n})" for t, n in sorted(checks.items())))
         if tags:
-            console.print("  tags:   " + ", ".join(f"{t} ({n})" for t, n in tags.most_common()))
+            shown_tags = ", ".join(f"{t} ({n})" for t, n in tags.most_common())
+            console.print("  tags:   " + escape(shown_tags))
     if failed:
         raise typer.Exit(1)
 
@@ -139,9 +140,10 @@ def _print_summary(summary: CheckSummary, *, verbose: bool) -> None:
             "failure modes: " + ", ".join(f"{m.value} ({n})" for m, n in modes.most_common())
         )
     if summary.missing:
-        console.print(f"[yellow]no response for:[/] {', '.join(summary.missing)}")
+        console.print(f"[yellow]no response for:[/] {escape(', '.join(summary.missing))}")
     if summary.unknown:
-        console.print(f"[yellow]responses with no matching case:[/] {', '.join(summary.unknown)}")
+        unknown = escape(", ".join(summary.unknown))
+        console.print(f"[yellow]responses with no matching case:[/] {unknown}")
 
 
 @app.command()
@@ -190,5 +192,6 @@ def list_checks() -> None:
     table.add_column("what it checks")
     for cls in CHECK_TYPES:
         type_name = cls.model_fields["type"].default
-        table.add_row(type_name, cls.default_failure_mode.value, cls.summary)
+        # Summaries contain "[min, max]", which Rich would otherwise eat as markup.
+        table.add_row(type_name, cls.default_failure_mode.value, escape(cls.summary))
     console.print(table)
