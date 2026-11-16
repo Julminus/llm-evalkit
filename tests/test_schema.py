@@ -4,6 +4,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from evalkit import schema
 from evalkit.checks import LanguageCheck, WordCount
 from evalkit.schema import Dimension, EvalCase, Suite, SuiteError, load_suite, parse_suite
 from evalkit.taxonomy import FailureMode
@@ -184,6 +185,12 @@ class TestLoadSuite:
         ):
             load_suite(path)
 
+    def test_unhashable_key_is_a_yaml_error(self, tmp_path: Path) -> None:
+        path = tmp_path / "bad.yaml"
+        path.write_text("name: demo\n? [a, b]\n: x\n", encoding="utf-8")
+        with pytest.raises(SuiteError, match="unhashable key"):
+            load_suite(path)
+
     def test_duplicate_key_in_a_flow_mapping(self, tmp_path: Path) -> None:
         path = tmp_path / "dup.yaml"
         path.write_text("{name: a, name: b, cases: []}\n", encoding="utf-8")
@@ -206,6 +213,24 @@ class TestLoadSuite:
         )
         suite = load_suite(path)
         assert [c.prompt for c in suite.cases] == ["Halo!", "Hai!"]
+
+    def test_yaml_error_quotes_the_line(self, tmp_path: Path) -> None:
+        # The fast C parser's messages are terse; errors are re-parsed in pure
+        # Python so the message points at the offending line.
+        path = tmp_path / "bad.yaml"
+        path.write_text("name: demo\ncases: [unclosed\n", encoding="utf-8")
+        with pytest.raises(SuiteError, match=r"line 3") as info:
+            load_suite(path)
+        assert "invalid YAML" in str(info.value)
+
+    def test_works_without_libyaml(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(schema, "_FastUniqueKeyLoader", schema._UniqueKeyLoader)
+        path = tmp_path / "s.yaml"
+        path.write_text("name: demo\ncases:\n  - {id: a, language: id, prompt: Halo!}\n", "utf-8")
+        assert load_suite(path).cases[0].id == "a"
+        path.write_text("name: [unclosed\n", encoding="utf-8")
+        with pytest.raises(SuiteError, match="invalid YAML"):
+            load_suite(path)
 
     def test_utf8_bom_is_accepted(self, tmp_path: Path) -> None:
         path = tmp_path / "s.yaml"

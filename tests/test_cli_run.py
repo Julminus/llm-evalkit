@@ -6,6 +6,7 @@ import pytest
 from typer.testing import CliRunner
 
 from evalkit import cli
+from evalkit.cache import ResponseCache
 from evalkit.cli import app
 from evalkit.prompts import Prompt
 from evalkit.providers import Completion, GenerationParams, Provider, ProviderError
@@ -189,6 +190,23 @@ def test_preflight_failure_stops_before_running(
     assert result.exit_code == 1
     assert "is not pulled" in result.output
     assert not (tmp_path / "runs").exists()
+
+
+def test_run_warnings_are_shown_without_failing_the_run(
+    dirs: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def full_disk(*args: Any, **kwargs: Any) -> None:
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(ResponseCache, "put", full_disk)
+    result = mock_run(dirs, "--json")
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["run"]["warnings"][0].startswith("10 response(s) could not be written")
+    table = mock_run(dirs, "--no-cache")  # no cache, no warning
+    assert "warning:" not in table.output
+    warned = mock_run(dirs)
+    assert "warning: 10 response(s) could not be written to the cache" in warned.output
 
 
 def test_interrupt_exits_130(dirs: list[str], monkeypatch: pytest.MonkeyPatch) -> None:

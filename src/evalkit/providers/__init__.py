@@ -15,8 +15,9 @@ The spec is split at the first colon only, so Ollama tags such as
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
 from evalkit.prompts import Prompt
-from evalkit.providers.anthropic_api import AnthropicProvider
 from evalkit.providers.base import (
     Completion,
     FinishReason,
@@ -28,6 +29,9 @@ from evalkit.providers.base import (
 from evalkit.providers.mock import MockProvider
 from evalkit.providers.ollama import OllamaProvider
 from evalkit.providers.openai_compat import OpenAICompatProvider
+
+if TYPE_CHECKING:
+    from evalkit.providers.anthropic_api import AnthropicProvider
 
 __all__ = [
     "PROVIDER_NAMES",
@@ -47,6 +51,15 @@ __all__ = [
 ]
 
 PROVIDER_NAMES = ("mock", "ollama", "openai", "anthropic")
+
+
+def __getattr__(name: str) -> Any:
+    # The anthropic SDK takes ~0.6 s to import; load it only when it is used.
+    if name == "AnthropicProvider":
+        from evalkit.providers.anthropic_api import AnthropicProvider
+
+        return AnthropicProvider
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def parse_spec(spec: str) -> tuple[str, str]:
@@ -81,4 +94,6 @@ def make_provider(spec: str, *, timeout: float = 300.0, base_url: str | None = N
         return OllamaProvider(model, host=base_url, timeout=timeout)
     if name == "openai":
         return OpenAICompatProvider(model, base_url=base_url, timeout=timeout)
+    from evalkit.providers.anthropic_api import AnthropicProvider
+
     return AnthropicProvider(model, base_url=base_url, timeout=timeout)

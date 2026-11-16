@@ -91,6 +91,24 @@ def _unresolvable_refs(schema: dict[str, Any], validator_cls: type[Validator]) -
 
 
 @lru_cache(maxsize=256)
+def _schema_problem(schema_json: str) -> str | None:
+    """Why a schema is unusable, or None. Memoised: a metaschema check costs ~0.8 ms."""
+    schema = json.loads(schema_json)
+    validator_cls = validator_for(schema)
+    try:
+        validator_cls.check_schema(schema)
+    except SchemaError as exc:
+        return f"invalid JSON Schema: {exc.message}"
+    bad = _unresolvable_refs(schema, validator_cls)
+    if bad:
+        return (
+            f"JSON Schema has unresolvable $ref {bad}; "
+            "point it at a definition in this schema (remote refs are not fetched)"
+        )
+    return None
+
+
+@lru_cache(maxsize=256)
 def _compiled_validator(schema_json: str) -> Validator:
     schema = json.loads(schema_json)
     validator: Validator = validator_for(schema)(schema, format_checker=FormatChecker())
@@ -118,17 +136,9 @@ class JsonSchemaCheck(BaseCheck):
     @field_validator("json_schema")
     @classmethod
     def _valid_schema(cls, schema: dict[str, Any]) -> dict[str, Any]:
-        validator_cls = validator_for(schema)
-        try:
-            validator_cls.check_schema(schema)
-        except SchemaError as exc:
-            raise ValueError(f"invalid JSON Schema: {exc.message}") from exc
-        bad = _unresolvable_refs(schema, validator_cls)
-        if bad:
-            raise ValueError(
-                f"JSON Schema has unresolvable $ref {bad}; "
-                "point it at a definition in this schema (remote refs are not fetched)"
-            )
+        error = _schema_problem(json.dumps(schema, sort_keys=True))
+        if error is not None:
+            raise ValueError(error)
         return schema
 
     @property

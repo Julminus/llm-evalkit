@@ -1,3 +1,5 @@
+import subprocess
+import sys
 from datetime import UTC, datetime
 
 import pytest
@@ -117,3 +119,18 @@ def test_effective_and_ignored_params() -> None:
     assert claude.effective_params(params) == {"max_tokens": 64}
     assert claude.ignored_params(params) == ["seed", "temperature"]
     assert MockProvider().ignored_params(params) == []
+
+
+def test_cli_does_not_import_the_anthropic_sdk() -> None:
+    # The SDK takes ~0.6 s to import; every command paid for it before.
+    # A fresh interpreter, because this test session has already imported it.
+    code = "import sys, evalkit.cli; print('anthropic' in sys.modules)"
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
+    assert out.stdout.strip() == "False"
+
+
+def test_unknown_attribute_still_raises() -> None:
+    import evalkit.providers
+
+    with pytest.raises(AttributeError, match="no attribute 'Nope'"):
+        _ = evalkit.providers.Nope  # type: ignore[attr-defined]
