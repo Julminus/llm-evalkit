@@ -8,7 +8,7 @@ import pytest
 
 from evalkit.prompts import Prompt
 from evalkit.providers import GenerationParams, OllamaProvider, ProviderError
-from evalkit.providers.ollama import normalize_host
+from evalkit.providers.ollama import DEFAULT_MAX_TOKENS, normalize_host
 
 Handler = Callable[[httpx.Request], httpx.Response]
 
@@ -69,7 +69,7 @@ def test_request_shape_and_option_mapping() -> None:
     assert out.model == "qwen2.5:7b"
 
 
-def test_unset_params_are_not_sent() -> None:
+def test_unset_params_are_not_sent_except_an_output_cap() -> None:
     seen: dict[str, Any] = {}
 
     def handler(req: httpx.Request) -> httpx.Response:
@@ -77,7 +77,15 @@ def test_unset_params_are_not_sent() -> None:
         return httpx.Response(200, json=OK_BODY)
 
     generate(provider(handler))
-    assert seen["body"]["options"] == {}
+    # Ollama's own default is no cap, which let one answer run to 40,960 tokens.
+    assert seen["body"]["options"] == {"num_predict": DEFAULT_MAX_TOKENS}
+
+
+def test_default_output_cap_is_in_the_cache_key_and_overridable() -> None:
+    p = provider(lambda req: httpx.Response(200, json=OK_BODY))
+    assert p.effective_params(GenerationParams()) == {"max_tokens": DEFAULT_MAX_TOKENS}
+    assert p.effective_params(GenerationParams(max_tokens=50)) == {"max_tokens": 50}
+    assert p.ignored_params(GenerationParams()) == []
 
 
 @pytest.mark.parametrize(

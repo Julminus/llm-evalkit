@@ -18,9 +18,12 @@ from evalkit.providers.base import (
     ProviderError,
 )
 
-__all__ = ["DEFAULT_OLLAMA_HOST", "OllamaProvider", "normalize_host"]
+__all__ = ["DEFAULT_MAX_TOKENS", "DEFAULT_OLLAMA_HOST", "OllamaProvider", "normalize_host"]
 
 DEFAULT_OLLAMA_HOST = "http://127.0.0.1:11434"
+
+DEFAULT_MAX_TOKENS = 4096
+"""Output cap when ``max_tokens`` isn't set (Ollama's own default is none)."""
 
 _FINISH: dict[str, FinishReason] = {"stop": "stop", "length": "length"}
 
@@ -87,6 +90,18 @@ class OllamaProvider(Provider):
     def identity(self) -> dict[str, str]:
         # Two servers can hold different weights under the same tag.
         return {**super().identity(), "host": self.host}
+
+    def effective_params(self, params: GenerationParams) -> dict[str, Any]:
+        """The settings sent, with a default output cap when none is given.
+
+        Ollama's own default is no cap: in the S3 sanity check one degenerate
+        answer repeated a list item for 40,960 tokens (258 s) before the
+        server stopped it. The cap is part of the sent settings, so it is in
+        the cache key and the run manifest like any other setting.
+        """
+        sent = super().effective_params(params)
+        sent.setdefault("max_tokens", DEFAULT_MAX_TOKENS)
+        return sent
 
     def _options(self, params: GenerationParams) -> dict[str, Any]:
         return {_OPTIONS[k]: v for k, v in self.effective_params(params).items()}
