@@ -75,6 +75,14 @@ class TestForbiddenPhrases:
         # A fullwidth "ＡＩ" in the response is the same phrase after NFKC.
         assert ForbiddenPhrases(phrases=["AI"]).check("Saya ＡＩ.").failed
 
+    def test_typographic_apostrophe_matches_ascii(self) -> None:
+        assert ForbiddenPhrases(phrases=["I can't"]).check("Sorry, I can’t help.").failed
+        assert ForbiddenPhrases(phrases=["I can’t"]).check("Sorry, I can't help.").failed
+
+
+def test_required_phrase_with_typographic_apostrophe() -> None:
+    assert RequiredPhrases(phrases=["don't"]).check("Please don’t panic.").passed
+
 
 def test_parse(parse) -> None:
     check = parse({"type": "forbidden_phrases", "phrases": ["lorem"]})

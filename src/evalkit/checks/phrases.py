@@ -10,6 +10,7 @@ from typing import ClassVar, Literal
 from pydantic import Field, field_validator
 
 from evalkit.checks.base import BaseCheck, CheckResult
+from evalkit.text import fold_quotes
 
 
 @lru_cache(maxsize=1024)
@@ -39,12 +40,13 @@ class _PhraseCheck(BaseCheck):
         return cleaned
 
     def _present(self, response: str) -> list[str]:
-        haystack = unicodedata.normalize("NFKC", response)
+        # Typographic quotes are folded on both sides, so "can't" matches "can’t".
+        haystack = fold_quotes(unicodedata.normalize("NFKC", response))
         return [
             p
             for p in self.phrases
             if _phrase_pattern(
-                unicodedata.normalize("NFKC", p), self.case_sensitive, self.whole_word
+                fold_quotes(unicodedata.normalize("NFKC", p)), self.case_sensitive, self.whole_word
             ).search(haystack)
         ]
 

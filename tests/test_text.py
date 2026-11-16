@@ -43,6 +43,16 @@ class TestSentences:
             ("We bought apples, pears, etc. Then we left.", 2),
             ("Kami membeli apel, jeruk, dll. Lalu kami pulang.", 2),
             ("J. K. Rowling wrote it.", 1),
+            ("The book is by J. K. Rowling. It sold well.", 2),
+            ("H. Agus Salim lahir di Koto Gadang.", 1),
+            # A lone letter after an ordinary word is an answer, not an initial.
+            ("The correct answer is C. Photosynthesis needs light.", 2),
+            ("Jawabannya B. Karena itu benar.", 2),
+            ("Pilihan a. Lalu pilihan b.", 2),
+            # "No." abbreviates only before a number; otherwise it is the answer word.
+            ("No. The capital is Canberra.", 2),
+            ("Lihat UU No. 27 Tahun 2022.", 1),
+            ("Harganya Rp. 50.000 saja.", 1),
             ("Wait... what?", 2),
             ('He said "stop." Then he left.', 2),
             ("Is it? (Yes.) Good.", 3),
@@ -82,6 +92,10 @@ class TestParagraphs:
 
 def test_normalize_collapses_whitespace() -> None:
     assert text.normalize("  a\n\tb   c ") == "a b c"
+
+
+def test_fold_quotes_maps_typographic_quotes_to_ascii() -> None:
+    assert text.fold_quotes("don’t ‘a’ “b”") == "don't 'a' \"b\""
 
 
 def test_strip_code_removes_fences_inline_code_and_urls() -> None:
