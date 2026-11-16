@@ -9,6 +9,7 @@
 """
 
 from evalkit.judge.core import (
+    DEFAULT_MAX_RESPONSE_CHARS,
     Judge,
     JudgeRecord,
     JudgeResult,
@@ -21,6 +22,7 @@ from evalkit.judge.parse import JudgmentError, ParsedJudgment, parse_judgment
 from evalkit.judge.prompt import JUDGE_PROMPT_VERSION, build_judge_prompt, build_repair_prompt
 
 __all__ = [
+    "DEFAULT_MAX_RESPONSE_CHARS",
     "JUDGE_PROMPT_VERSION",
     "Judge",
     "JudgeRecord",

@@ -137,3 +137,15 @@ def test_repair_prompt_carries_task_reply_and_problems() -> None:
     assert "<previous_reply>\n{bad json\n</previous_reply>" in repair.user
     assert "- not valid JSON: ...\n- missing x" in repair.user
     assert repair.user.endswith("Reply again with only the corrected JSON object.")
+
+
+def test_long_response_is_cut_with_a_note() -> None:
+    user = build_judge_prompt(case(), "  " + "x" * 30 + "  ", max_response_chars=10).user
+    assert "<response>\n" + "x" * 10 + "\n</response>" in user
+    assert "The response is 30 characters long. Only the first 10 are shown" in user
+
+
+def test_response_within_the_limit_is_unchanged() -> None:
+    plain = build_judge_prompt(case(), "x" * 10)
+    assert build_judge_prompt(case(), "x" * 10, max_response_chars=10) == plain
+    assert "characters long" not in plain.user

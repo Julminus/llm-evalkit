@@ -28,7 +28,14 @@ from evalkit import __version__
 from evalkit.cache import ResponseCache
 from evalkit.checks import CHECK_TYPES, Status
 from evalkit.evaluate import CheckSummary, ResponsesError, check_case, check_suite, load_responses
-from evalkit.judge import Judge, JudgeRecord, JudgeResult, build_judge_prompt, judge_suite
+from evalkit.judge import (
+    DEFAULT_MAX_RESPONSE_CHARS,
+    Judge,
+    JudgeRecord,
+    JudgeResult,
+    build_judge_prompt,
+    judge_suite,
+)
 from evalkit.providers import (
     GenerationParams,
     MockProvider,
@@ -505,6 +512,7 @@ def _build_judge(
     selected: list[EvalCase],
     responses: dict[str, str],
     include_checks: bool,
+    max_response_chars: int | None,
     mock_judgments: Path | None,
     timeout: float,
     base_url: str | None,
@@ -523,7 +531,10 @@ def _build_judge(
             if case.id in canned and case.id in responses:
                 response = responses[case.id]
                 checks = check_case(case, response).results if include_checks else None
-                table[build_judge_prompt(case, response, checks)] = canned[case.id]
+                prompt = build_judge_prompt(
+                    case, response, checks, max_response_chars=max_response_chars
+                )
+                table[prompt] = canned[case.id]
         return MockProvider(model, table)
     except (ProviderConfigError, ResponsesError) as exc:
         raise _exit_error(str(exc)) from exc
@@ -614,6 +625,11 @@ def _print_judgments(result: JudgeResult, judge: Judge, *, verbose: bool) -> Non
         err_console.print(f"[yellow]warning:[/] {escape(warning)}")
     for record in summary.errors:
         err_console.print(f"[red]no judgment[/] {escape(record.id)}: {escape(record.error or '')}")
+    cut = [r.id for r in result.records if r.response_cut]
+    if cut:
+        console.print(
+            f"[yellow]response too long, the judge saw only its start:[/] {escape(', '.join(cut))}"
+        )
     if result.run_dir is not None:
         console.print(f"log: {escape(str(result.run_dir / 'judgments.jsonl'))}")
 
@@ -639,7 +655,18 @@ def judge(
     ] = 2,
     temperature: Temperature = None,
     seed: Seed = None,
-    max_tokens: Annotated[int, typer.Option(min=1, help="Token limit per judge reply.")] = 1024,
+    max_tokens: Annotated[
+        int | None,
+        typer.Option(min=1, help="Token limit per judge reply. Default: the provider's."),
+    ] = None,
+    max_response_chars: Annotated[
+        int,
+        typer.Option(
+            min=0,
+            help="Show the judge at most this many characters of each response "
+            "(0 = no limit). The checks always see all of it.",
+        ),
+    ] = DEFAULT_MAX_RESPONSE_CHARS,
     concurrency: Concurrency = 4,
     retries: Retries = 3,
     timeout: Timeout = 300.0,
@@ -669,11 +696,13 @@ def judge(
         responses = load_responses(responses_path)
     except ResponsesError as exc:
         raise _exit_error(str(exc)) from exc
+    cut_at = max_response_chars or None
     provider = _build_judge(
         judge_spec,
         selected=selected,
         responses=responses,
         include_checks=not no_checks,
+        max_response_chars=cut_at,
         mock_judgments=mock_judgments,
         timeout=timeout,
         base_url=base_url,
@@ -687,6 +716,7 @@ def judge(
         cache=None if no_cache else ResponseCache(cache_dir),
         include_checks=not no_checks,
         max_reasks=max_reasks,
+        max_response_chars=cut_at,
     )
     progress = _progress()
     task = progress.add_task(

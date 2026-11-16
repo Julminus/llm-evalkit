@@ -200,9 +200,7 @@ def test_preflight_failure_exits_1(dirs: list[str], monkeypatch: pytest.MonkeyPa
     assert "down: no server" in result.output
 
 
-def test_judge_defaults_are_deterministic_and_capped(
-    dirs: list[str], monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_judge_defaults_are_deterministic(dirs: list[str], monkeypatch: pytest.MonkeyPatch) -> None:
     _Recorder.params = []
     monkeypatch.setattr(cli, "make_provider", lambda spec, **kw: _Recorder("m"))
     result = runner.invoke(
@@ -220,7 +218,8 @@ def test_judge_defaults_are_deterministic_and_capped(
     )
     assert result.exit_code == 0, result.output
     [params] = _Recorder.params
-    assert (params.temperature, params.seed, params.max_tokens) == (0.0, 0, 1024)
+    # No token cap of its own: Claude counts thinking toward max_tokens.
+    assert (params.temperature, params.seed, params.max_tokens) == (0.0, 0, None)
 
 
 def test_taxonomy_lists_every_failure_mode() -> None:
@@ -239,3 +238,16 @@ def test_taxonomy_lists_every_failure_mode() -> None:
     assert "checks (language)" in result.output
     [row] = [line for line in result.output.splitlines() if "intent_misread" in line]
     assert "judge" in row
+
+
+def test_long_responses_are_cut_for_the_judge(dirs: list[str], tmp_path: Path) -> None:
+    result = mock_judge(dirs, "--max-response-chars", "20", "--case", "en-summary-001")
+    # The canned reply was keyed by the uncut prompt, so the mock's placeholder answers.
+    assert "response too long, the judge saw only its start: en-summary-001" in result.output
+
+
+def test_max_response_chars_zero_means_no_cut(dirs: list[str]) -> None:
+    result = mock_judge(dirs, "--max-response-chars", "0")
+    assert result.exit_code == 0, result.output
+    assert "response too long" not in result.output
+    assert "judged 10/10 cases" in result.output

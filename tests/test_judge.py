@@ -166,6 +166,26 @@ class TestJudgeCase:
         assert record.error == "unusable judge reply: the reply contains no JSON object"
         assert record.requests == 1
 
+    def test_long_response_is_cut_for_the_judge_but_not_for_the_checks(self) -> None:
+        suite = make_suite(1, constraints=[{"type": "word_count", "max": 100}])
+        response = "kata " * 500  # 2,500 characters, 500 words
+        provider = FakeJudge()
+        judge = Judge(provider, max_response_chars=50)
+        record = run(judge.judge_case(suite.cases[0], response))
+        assert record.response_cut
+        assert record.check_status is Status.FAIL  # the checks saw all 500 words
+        [prompt] = provider.prompts["prompt 0"]
+        assert "The response is 2,499 characters long. Only the first 50 are shown" in prompt.user
+
+    def test_short_response_is_not_cut(self) -> None:
+        record = judge_one(FakeJudge(), "short", max_response_chars=50)
+        assert not record.response_cut
+
+    @pytest.mark.parametrize("bad", [0, -5])
+    def test_max_response_chars_must_be_positive(self, bad: int) -> None:
+        with pytest.raises(ValueError, match="max_response_chars"):
+            Judge(FakeJudge(), max_response_chars=bad)
+
     def test_negative_max_reasks_rejected(self) -> None:
         with pytest.raises(ValueError, match="max_reasks"):
             Judge(FakeJudge(), max_reasks=-1)
@@ -473,9 +493,11 @@ class TestJudgeSuite:
             "cached": 0,
             "requests": 3,
             "reasks": 1,
+            "responses_cut": 0,
             "input_tokens": 30,
             "output_tokens": 15,
         }
+        assert manifest["max_response_chars"] == 6000
         assert manifest["summary"]["parse"]["reasked"] == 1
         assert manifest["judge_prompt_version"] == JUDGE_PROMPT_VERSION
 

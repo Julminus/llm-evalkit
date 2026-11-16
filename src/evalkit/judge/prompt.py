@@ -145,16 +145,32 @@ def _output_shape(dimensions: Sequence[Dimension]) -> str:
     )
 
 
+def cut_response(response: str, max_chars: int | None) -> tuple[str, bool]:
+    """The response as the judge sees it: stripped, and cut to ``max_chars`` if longer."""
+    text = response.strip()
+    if max_chars is not None and len(text) > max_chars:
+        return text[:max_chars], True
+    return text, False
+
+
 def build_judge_prompt(
     case: EvalCase,
     response: str,
     checks: Sequence[CheckResult] | None = None,
+    *,
+    max_response_chars: int | None = None,
 ) -> Prompt:
     """The prompt asking the judge to grade ``response`` to ``case``.
 
     ``checks``, if given, are listed as reliable facts, so the judge need not
     count words or sentences itself (which LLMs do badly). Pass ``None`` to
     leave them out; an empty sequence also adds nothing.
+
+    A response longer than ``max_response_chars`` is cut, and the prompt says
+    so. Without a cut, a local judge with a 4,096-token context gets a prompt
+    the server silently shortens: a 40,960-token degenerate answer reached
+    qwen2.5:14b as 2,050 tokens, and its verdict cited words not in the
+    response.
     """
     rubric = case.rubric
     dimensions = rubric.dimensions if rubric is not None else list(Dimension)
@@ -191,7 +207,13 @@ def build_judge_prompt(
                 f"reliable: use them instead of counting yourself.\n{_quote(lines)}",
             )
         )
-    parts.append(_section("response", _quote(response)))
+    shown, was_cut = cut_response(response, max_response_chars)
+    parts.append(_section("response", _quote(shown)))
+    if was_cut:
+        parts.append(
+            f"The response is {len(response.strip()):,} characters long. Only the first "
+            f"{len(shown):,} are shown, to fit your context; don't count the cut as a failure."
+        )
 
     rubric_lines = ["Score the response on each of these dimensions:"]
     for dim in dimensions:

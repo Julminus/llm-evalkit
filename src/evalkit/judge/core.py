@@ -38,7 +38,12 @@ from evalkit.cache import ResponseCache
 from evalkit.checks import Status
 from evalkit.evaluate import check_case
 from evalkit.judge.parse import JudgmentError, parse_judgment
-from evalkit.judge.prompt import JUDGE_PROMPT_VERSION, build_judge_prompt, build_repair_prompt
+from evalkit.judge.prompt import (
+    JUDGE_PROMPT_VERSION,
+    build_judge_prompt,
+    build_repair_prompt,
+    cut_response,
+)
 from evalkit.langdetect import Language
 from evalkit.providers.base import GenerationParams, Provider
 from evalkit.runner import (
@@ -64,6 +69,10 @@ __all__ = [
 ]
 
 OnJudgment = Callable[["JudgeRecord"], None]
+
+DEFAULT_MAX_RESPONSE_CHARS = 6000
+"""About 1,500-2,000 tokens of EN/ID text: with the ~1,200-token rubric and a
+reply, the judge's prompt stays inside a 4,096-token local context."""
 ParseOutcome = Literal["clean", "repaired", "reasked", "unusable", "request_failed"]
 
 
@@ -101,6 +110,8 @@ class JudgeRecord(BaseModel):
     output_tokens: int | None = None
     replies: list[str] = Field(default_factory=list)
     """Every raw reply from the judge, in order; the last one was accepted (if ok)."""
+    response_cut: bool = False
+    """The response was longer than ``max_response_chars``; the judge saw only its start."""
 
     @property
     def ok(self) -> bool:
@@ -148,8 +159,10 @@ class Judge:
 
     ``include_checks`` puts the deterministic check results in the judge's
     prompt as reliable facts. ``max_reasks`` caps the follow-up requests after
-    an unusable reply (0 = never re-ask). The other settings are the
-    :class:`Runner`'s and apply to every judge request, re-asks included.
+    an unusable reply (0 = never re-ask). ``max_response_chars`` cuts longer
+    responses in the judge's prompt (``None`` = never cut); the checks still
+    see the whole response. The other settings are the :class:`Runner`'s and
+    apply to every judge request, re-asks included.
     """
 
     def __init__(
@@ -162,11 +175,14 @@ class Judge:
         cache: ResponseCache | None = None,
         include_checks: bool = True,
         max_reasks: int = 2,
+        max_response_chars: int | None = DEFAULT_MAX_RESPONSE_CHARS,
         sleep: Sleep = asyncio.sleep,
         rng: random.Random | None = None,
     ) -> None:
         if max_reasks < 0:
             raise ValueError("max_reasks must not be negative")
+        if max_response_chars is not None and max_response_chars < 1:
+            raise ValueError("max_response_chars must be at least 1 (or None for no cut)")
         self.runner = Runner(
             provider,
             params=params,
@@ -178,6 +194,7 @@ class Judge:
         )
         self.include_checks = include_checks
         self.max_reasks = max_reasks
+        self.max_response_chars = max_response_chars
 
     @property
     def provider(self) -> Provider:
@@ -189,9 +206,11 @@ class Judge:
         """Judge one response. Never raises for a bad reply or a failed request."""
         report = check_case(case, response)
         dimensions = case.rubric.dimensions if case.rubric is not None else list(Dimension)
+        checks = report.results if self.include_checks else None
         original = build_judge_prompt(
-            case, response, report.results if self.include_checks else None
+            case, response, checks, max_response_chars=self.max_response_chars
         )
+        _, was_cut = cut_response(response, self.max_response_chars)
         base: dict[str, Any] = {
             "id": case.id,
             "language": case.language,
@@ -199,6 +218,7 @@ class Judge:
             "judge": self.provider.spec,
             "check_status": report.status,
             "check_failure_modes": report.failure_modes,
+            "response_cut": was_cut,
         }
         replies: list[str] = []
         requests, latency = 0, 0.0
@@ -408,6 +428,7 @@ class JudgeResult:
             "cached": sum(r.cached for r in records),
             "requests": sum(r.requests for r in records),
             "reasks": sum(r.reasks for r in records),
+            "responses_cut": sum(r.response_cut for r in records),
             "input_tokens": sum(r.input_tokens or 0 for r in records),
             "output_tokens": sum(r.output_tokens or 0 for r in records),
         }
@@ -469,6 +490,7 @@ async def judge_suite(
             judge_prompt_version=JUDGE_PROMPT_VERSION,
             include_checks=judge.include_checks,
             max_reasks=judge.max_reasks,
+            max_response_chars=judge.max_response_chars,
             params={
                 "requested": runner.params.explicit(),
                 "sent": provider.effective_params(runner.params),
