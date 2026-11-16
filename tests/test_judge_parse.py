@@ -1,4 +1,5 @@
 import json
+import time
 
 import pytest
 
@@ -309,9 +310,15 @@ class TestChoosingTheObject:
         assert parsed.rationale == "Does what was asked."
         assert parsed.repairs == ["took the JSON object out of surrounding text"]
 
-    def test_draft_then_final_verdict_takes_the_last(self) -> None:
+    def test_two_different_verdicts_are_reasked_not_guessed(self) -> None:
+        # Found in the fix review: taking the last one silently changed the scores.
         draft = text(rationale="draft", scores={"instruction_following": 2, "faithfulness": 2})
-        parsed = parse_judgment(f"<think>{draft}</think>\n{text()}", IF_FA)
+        assert problems(f"<think>{draft}</think>\n{text()}") == [
+            "the reply contains 2 different judgments; reply with only one"
+        ]
+
+    def test_the_same_verdict_twice_is_fine(self) -> None:
+        parsed = parse_judgment(f"Verdict: {text()}\nAgain: {text()}", IF_FA)
         assert parsed.rationale == "Does what was asked."
 
     def test_a_partial_object_after_the_verdict_loses(self) -> None:
@@ -319,5 +326,50 @@ class TestChoosingTheObject:
         assert parse_judgment(raw, IF_FA).scores[Dimension.INSTRUCTION_FOLLOWING] == 4
 
     def test_objects_with_none_of_the_keys_are_never_chosen(self) -> None:
-        [problem] = problems('Example: {"a": 1}. That is all.')
+        assert problems('Example: {"a": 1}. That is all.') == [
+            'the reply has JSON, but no object with the keys "rationale", "scores" and '
+            '"failure_modes"'
+        ]
+
+    def test_capitalised_keys_are_named_in_the_problem(self) -> None:
+        raw = 'My evaluation: {"Rationale": "x", "Scores": {}, "Failure_modes": []}'
+        [problem] = problems(raw)
+        assert '"rationale", "scores" and "failure_modes"' in problem
+
+    def test_a_broken_whole_object_reports_why_it_does_not_parse(self) -> None:
+        # Its inner fragments ({} here) must not hide the decode error.
+        [problem] = problems('{"rationale": "x" "scores": {}, "failure_modes": []}')
         assert problem.startswith("not valid JSON")
+
+    def test_duplicate_key_inside_prose_is_named(self) -> None:
+        raw = 'Verdict: {"rationale": "x", "rationale": "y", "scores": {}, "failure_modes": []}'
+        assert problems(raw) == ['the key "rationale" appears twice; give each key once']
+
+
+class TestBounds:
+    """Found in the fix review: the scan was quadratic on replies full of "{"."""
+
+    def test_overlong_reply_is_reasked(self) -> None:
+        [problem] = problems("x" * 30_001)
+        assert problem == "the reply is 30,001 characters long; reply with only the JSON object"
+
+    @pytest.mark.parametrize("filler", ["{" * 29_000, "{x} " * 7_000, "```\n{}\n```\n" * 2_000])
+    def test_adversarial_replies_parse_quickly(self, filler: str) -> None:
+        start = time.perf_counter()
+        with pytest.raises(JudgmentError):
+            parse_judgment(filler, IF_FA)
+        assert time.perf_counter() - start < 1.0
+
+    def test_a_verdict_after_many_bad_braces_is_still_found_when_they_are_few(self) -> None:
+        parsed = parse_judgment("{ x } " * 50 + text(), IF_FA)
+        assert parsed.rationale == "Does what was asked."
+
+    def test_duplicate_key_spelled_as_a_lone_surrogate(self) -> None:
+        # Found in the fix review: the raw key went into the re-ask and crashed it.
+        raw = (
+            '{"rationale": "ok", "scores": {"instruction_following": 4, "faithfulness": 5}, '
+            '"failure_modes": [], "\\ud83d": 1, "\\ud83d": 2}'
+        )
+        [problem] = problems(raw)
+        assert problem.endswith("appears twice; give each key once")
+        problem.encode("utf-8")
