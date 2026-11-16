@@ -158,13 +158,27 @@ def test_errors_ignored_params_and_refusals_are_reported(
 ) -> None:
     use_fake(monkeypatch)
     result = runner.invoke(
-        app, ["run", str(SMOKE_SUITE), "-p", "ollama:m", "--retries", "0", *dirs]
+        app, ["run", str(SMOKE_SUITE), "-p", "ollama:m", "--retries", "0", "--seed", "1", *dirs]
     )
     assert result.exit_code == 1  # some cases got no response
     assert "fake does not accept seed" in result.output
     assert "failed en-json-001: fake: HTTP 400: bad request" in result.output
     assert "refused: id-citation-001" in result.output
     assert "no response for:" in result.output
+
+
+def test_default_seed_is_only_sent_where_supported(
+    dirs: list[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # Fake takes temperature but not seed: temperature defaults to 0, seed is
+    # left unset, and no "does not accept" note is printed for a default.
+    use_fake(monkeypatch)
+    result = runner.invoke(
+        app, ["run", str(SMOKE_SUITE), "-p", "ollama:m", "--retries", "0", *dirs]
+    )
+    assert "does not accept" not in result.output
+    manifest = json.loads(next((tmp_path / "runs").glob("*/manifest.json")).read_text("utf-8"))
+    assert manifest["params"]["requested"] == {"temperature": 0.0}
 
 
 def test_preflight_failure_stops_before_running(

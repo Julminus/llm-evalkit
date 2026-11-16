@@ -2,14 +2,17 @@
 
 Exit codes: 0 = success; 1 = a suite/responses file is invalid, a provider
 can't be set up, a case got no response (``run``), or (with ``--strict``) at
-least one case failed its checks; 130 = interrupted. Typer itself uses 2 for
-bad usage.
+least one case failed its checks or, for ``check``, had no response, or a
+response matched no case; 130 = interrupted. Typer itself uses 2 for bad
+usage.
 """
 
 from __future__ import annotations
 
 import asyncio
+import io
 import json
+import sys
 from collections import Counter
 from pathlib import Path
 from typing import Annotated, Any
@@ -60,6 +63,22 @@ def _version_callback(value: bool) -> None:
         raise typer.Exit
 
 
+def _use_utf8_output() -> None:
+    """Write UTF-8 even when stdout/stderr are redirected on Windows.
+
+    Python encodes a redirected stream with the ANSI code page (cp1252 here),
+    so ``evalkit check ... --json > out.json`` crashed on the first response
+    quoting an arrow, an emoji or CJK text. Terminals are unaffected: Python
+    writes to the Windows console as UTF-16 either way.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        if isinstance(stream, io.TextIOWrapper) and stream.encoding.lower() not in {
+            "utf-8",
+            "utf8",
+        }:
+            stream.reconfigure(encoding="utf-8")
+
+
 @app.callback()
 def main(
     version: Annotated[
@@ -68,6 +87,7 @@ def main(
     ] = False,
 ) -> None:
     """Bilingual (EN/ID) LLM evaluation harness."""
+    _use_utf8_output()
 
 
 def _load_or_exit(path: Path) -> Suite:
@@ -181,7 +201,12 @@ def check(
         bool, typer.Option("--verbose", "-v", help="Show passing checks too.")
     ] = False,
     strict: Annotated[
-        bool, typer.Option("--strict", help="Exit with code 1 if any case fails.")
+        bool,
+        typer.Option(
+            "--strict",
+            help="Exit with code 1 if any case fails or has no response, "
+            "or a response matches no case.",
+        ),
     ] = False,
 ) -> None:
     """Run the suite's deterministic checks on a file of responses."""
@@ -197,7 +222,9 @@ def check(
         typer.echo(_summary_json(summary))
     else:
         _print_summary(summary, verbose=verbose)
-    if strict and summary.counts[Status.FAIL]:
+    # As a CI gate, "nothing failed" must not pass when the responses file was
+    # the wrong one or incomplete: an ungraded case is not a passing case.
+    if strict and (summary.counts[Status.FAIL] or summary.missing or summary.unknown):
         raise typer.Exit(1)
 
 
@@ -255,9 +282,14 @@ def run(
         ),
     ],
     temperature: Annotated[
-        float, typer.Option(min=0.0, max=2.0, help="Sampling temperature (local providers).")
-    ] = 0.0,
-    seed: Annotated[int, typer.Option(help="Sampling seed (where the provider supports it).")] = 0,
+        float | None,
+        typer.Option(
+            min=0.0, max=2.0, help="Sampling temperature. Default: 0 where the provider accepts it."
+        ),
+    ] = None,
+    seed: Annotated[
+        int | None, typer.Option(help="Sampling seed. Default: 0 where the provider accepts it.")
+    ] = None,
     max_tokens: Annotated[
         int | None, typer.Option(min=1, help="Output token limit. Default: the provider's.")
     ] = None,
@@ -308,7 +340,6 @@ def run(
     if unknown:
         raise _exit_error(f"no such case id(s) in {suite_path}: {', '.join(unknown)}")
 
-    params = GenerationParams(temperature=temperature, seed=seed, max_tokens=max_tokens)
     provider = _build_provider(
         provider_spec,
         suite=suite,
@@ -316,6 +347,14 @@ def run(
         timeout=timeout,
         base_url=base_url,
     )
+    # Deterministic by default, but only where the provider takes the setting,
+    # so the Anthropic provider is not "told" about settings nobody asked for.
+    accepts = provider.supported_params
+    if temperature is None and "temperature" in accepts:
+        temperature = 0.0
+    if seed is None and "seed" in accepts:
+        seed = 0
+    params = GenerationParams(temperature=temperature, seed=seed, max_tokens=max_tokens)
     ignored = provider.ignored_params(params)
     if ignored:
         err_console.print(

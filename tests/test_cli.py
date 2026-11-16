@@ -1,8 +1,10 @@
 import io
 import json
+import sys
 from pathlib import Path
 
 import pytest
+import yaml
 from rich.console import Console
 from typer.testing import CliRunner
 
@@ -93,15 +95,54 @@ def test_check_strict_exit_code() -> None:
     assert result.exit_code == 1
 
 
-def test_check_strict_passes_when_all_pass(tmp_path: Path) -> None:
+def _one_passing_case(tmp_path: Path) -> tuple[Path, Path]:
+    """A one-case suite (en-bullets-001) and a responses file that passes it."""
+    raw = yaml.safe_load(SMOKE_SUITE.read_text(encoding="utf-8"))
+    raw["cases"] = [c for c in raw["cases"] if c["id"] == "en-bullets-001"]
+    suite = tmp_path / "one.yaml"
+    suite.write_text(yaml.safe_dump(raw, allow_unicode=True), encoding="utf-8")
     rows = [json.loads(line) for line in SMOKE_RESPONSES.read_text(encoding="utf-8").splitlines()]
     passing = tmp_path / "pass.jsonl"
     passing.write_text(
         json.dumps(next(r for r in rows if r["id"] == "en-bullets-001")) + "\n", encoding="utf-8"
     )
-    result = runner.invoke(app, ["check", "--strict", str(SMOKE_SUITE), str(passing)])
+    return suite, passing
+
+
+def test_check_strict_passes_when_all_pass(tmp_path: Path) -> None:
+    suite, passing = _one_passing_case(tmp_path)
+    result = runner.invoke(app, ["check", "--strict", str(suite), str(passing)])
     assert result.exit_code == 0, result.output
+
+
+def test_check_strict_fails_on_missing_responses(tmp_path: Path) -> None:
+    # One passing response out of ten cases must not pass a CI gate.
+    _, passing = _one_passing_case(tmp_path)
+    result = runner.invoke(app, ["check", "--strict", str(SMOKE_SUITE), str(passing)])
+    assert result.exit_code == 1
     assert "no response for:" in result.output
+    lenient = runner.invoke(app, ["check", str(SMOKE_SUITE), str(passing)])
+    assert lenient.exit_code == 0
+
+
+def test_check_strict_fails_on_unknown_responses(tmp_path: Path) -> None:
+    suite, passing = _one_passing_case(tmp_path)
+    with passing.open("a", encoding="utf-8") as f:
+        f.write('{"id": "ghost", "response": "boo"}\n')
+    result = runner.invoke(app, ["check", "--strict", str(suite), str(passing)])
+    assert result.exit_code == 1
+    assert "responses with no matching case: ghost" in result.output
+
+
+def test_output_is_utf8_when_redirected(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A redirected stream on Windows defaults to cp1252, which cannot encode "→".
+    raw = io.BytesIO()
+    stream = io.TextIOWrapper(raw, encoding="cp1252")
+    monkeypatch.setattr(sys, "stdout", stream)
+    cli._use_utf8_output()
+    stream.write("→ 好")
+    stream.flush()
+    assert raw.getvalue() == "→ 好".encode()
 
 
 def test_check_reports_unknown_ids(tmp_path: Path) -> None:
