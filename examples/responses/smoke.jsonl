@@ -1,0 +1,10 @@
+{"id": "en-bullets-001", "response": "- Catch bugs before users do\n- Make refactoring safer\n- Document how the code is meant to behave"}
+{"id": "id-bullets-001", "response": "Berikut tiga manfaatnya:\n- Bug ketahuan lebih awal\n- Refaktor jadi lebih aman\n- Tes menjadi dokumentasi perilaku kode"}
+{"id": "en-json-001", "response": "```json\n{\"name\": \"Ayu\", \"age\": 21, \"city\": \"Yogyakarta\"}\n```"}
+{"id": "id-json-001", "response": "{\"nama\": \"Budi\", \"umur\": \"34\", \"kota\": \"Bandung\"}"}
+{"id": "en-summary-001", "response": "Summary: A town library's free weekend Python club for teenagers grew from 8 to 35 students between January and March. The library added a Sunday session, and students bring their own laptop or book a shared one."}
+{"id": "id-summary-001", "response": "Ringkasan: Klub coding gratis di perpustakaan kota tumbuh dari 8 menjadi 35 peserta antara Januari dan Maret, sehingga ditambah sesi Minggu sore. Peserta membawa laptop sendiri atau memesan komputer perpustakaan."}
+{"id": "en-math-001", "response": "The total is 40000."}
+{"id": "id-citation-001", "response": "Permohonan cuti harus diajukan paling lambat 14 hari sebelum tanggal cuti, melalui atasan langsung [Pasal 2]. Semoga membantu."}
+{"id": "en-explain-001", "response": "An API is a menu that one piece of software offers to another. Your banking app does not know your balance; it asks the bank's system through its API and gets the answer back.\n\nFor a manager, the point is that APIs let teams reuse existing systems instead of rebuilding them, as long as both sides agree on what can be asked and what comes back."}
+{"id": "id-explain-001", "response": "An API is like a waiter in a restaurant: you tell the waiter what you want, and the kitchen sends it back without you ever going inside.\n\nIt lets two systems work together without either one needing to know how the other is built."}

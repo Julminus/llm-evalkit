@@ -1,0 +1,194 @@
+# Smoke suite: 10 small cases (5 EN, 5 ID) that together use every
+# constraint type. It exists to exercise the harness, not to benchmark
+# models; the real 40-item benchmark arrives in S6.
+#
+# Every case gets an automatic `language` check for its prompt language
+# unless it sets `response_language` (e.g. `any` for JSON or number answers)
+# or lists its own `language` constraint.
+name: smoke
+version: "1"
+description: Small EN/ID suite covering every deterministic check type.
+
+cases:
+  - id: en-bullets-001
+    language: en
+    tags: [format, multi-constraint]
+    prompt: >-
+      List exactly three benefits of writing unit tests. Use a bulleted list
+      and nothing else: no introduction, no conclusion. Keep it under 40 words.
+    constraints:
+      - {type: bullet_list, min_items: 3, max_items: 3, only_list: true}
+      - {type: word_count, max: 40}
+    rubric:
+      criteria:
+        - Each bullet names a distinct benefit (not three rewordings of one).
+
+  - id: id-bullets-001
+    language: id
+    tags: [format, multi-constraint]
+    prompt: >-
+      Sebutkan tepat tiga manfaat menulis unit test dalam bentuk daftar
+      berpoin, tanpa kalimat pembuka atau penutup. Maksimal 40 kata.
+    constraints:
+      - {type: bullet_list, min_items: 3, max_items: 3, only_list: true}
+      - {type: word_count, max: 40}
+    rubric:
+      criteria:
+        - Setiap poin menyebut manfaat yang berbeda.
+
+  - id: en-json-001
+    language: en
+    response_language: any  # the answer is JSON, not prose
+    tags: [json, extraction]
+    prompt: >-
+      Extract the person's name, age and city from this sentence and reply
+      with JSON only, using the keys "name", "age" (integer) and "city":
+      "Ayu is 21 and lives in Yogyakarta."
+    constraints:
+      - type: json_schema
+        schema:
+          type: object
+          properties:
+            name: {type: string}
+            age: {type: integer, minimum: 0}
+            city: {type: string}
+          required: [name, age, city]
+          additionalProperties: false
+    rubric:
+      criteria: ['Values are exactly "Ayu", 21 and "Yogyakarta".']
+      dimensions: [instruction_following, faithfulness]
+
+  - id: id-json-001
+    language: id
+    response_language: any
+    tags: [json, extraction]
+    prompt: >-
+      Ubah kalimat berikut menjadi JSON dengan kunci "nama", "umur" (bilangan
+      bulat) dan "kota". Jawab hanya dengan JSON: "Budi berusia 34 tahun dan
+      tinggal di Bandung."
+    constraints:
+      - type: json_schema
+        schema:
+          type: object
+          properties:
+            nama: {type: string}
+            umur: {type: integer, minimum: 0}
+            kota: {type: string}
+          required: [nama, umur, kota]
+          additionalProperties: false
+    rubric:
+      criteria: ['Nilainya tepat "Budi", 34 dan "Bandung".']
+      dimensions: [instruction_following, faithfulness]
+
+  - id: en-summary-001
+    language: en
+    tags: [summarization, multi-constraint]
+    context: >-
+      The public library in a mid-sized town started a weekend coding club in
+      January. Volunteers from a local university teach basic Python to
+      teenagers every Saturday morning. Attendance grew from 8 students in the
+      first week to 35 by March, so the library added a second session on
+      Sunday afternoons. The club is free, but students must bring their own
+      laptop or book one of the library's six shared machines in advance.
+    prompt: >-
+      Summarize the text in at most 2 sentences. Start your answer with
+      "Summary:" and do not use the word "basically".
+    constraints:
+      - {type: sentence_count, max: 2}
+      - {type: starts_with, text: "Summary:"}
+      - {type: forbidden_phrases, phrases: [basically]}
+    rubric:
+      criteria:
+        - Mentions the growth in attendance or the added Sunday session.
+        - Adds no facts that are not in the text.
+
+  - id: id-summary-001
+    language: id
+    tags: [summarization, multi-constraint]
+    context: >-
+      Sebuah perpustakaan kota membuka klub coding akhir pekan pada bulan
+      Januari. Relawan dari universitas setempat mengajarkan dasar Python
+      kepada remaja setiap Sabtu pagi. Jumlah peserta naik dari 8 orang pada
+      minggu pertama menjadi 35 orang pada bulan Maret, sehingga perpustakaan
+      menambah sesi kedua pada Minggu sore. Klub ini gratis, tetapi peserta
+      harus membawa laptop sendiri atau memesan salah satu dari enam komputer
+      perpustakaan terlebih dahulu.
+    prompt: >-
+      Ringkas teks tersebut dalam maksimal 2 kalimat. Awali jawaban dengan
+      "Ringkasan:" dan jangan gunakan kata "pokoknya".
+    constraints:
+      - {type: sentence_count, max: 2}
+      - {type: starts_with, text: "Ringkasan:"}
+      - {type: forbidden_phrases, phrases: [pokoknya]}
+    rubric:
+      criteria:
+        - Menyebut kenaikan jumlah peserta atau tambahan sesi Minggu.
+        - Tidak menambahkan fakta yang tidak ada di teks.
+
+  - id: en-math-001
+    language: en
+    response_language: any  # a bare number has no language
+    tags: [reasoning, format]
+    prompt: >-
+      A shop sells pens at 3 for Rp 10.000. How much do 12 pens cost, in
+      rupiah? Answer with the number only: no words, no currency symbol.
+    constraints:
+      - type: regex
+        pattern: '\d{1,3}(?:[.,]?\d{3})*'
+        fullmatch: true
+        fails_as: format_error  # extra words around the number are a format problem
+    rubric:
+      criteria: ["The value is 40000 (12 / 3 = 4 packs × Rp 10.000)."]
+      reference_answer: "40000"
+      dimensions: [instruction_following, reasoning_quality]
+
+  - id: id-citation-001
+    language: id
+    tags: [grounded-qa, citation, multi-constraint]
+    context: >-
+      Peraturan Perusahaan PT Contoh (fiktif). Pasal 1: Karyawan tetap berhak
+      atas cuti tahunan 12 hari kerja. Pasal 2: Permohonan cuti diajukan
+      paling lambat 14 hari sebelum tanggal cuti melalui atasan langsung.
+      Pasal 3: Cuti yang tidak diambil dapat dibawa ke tahun berikutnya paling
+      banyak 6 hari.
+    prompt: >-
+      Berdasarkan peraturan di atas, kapan paling lambat karyawan harus
+      mengajukan cuti? Sertakan rujukan dalam format [Pasal N] dan akhiri
+      jawaban dengan "Semoga membantu."
+    constraints:
+      - {type: required_phrases, phrases: ["14 hari"]}
+      - {type: regex, pattern: '\[Pasal \d+\]'}
+      - {type: ends_with, text: "Semoga membantu."}
+      - {type: language, expected: id, min_confidence: 0.8}
+    rubric:
+      criteria:
+        - Merujuk Pasal 2, bukan pasal lain.
+      dimensions: [instruction_following, faithfulness, helpfulness]
+
+  - id: en-explain-001
+    language: en
+    tags: [explanation, multi-constraint]
+    prompt: >-
+      Explain what an API is to a non-technical manager in exactly two short
+      paragraphs. Do not use the words "endpoint" or "JSON".
+    constraints:
+      - {type: paragraph_count, min: 2, max: 2}
+      - {type: forbidden_phrases, phrases: [endpoint, JSON]}
+      - {type: word_count, max: 120}
+    rubric:
+      criteria:
+        - Uses an everyday analogy or example a manager would recognize.
+
+  - id: id-explain-001
+    language: id
+    tags: [explanation, multi-constraint]
+    prompt: >-
+      Jelaskan apa itu API kepada manajer non-teknis dalam tepat dua paragraf
+      pendek. Jangan gunakan kata "endpoint" atau "JSON".
+    constraints:
+      - {type: paragraph_count, min: 2, max: 2}
+      - {type: forbidden_phrases, phrases: [endpoint, JSON]}
+      - {type: word_count, max: 120}
+    rubric:
+      criteria:
+        - Memakai analogi atau contoh sehari-hari yang mudah dipahami manajer.
