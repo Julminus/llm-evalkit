@@ -402,11 +402,16 @@ list-checks` lists the constraint types. To install the Anthropic SDK without th
   that break a stated constraint). `--no-checks` turns it off.
 - **Syntax is repaired locally, structure is re-asked.** A reply in a code fence, inside prose, or
   written as a Python dict (single quotes, trailing comma) is fixed in code, for free, and the
-  repair is recorded. A missing score, a score of 4.5, a nested `{"score": 4, "reason": ...}` or an
-  unknown failure mode goes back to the judge, because guessing would put words in its mouth. The
-  re-ask is the original task plus the unusable reply plus the list of problems; a plain retry
-  would be pointless at temperature 0, and the cache would replay the same reply anyway. Python
-  dicts are read with `ast.literal_eval`, which evaluates literals only, never code.
+  repair is recorded. A missing score, a score of 4.5, a nested `{"score": 4, "reason": ...}`, an
+  unknown failure mode, a key given twice or two different judgments in one reply go back to the
+  judge, because guessing would put words in its mouth. When a reply holds several JSON objects (an
+  echoed template, a quoted response, then the verdict), the one with the most of the three
+  expected keys is the judgment. The re-ask is the original task plus the unusable reply (its first
+  2,000 characters) plus the list of problems; a plain retry would be pointless at temperature 0,
+  and the cache would replay the same reply anyway. Python dicts are read with `ast.literal_eval`,
+  which evaluates literals only, never code. No reply can crash the run: a 5,000-level nesting, a
+  4,400-digit number or a broken emoji escape becomes a re-ask, and a reply over 30,000 characters
+  is re-asked without being searched.
 - **Rationale first.** The output format puts `rationale` before `scores`, so the model writes its
   reasons before it commits to numbers.
 - **Instructions in English, the case in its own language.** The judge's instructions are in
@@ -415,7 +420,9 @@ list-checks` lists the constraint types. To install the Anthropic SDK without th
 - **Tagged sections, escaped.** The case's fields and the response each go in their own tag, and
   the judge is told that tagged text is material to grade, never instructions. A response that
   contains `</response>` would otherwise end its own section early, so any of the judge's tag names
-  inside inserted text has its `<` written as `&lt;`.
+  inside inserted text has its `<` written as `&lt;`, also in closing tags with spaces or
+  zero-width characters around the `/`. A `<` with a gap and no `/` (`i < request.size`) is
+  ordinary text and stays as it is.
 - **Abstain instead of guessing.** The language detector only counts function words ("the", "is",
   "of" vs. "yang", "dan", "untuk"), using two disjoint word lists, and declines to judge with fewer
   than two of them. In an evaluator, a confident wrong guess would mark a correct response as a
@@ -448,7 +455,12 @@ instructions are in English for every case. Ollama ran these models with a 4,096
 (its `/api/ps` reports it); the response is cut to fit, but a long case context (RAG, say) is
 not, and a prompt over the limit is shortened without an error, so check `input_tokens` in the
 judgments log. Tagged sections stop a response from closing its own section, but a response can
-still try to talk the judge into a better score; how often that works is not measured.
+still try to talk the judge into a better score; how often that works is not measured. The
+escaping knows whitespace and the common zero-width characters, not every invisible Unicode
+character (bidi controls, soft hyphens). An `openai:` judge gets no output cap unless you pass
+`--max-tokens` (the server's default applies; Ollama's `/v1` has none), so pass one, e.g. 1024. A
+judgment that follows more than 64 `{` that start no JSON object isn't found and is re-asked;
+none of the 981 saved judge replies has even one.
 
 ## What's next
 
