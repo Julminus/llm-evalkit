@@ -25,6 +25,9 @@ def text(**overrides: object) -> str:
     return json.dumps(reply(**overrides))
 
 
+ONLY_ONE = "reply with only the JSON object, with no other text or objects around it"
+
+
 def problems(raw: str, dims: list[Dimension] = IF_FA) -> list[str]:
     with pytest.raises(JudgmentError) as info:
         parse_judgment(raw, dims)
@@ -81,10 +84,9 @@ class TestSyntaxRepairs:
         parsed = parse_judgment(f"My evaluation: {text()} I hope this helps.", IF_FA)
         assert parsed.repairs == ["took the JSON object out of surrounding text"]
 
-    def test_first_object_wins_and_nested_objects_are_never_candidates(self) -> None:
-        # The scores object alone must not be graded as the reply.
-        raw = text() + ' and also {"scores": {"instruction_following": 1}}'
-        assert parse_judgment(raw, IF_FA).scores[Dimension.INSTRUCTION_FOLLOWING] == 4
+    def test_braces_in_the_rationale_are_fine(self) -> None:
+        raw = "Verdict: " + text(rationale="It returns {} for an empty input.")
+        assert parse_judgment(raw, IF_FA).rationale == "It returns {} for an empty input."
 
     def test_python_style_object(self) -> None:
         raw = (
@@ -114,7 +116,7 @@ class TestSyntaxRepairs:
         raw = "Result: {'rationale': 'ok', 'scores': {'instruction_following': 4, 'faithfulness': 5}, 'failure_modes': [],} done"
         parsed = parse_judgment(raw, IF_FA)
         assert parsed.repairs == [
-            "took the object out of surrounding text",
+            "took the JSON object out of surrounding text",
             "read a Python-style object",
         ]
 
@@ -237,8 +239,9 @@ class TestReasked:
 
     def test_python_literal_with_code_is_never_evaluated(self) -> None:
         raw = "{'rationale': __import__('os').getcwd(), 'scores': {}, 'failure_modes': []}"
-        [problem] = problems(raw)
+        problem, hint = problems(raw)
         assert problem.startswith("not valid JSON")
+        assert hint == ONLY_ONE
 
     def test_deeply_nested_input_does_not_crash(self) -> None:
         raw = "{" * 5000 + "}" * 5000
@@ -255,8 +258,9 @@ class TestOddReplies:
 
     def test_number_too_long_for_python(self) -> None:
         raw = '{"rationale": "x", "scores": {"instruction_following": ' + "1" * 4400 + "}}"
-        [problem] = problems(raw)
+        problem, hint = problems(raw)
         assert problem == "not valid JSON: a number is too long"
+        assert hint == ONLY_ONE
 
     def test_score_text_too_long_for_python(self) -> None:
         [problem] = problems(text(scores={"instruction_following": "1" * 4400, "faithfulness": 5}))
@@ -281,90 +285,89 @@ class TestOddReplies:
         low = '"scores": {"instruction_following": 1, "faithfulness": 1}'
         high = '"scores": {"instruction_following": 4, "faithfulness": 5}'
         raw = '{"rationale": "x", ' + low + ", " + high + ', "failure_modes": []}'
-        assert problems(raw) == ['the key "scores" appears twice; give each key once']
+        assert problems(raw) == ['the key "scores" appears twice; give each key once', ONLY_ONE]
 
     def test_duplicate_python_key_is_not_read(self) -> None:
         raw = (
             "{'rationale': 'x', 'scores': {'instruction_following': 1, 'faithfulness': 1}, "
             "'scores': {'instruction_following': 4, 'faithfulness': 5}, 'failure_modes': []}"
         )
-        [problem] = problems(raw)
+        problem, hint = problems(raw)
         assert problem.startswith("not valid JSON")
+        assert hint == ONLY_ONE
 
 
-class TestChoosingTheObject:
-    """The candidate with the most expected keys wins; on a tie, the last one."""
+class TestOneObject:
+    """A reply must hold one object. Three rounds of smarter selection each broke a
+    realistic reply, so anything with more than one object is re-asked."""
 
-    def test_an_invalid_brace_before_the_verdict(self) -> None:
-        parsed = parse_judgment("Format: {rationale, scores}.\n" + text(), IF_FA)
-        assert parsed.rationale == "Does what was asked."
-
-    def test_echoed_template_before_the_verdict(self) -> None:
-        template = '{"rationale": "<2 to 4 sentences>", "scores": {"instruction_following": <1-5>}}'
-        parsed = parse_judgment(template + "\n" + text(), IF_FA)
-        assert parsed.scores[Dimension.INSTRUCTION_FOLLOWING] == 4
-
-    def test_quoted_json_response_before_the_verdict(self) -> None:
-        quoted = '```json\n{"name": "Ayu", "age": 21}\n```'
-        parsed = parse_judgment(f"The response was:\n{quoted}\nMy verdict: {text()}", IF_FA)
-        assert parsed.rationale == "Does what was asked."
-        assert parsed.repairs == ["took the JSON object out of surrounding text"]
-
-    def test_two_verdicts_use_the_first_and_say_so(self) -> None:
-        # One rule, visible in the repairs (the round-2 rule compared the two
-        # objects and broke on reworded duplicates; round 3 replaced it).
-        first = text(rationale="first", scores={"instruction_following": 2, "faithfulness": 2})
-        parsed = parse_judgment(f"<think>{first}</think>\n{text()}", IF_FA)
-        assert parsed.rationale == "first"
-        assert parsed.repairs == [
-            "took the JSON object out of surrounding text",
-            "the reply has 2 judgments; used the first",
-        ]
-
-    def test_a_corrected_python_style_verdict_still_counts_as_a_second_one(self) -> None:
-        # Found in the round-3 review: a later Python-style dict was never looked at.
-        fixed = "{'rationale': 'Weak.', 'scores': {'instruction_following': 2, 'faithfulness': 2}, 'failure_modes': [],}"
-        parsed = parse_judgment(
-            f"```json\n{text()}\n```\nCorrection:\n```json\n{fixed}\n```", IF_FA
+    @pytest.mark.parametrize(
+        "raw",
+        [
+            "Format: {rationale, scores}.\n" + text(),  # prose with braces before
+            '{"rationale": "<2 to 4 sentences>", "scores": {"a": <1-5>}}\n' + text(),  # template
+            "<think>" + text(rationale="draft") + "</think>\n" + text(),  # draft, then verdict
+            text() + "\nAgain: " + text(),  # the same verdict twice
+            text() + ' and also {"scores": {"instruction_following": 1}}',  # extra object after
+            "Check: $\\frac{1}{2}$ is right.\n" + text(),  # LaTeX before
+        ],
+    )
+    def test_more_than_one_object_is_reasked(self, raw: str) -> None:
+        found = problems(raw)
+        assert found[0].startswith("not valid JSON")
+        assert (
+            found[-1] == "reply with only the JSON object, with no other text or objects around it"
         )
-        assert parsed.rationale == "Does what was asked."
-        assert parsed.repairs[-1] == "the reply has 2 judgments; used the first"
 
-    def test_the_same_verdict_twice_is_fine(self) -> None:
-        parsed = parse_judgment(f"Verdict: {text()}\nAgain: {text()}", IF_FA)
-        assert parsed.rationale == "Does what was asked."
+    def test_a_quoted_json_response_in_a_fence_is_not_taken_for_the_verdict(self) -> None:
+        quoted = '```json\n{"name": "Ayu", "age": 21}\n```'
+        found = problems(f"The response was:\n{quoted}\nMy verdict: {text()}")
+        assert (
+            found[-1] == "reply with only the JSON object, with no other text or objects around it"
+        )
 
-    def test_a_partial_object_after_the_verdict_loses(self) -> None:
-        raw = text() + ' and also {"scores": {"instruction_following": 1}}'
-        assert parse_judgment(raw, IF_FA).scores[Dimension.INSTRUCTION_FOLLOWING] == 4
+    def test_one_fence_inside_prose_is_read(self) -> None:
+        parsed = parse_judgment(f"Here you go:\n```json\n{text()}\n```\nThanks.", IF_FA)
+        assert parsed.repairs == ["took the JSON from a code fence"]
 
-    def test_objects_with_none_of_the_keys_are_never_chosen(self) -> None:
+    def test_an_object_without_the_keys_gets_named_problems(self) -> None:
         assert problems('Example: {"a": 1}. That is all.') == [
-            'the reply has JSON, but no object with the keys "rationale", "scores" and '
-            '"failure_modes"'
+            '"rationale" must be a non-empty string',
+            '"scores" must be an object with a whole number from 1 to 5 for '
+            '"instruction_following", "faithfulness"',
+            '"failure_modes" must be a list of failure modes ([] if none applies)',
         ]
-
-    def test_capitalised_keys_are_named_in_the_problem(self) -> None:
-        raw = 'My evaluation: {"Rationale": "x", "Scores": {}, "Failure_modes": []}'
-        [problem] = problems(raw)
-        assert '"rationale", "scores" and "failure_modes"' in problem
 
     def test_a_broken_whole_object_reports_why_it_does_not_parse(self) -> None:
-        # Its inner fragments ({} here) must not hide the decode error.
-        [problem] = problems('{"rationale": "x" "scores": {}, "failure_modes": []}')
+        problem, hint = problems('{"rationale": "x" "scores": {}, "failure_modes": []}')
         assert problem.startswith("not valid JSON")
+        assert hint == ONLY_ONE
+
+    def test_a_broken_verdict_after_prose_reports_its_own_error(self) -> None:
+        raw = 'Here is my evaluation:\n{"rationale": "It says "hi" well.", "scores": {}, "failure_modes": []}'
+        found = problems(raw)
+        assert found[0].startswith("not valid JSON: Expecting")
+        assert (
+            found[-1] == "reply with only the JSON object, with no other text or objects around it"
+        )
 
     def test_duplicate_key_inside_prose_is_named(self) -> None:
         raw = 'Verdict: {"rationale": "x", "rationale": "y", "scores": {}, "failure_modes": []}'
-        assert problems(raw) == ['the key "rationale" appears twice; give each key once']
+        assert problems(raw) == [
+            'the key "rationale" appears twice; give each key once',
+            "reply with only the JSON object, with no other text or objects around it",
+        ]
 
 
 class TestBounds:
-    """Found in the fix review: the scan was quadratic on replies full of "{"."""
+    """Found in the fix reviews: odd or huge replies must stay cheap and never crash."""
 
     def test_overlong_reply_is_reasked(self) -> None:
         [problem] = problems("x" * 30_001)
-        assert problem == "the reply is 30,001 characters long; reply with only the JSON object"
+        assert problem == (
+            "the reply is 30,001 characters long; "
+            "reply with only the JSON object, with no other text or objects around it"
+        )
 
     @pytest.mark.parametrize("filler", ["{" * 29_000, "{x} " * 7_000, "```\n{}\n```\n" * 2_000])
     def test_adversarial_replies_parse_quickly(self, filler: str) -> None:
@@ -373,30 +376,12 @@ class TestBounds:
             parse_judgment(filler, IF_FA)
         assert time.perf_counter() - start < 1.0
 
-    @pytest.mark.parametrize(
-        "before",
-        [
-            "Check: $\\frac{1}{2} + x^{2} = \\sqrt{y}$. " * 20,
-            "```js\n" + "if (a) { b(); } " * 75 + "\n```\n",
-            "{x} " * 500,
-        ],
-    )
-    def test_a_verdict_after_brace_heavy_text_is_found(self, before: str) -> None:
-        # Found in the round-3 review: a cap of 64 failed "{" hid these. Only a
-        # "{" followed by a quote or "}" can start JSON, so these aren't tried.
-        parsed = parse_judgment(before + text(), IF_FA)
-        assert parsed.rationale == "Does what was asked."
-
     def test_a_literal_python_cannot_evaluate_does_not_crash(self) -> None:
         # Found in the round-3 review: OverflowError escaped ast.literal_eval.
         raw = "{'rationale': 1" + "0" * 400 + "+1j, 'scores': {}, 'failure_modes': []}"
-        [problem] = problems(raw)
+        problem, hint = problems(raw)
         assert problem.startswith("not valid JSON")
-
-    def test_a_broken_verdict_after_prose_reports_its_own_error(self) -> None:
-        raw = 'Here is my evaluation:\n{"rationale": "It says "hi" well.", "scores": {}, "failure_modes": []}'
-        [problem] = problems(raw)
-        assert problem.startswith("not valid JSON: Expecting")
+        assert hint == ONLY_ONE
 
     def test_any_unexpected_error_becomes_a_problem(self, monkeypatch: pytest.MonkeyPatch) -> None:
         from evalkit.judge import parse
@@ -413,6 +398,7 @@ class TestBounds:
             '{"rationale": "ok", "scores": {"instruction_following": 4, "faithfulness": 5}, '
             '"failure_modes": [], "\\ud83d": 1, "\\ud83d": 2}'
         )
-        [problem] = problems(raw)
+        problem, hint = problems(raw)
         assert problem.endswith("appears twice; give each key once")
         problem.encode("utf-8")
+        assert hint == ONLY_ONE
