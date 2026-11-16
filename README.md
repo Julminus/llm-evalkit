@@ -184,8 +184,8 @@ The corpus, the generation script and the scoring script are in the repo
 numbers. `uv run --with langdetect==1.0.9 python scripts/measure_langdetect.py` reproduces both
 rows of the table, including the baseline's wrong guesses.
 
-**Engineering.** 4 providers, 11 check types, an LLM judge, 662 tests (3 of them opt-in live
-tests), 99.2% branch coverage, strict mypy. Every provider is tested offline against the request and response shapes of
+**Engineering.** 4 providers, 11 check types, an LLM judge, 667 tests (3 of them opt-in live
+tests), 99.3% branch coverage, strict mypy. Every provider is tested offline against the request and response shapes of
 its API (the Anthropic one through the real SDK with a mock transport), and
 `EVALKIT_LIVE_OLLAMA=1 uv run pytest -m live` runs the Ollama paths for real. CI runs the tests on
 Python 3.11, 3.12 and 3.13 (Linux) plus the whole pipeline with the mock provider and the mock
