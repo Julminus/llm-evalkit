@@ -310,12 +310,25 @@ class TestChoosingTheObject:
         assert parsed.rationale == "Does what was asked."
         assert parsed.repairs == ["took the JSON object out of surrounding text"]
 
-    def test_two_different_verdicts_are_reasked_not_guessed(self) -> None:
-        # Found in the fix review: taking the last one silently changed the scores.
-        draft = text(rationale="draft", scores={"instruction_following": 2, "faithfulness": 2})
-        assert problems(f"<think>{draft}</think>\n{text()}") == [
-            "the reply contains 2 different judgments; reply with only one"
+    def test_two_verdicts_use_the_first_and_say_so(self) -> None:
+        # One rule, visible in the repairs (the round-2 rule compared the two
+        # objects and broke on reworded duplicates; round 3 replaced it).
+        first = text(rationale="first", scores={"instruction_following": 2, "faithfulness": 2})
+        parsed = parse_judgment(f"<think>{first}</think>\n{text()}", IF_FA)
+        assert parsed.rationale == "first"
+        assert parsed.repairs == [
+            "took the JSON object out of surrounding text",
+            "the reply has 2 judgments; used the first",
         ]
+
+    def test_a_corrected_python_style_verdict_still_counts_as_a_second_one(self) -> None:
+        # Found in the round-3 review: a later Python-style dict was never looked at.
+        fixed = "{'rationale': 'Weak.', 'scores': {'instruction_following': 2, 'faithfulness': 2}, 'failure_modes': [],}"
+        parsed = parse_judgment(
+            f"```json\n{text()}\n```\nCorrection:\n```json\n{fixed}\n```", IF_FA
+        )
+        assert parsed.rationale == "Does what was asked."
+        assert parsed.repairs[-1] == "the reply has 2 judgments; used the first"
 
     def test_the_same_verdict_twice_is_fine(self) -> None:
         parsed = parse_judgment(f"Verdict: {text()}\nAgain: {text()}", IF_FA)
@@ -360,9 +373,39 @@ class TestBounds:
             parse_judgment(filler, IF_FA)
         assert time.perf_counter() - start < 1.0
 
-    def test_a_verdict_after_many_bad_braces_is_still_found_when_they_are_few(self) -> None:
-        parsed = parse_judgment("{ x } " * 50 + text(), IF_FA)
+    @pytest.mark.parametrize(
+        "before",
+        [
+            "Check: $\\frac{1}{2} + x^{2} = \\sqrt{y}$. " * 20,
+            "```js\n" + "if (a) { b(); } " * 75 + "\n```\n",
+            "{x} " * 500,
+        ],
+    )
+    def test_a_verdict_after_brace_heavy_text_is_found(self, before: str) -> None:
+        # Found in the round-3 review: a cap of 64 failed "{" hid these. Only a
+        # "{" followed by a quote or "}" can start JSON, so these aren't tried.
+        parsed = parse_judgment(before + text(), IF_FA)
         assert parsed.rationale == "Does what was asked."
+
+    def test_a_literal_python_cannot_evaluate_does_not_crash(self) -> None:
+        # Found in the round-3 review: OverflowError escaped ast.literal_eval.
+        raw = "{'rationale': 1" + "0" * 400 + "+1j, 'scores': {}, 'failure_modes': []}"
+        [problem] = problems(raw)
+        assert problem.startswith("not valid JSON")
+
+    def test_a_broken_verdict_after_prose_reports_its_own_error(self) -> None:
+        raw = 'Here is my evaluation:\n{"rationale": "It says "hi" well.", "scores": {}, "failure_modes": []}'
+        [problem] = problems(raw)
+        assert problem.startswith("not valid JSON: Expecting")
+
+    def test_any_unexpected_error_becomes_a_problem(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from evalkit.judge import parse
+
+        def boom(text: str) -> None:
+            raise RuntimeError("bug")
+
+        monkeypatch.setattr(parse, "_extract", boom)
+        assert problems(text()) == ["the reply could not be read (RuntimeError)"]
 
     def test_duplicate_key_spelled_as_a_lone_surrogate(self) -> None:
         # Found in the fix review: the raw key went into the re-ask and crashed it.

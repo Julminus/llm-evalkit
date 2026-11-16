@@ -14,11 +14,15 @@ Repaired locally (free, deterministic, and recorded in ``repairs``):
 Re-asked (the judge must decide): a missing key or score, a score outside
 1-5 or between two whole numbers (``4.5``), an unknown failure mode, a
 nested shape such as ``{"score": 4, "reason": ...}`` in place of a number,
-a key given twice, two different judgments in one reply, a reply over
-30,000 characters. Guessing at those would put words in the judge's mouth.
+a key given twice, a reply over 30,000 characters. Guessing at those would
+put words in the judge's mouth.
 
-No reply, however odd (deep nesting, a 5,000-digit number, a lone surrogate
-escape), raises anything but :class:`JudgmentError`.
+When a reply holds more than one complete judgment, the first one counts and
+a note in ``repairs`` says how many there were.
+
+No reply raises anything but :class:`JudgmentError`: whatever goes wrong
+while reading one (deep nesting, a 5,000-digit number, a literal Python
+can't evaluate) becomes a problem to re-ask about.
 """
 
 from __future__ import annotations
@@ -44,10 +48,11 @@ _KEYS = ("rationale", "scores", "failure_modes")
 _SHOWN_CHARS = 60
 _MAX_REPLY_CHARS = 30_000
 """A judgment is a few hundred characters; a longer reply is a runaway, not a verdict."""
-_MAX_FAILED_STARTS = 64
-"""Each failed decode costs time proportional to its position, so the scan stops
-after this many "{" that start no JSON object. None of the 981 saved judge
-replies has even one."""
+_OBJECT_START_RE = re.compile(r'\{\s*["}]')
+"""Only a "{" followed by a quote or "}" can start a JSON object, so LaTeX,
+code and prose braces are never tried."""
+_MAX_FAILED_STARTS = 1000
+"""A safety bound: each failed decode costs time in proportion to its position."""
 
 
 @dataclass(frozen=True)
@@ -121,7 +126,7 @@ def _python_literal(text: str) -> dict[str, Any] | None:
         if any(_has_duplicate_keys(node) for node in ast.walk(tree)):
             return None
         data = ast.literal_eval(tree)
-    except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
+    except Exception:  # any failure (an OverflowError, say) just means "not a literal"
         return None
     return data if isinstance(data, dict) else None
 
@@ -137,43 +142,43 @@ def _object(text: str) -> tuple[dict[str, Any], list[str]] | str:
     return data
 
 
-def _embedded(text: str) -> tuple[list[tuple[int, dict[str, Any]]], str | None]:
-    """``(position, object)`` for the top-level JSON objects in ``text``, and
-    the problem with the first one that repeats a key, if any.
+def _embedded(
+    text: str,
+) -> tuple[list[tuple[int, dict[str, Any]]], str | None, str | None]:
+    """The top-level JSON objects in ``text`` as ``(position, object)``, plus the
+    problem with the first object that repeats a key and with the first one
+    that doesn't parse, if any.
 
     Scanning resumes after each decoded object, so an object nested inside
     another is never a candidate of its own.
     """
     found: list[tuple[int, dict[str, Any]]] = []
     duplicate: str | None = None
+    broken: str | None = None
     failures = 0
-    pos = text.find("{")
-    while pos != -1 and failures < _MAX_FAILED_STARTS:
+    match = _OBJECT_START_RE.search(text)
+    while match is not None and failures < _MAX_FAILED_STARTS:
+        pos = match.start()
         try:
             data, end = _DECODER.raw_decode(text, pos)
         except _DuplicateKey as exc:
             duplicate = duplicate or _duplicate(exc)
+        except json.JSONDecodeError as exc:
+            broken = broken or f"not valid JSON: {exc.msg} (line {exc.lineno}, column {exc.colno})"
         except (ValueError, RecursionError):
-            pass
+            broken = broken or "not valid JSON"
         else:
             if isinstance(data, dict):
                 found.append((pos, data))
-            pos = text.find("{", end)
+            match = _OBJECT_START_RE.search(text, end)
             continue
         failures += 1
-        pos = text.find("{", pos + 1)
-    return found, duplicate
+        match = _OBJECT_START_RE.search(text, pos + 1)
+    return found, duplicate, broken
 
 
 def _rank(data: dict[str, Any]) -> int:
     return sum(k in data for k in _KEYS)
-
-
-def _fingerprint(data: dict[str, Any]) -> str:
-    try:
-        return json.dumps(data, sort_keys=True, default=str)
-    except (TypeError, ValueError, RecursionError):
-        return f"unprintable-{id(data)}"  # treated as different from every other
 
 
 def _extract(text: str) -> tuple[dict[str, Any], list[str]]:
@@ -181,11 +186,12 @@ def _extract(text: str) -> tuple[dict[str, Any], list[str]]:
 
     The whole reply, or a reply that is one code fence, is read directly
     (as JSON, else as a Python literal). Otherwise the candidates are the
-    top-level JSON objects in the reply and, if none of those is a complete
-    judgment, each fenced block and the span from the first ``{`` to the
-    last ``}`` read as Python literals. The candidate with the most of the
-    three expected keys wins; an object with none of them never does. Two
-    different winners are two judgments, which is re-asked, not guessed.
+    top-level JSON objects in the reply, each fenced block that isn't JSON
+    read as a Python literal, and, with no JSON object at all, the span from
+    the first ``{`` to the last ``}`` read as one. The first candidate with
+    all three expected keys is the judgment. Without one, the candidate with
+    the most keys is checked, so the problems name what is missing; an
+    object with none of them is never used.
     """
     stripped = text.strip()
     if len(stripped) > _MAX_REPLY_CHARS:
@@ -211,48 +217,54 @@ def _extract(text: str) -> tuple[dict[str, Any], list[str]]:
     spans = [fence.span(1) for fence in fences]
     span_starts = [a for a, _ in spans]
 
-    def fenced(pos: int) -> bool:
+    def note_for(pos: int) -> str:
         i = bisect_right(span_starts, pos) - 1
-        return i >= 0 and pos < spans[i][1]
-
-    embedded, duplicate = _embedded(stripped)
-    candidates: list[tuple[int, int, dict[str, Any], list[str]]] = []
-    for pos, data in embedded:
-        if _rank(data):
-            where = "took the JSON from a code fence" if fenced(pos) else None
-            note = where or "took the JSON object out of surrounding text"
-            candidates.append((_rank(data), pos, data, [note]))
-    if not any(c[0] == len(_KEYS) for c in candidates):
-        literals = [(f.start(1), f.group(1), "took the JSON from a code fence") for f in fences]
-        span = stripped[start : stripped.rfind("}") + 1]
-        literals.append((start, span, "took the object out of surrounding text"))
-        for pos, body, note in literals:
-            literal = _python_literal(body.strip())
-            if literal is not None and _rank(literal):
-                candidates.append(
-                    (_rank(literal), pos, literal, [note, "read a Python-style object"])
-                )
-
-    if not candidates:
-        if duplicate is not None:
-            raise JudgmentError([duplicate])
-        if embedded and not stripped.startswith("{"):
-            raise JudgmentError(
-                [
-                    'the reply has JSON, but no object with the keys "rationale", "scores" and '
-                    '"failure_modes"'
-                ]
-            )
-        raise JudgmentError([error])
-    top = max(c[0] for c in candidates)
-    best = [c for c in candidates if c[0] == top]
-    different = {_fingerprint(c[2]) for c in best}
-    if len(different) > 1:
-        raise JudgmentError(
-            [f"the reply contains {len(different)} different judgments; reply with only one"]
+        fenced = i >= 0 and pos < spans[i][1]
+        return (
+            "took the JSON from a code fence"
+            if fenced
+            else "took the JSON object out of surrounding text"
         )
-    _, _, data, notes = best[0]
-    return data, notes
+
+    embedded, duplicate, broken = _embedded(stripped)
+    candidates = [(pos, data, [note_for(pos)]) for pos, data in embedded if _rank(data)]
+    for fence in fences:
+        body = fence.group(1).strip()
+        if isinstance(_decode(body), str):  # JSON fences are already candidates
+            literal = _python_literal(body)
+            if literal is not None and _rank(literal):
+                notes = ["took the JSON from a code fence", "read a Python-style object"]
+                candidates.append((fence.start(1), literal, notes))
+    if not embedded:
+        literal = _python_literal(stripped[start : stripped.rfind("}") + 1])
+        if literal is not None and _rank(literal):
+            notes = ["took the object out of surrounding text", "read a Python-style object"]
+            candidates.append((start, literal, notes))
+
+    candidates.sort(key=lambda c: c[0])
+    complete = [c for c in candidates if _rank(c[1]) == len(_KEYS)]
+    if complete:
+        _, data, notes = complete[0]
+        if len(complete) > 1:
+            notes = [*notes, f"the reply has {len(complete)} judgments; used the first"]
+        return data, notes
+    if candidates:
+        _, data, notes = max(candidates, key=lambda c: (_rank(c[1]), -c[0]))
+        return data, notes
+    if duplicate is not None:
+        raise JudgmentError([duplicate])
+    if stripped.startswith("{"):  # one attempted object: why it doesn't parse
+        raise JudgmentError([error])
+    if broken is not None:
+        raise JudgmentError([broken])
+    if embedded:
+        raise JudgmentError(
+            [
+                'the reply has JSON, but no object with the keys "rationale", "scores" and '
+                '"failure_modes"'
+            ]
+        )
+    raise JudgmentError([error])
 
 
 def _show(value: Any) -> str:
@@ -297,6 +309,15 @@ def parse_judgment(text: str, dimensions: Sequence[Dimension]) -> ParsedJudgment
     re-ask can fix them all. Scores for dimensions that were not asked for,
     and keys other than the three expected, are ignored.
     """
+    try:
+        return _parse(text, dimensions)
+    except JudgmentError:
+        raise
+    except Exception as exc:  # a reply is untrusted input: never crash the run on one
+        raise JudgmentError([f"the reply could not be read ({type(exc).__name__})"]) from exc
+
+
+def _parse(text: str, dimensions: Sequence[Dimension]) -> ParsedJudgment:
     data, repairs = _extract(text)
     problems: list[str] = []
 
