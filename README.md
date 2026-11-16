@@ -184,7 +184,7 @@ The corpus, the generation script and the scoring script are in the repo
 numbers. `uv run --with langdetect==1.0.9 python scripts/measure_langdetect.py` reproduces both
 rows of the table, including the baseline's wrong guesses.
 
-**Engineering.** 4 providers, 11 check types, an LLM judge, 640 tests (3 of them opt-in live
+**Engineering.** 4 providers, 11 check types, an LLM judge, 660 tests (3 of them opt-in live
 tests), 99.1% branch coverage, strict mypy. Every provider is tested offline against the request and response shapes of
 its API (the Anthropic one through the real SDK with a mock transport), and
 `EVALKIT_LIVE_OLLAMA=1 uv run pytest -m live` runs the Ollama paths for real. CI runs the tests on
@@ -302,7 +302,7 @@ provider can be the judge. The judge replies with one JSON object:
   itself. `--no-checks` leaves them out.
 - **Bad replies are repaired or re-asked.** See the design decisions below. `--max-reasks`
   (default 2) caps the re-asks; after that the case gets an error instead of a judgment, and the
-  command exits 1. It also exits 1 if no response in the file matches a case.
+  command exits 1. It also exits 1 if no selected case has a response in the file.
 - **Long responses are cut for the judge, not for the checks.** The judge sees at most 6,000
   characters of a response (`--max-response-chars`, 0 for no limit), and the prompt says how long
   the whole response is. Without the cut, a 40,960-token runaway answer reached a local judge with
@@ -403,15 +403,16 @@ list-checks` lists the constraint types. To install the Anthropic SDK without th
 - **Syntax is repaired locally, structure is re-asked.** A reply in a code fence, inside prose, or
   written as a Python dict (single quotes, trailing comma) is fixed in code, for free, and the
   repair is recorded. A missing score, a score of 4.5, a nested `{"score": 4, "reason": ...}`, an
-  unknown failure mode, a key given twice or two different judgments in one reply go back to the
-  judge, because guessing would put words in its mouth. When a reply holds several JSON objects (an
-  echoed template, a quoted response, then the verdict), the one with the most of the three
-  expected keys is the judgment. The re-ask is the original task plus the unusable reply (its first
-  2,000 characters) plus the list of problems; a plain retry would be pointless at temperature 0,
-  and the cache would replay the same reply anyway. Python dicts are read with `ast.literal_eval`,
-  which evaluates literals only, never code. No reply can crash the run: a 5,000-level nesting, a
-  4,400-digit number or a broken emoji escape becomes a re-ask, and a reply over 30,000 characters
-  is re-asked without being searched.
+  unknown failure mode or a key given twice goes back to the judge, because guessing would put
+  words in its mouth. When a reply holds several JSON objects (an echoed template, a quoted
+  response, then the verdict), the first one with all three expected keys is the judgment, and if
+  there is more than one such object, the repairs say so. The re-ask is the original task plus the
+  unusable reply (its first 2,000 characters) plus the list of problems; a plain retry would be
+  pointless at temperature 0, and the cache would replay the same reply anyway. Python dicts are
+  read with `ast.literal_eval`, which evaluates literals only, never code. No reply can crash the
+  run: anything that goes wrong while reading one (5,000 levels of nesting, a 4,400-digit number)
+  becomes a re-ask, a broken emoji escape becomes U+FFFD, and a reply over 30,000 characters is
+  re-asked without being searched.
 - **Rationale first.** The output format puts `rationale` before `scores`, so the model writes its
   reasons before it commits to numbers.
 - **Instructions in English, the case in its own language.** The judge's instructions are in
@@ -457,10 +458,11 @@ not, and a prompt over the limit is shortened without an error, so check `input_
 judgments log. Tagged sections stop a response from closing its own section, but a response can
 still try to talk the judge into a better score; how often that works is not measured. The
 escaping knows whitespace and the common zero-width characters, not every invisible Unicode
-character (bidi controls, soft hyphens). An `openai:` judge gets no output cap unless you pass
-`--max-tokens` (the server's default applies; Ollama's `/v1` has none), so pass one, e.g. 1024. A
-judgment that follows more than 64 `{` that start no JSON object isn't found and is re-asked;
-none of the 981 saved judge replies has even one.
+character (most bidi controls such as U+202E, soft hyphens). An `openai:` judge gets no output cap
+unless you pass `--max-tokens` (the server's default applies; Ollama's `/v1` has none), so pass
+one, e.g. 1024. The reply search only tries a `{` followed by a quote or `}`, the only way a JSON
+object can start, and gives up after 1,000 such starts that fail; none of the 981 saved judge
+replies has even one.
 
 ## What's next
 
