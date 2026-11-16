@@ -48,7 +48,14 @@ from typing import Any
 import httpx
 
 from evalkit import __version__
-from evalkit.judge import JUDGE_PROMPT_VERSION, Judge, JudgeRecord, judge_suite, parse_judgment
+from evalkit.judge import (
+    JUDGE_PROMPT_VERSION,
+    Judge,
+    JudgeRecord,
+    JudgmentError,
+    judge_suite,
+    parse_judgment,
+)
 from evalkit.prompts import Prompt
 from evalkit.providers import GenerationParams, OllamaProvider
 from evalkit.schema import Dimension, Suite, load_suite
@@ -252,23 +259,38 @@ def analyse(conditions: dict[str, dict[str, Any]]) -> dict[str, Any]:
 
 
 def regrade(path: Path) -> int:
-    """Re-parse every saved reply with the current parser; report any change."""
+    """Re-parse every saved reply with the current parser; report any change.
+
+    A judgment's last reply must give the recorded verdict (or, for a failed
+    judgment, still be unusable), and every earlier reply must still be
+    unusable, since each of those was re-asked.
+    """
     data = json.loads(path.read_text(encoding="utf-8"))
     suite = load_suite(SUITE)
-    changed = 0
+    changed = replies = 0
     for name, cond in data["conditions"].items():
         for i in cond["items"]:
-            if i["error"] is not None:
-                continue
             case = suite.case(i["id"])
             dims = case.rubric.dimensions if case.rubric else list(Dimension)
-            parsed = parse_judgment(i["replies"][-1], dims)
-            scores = {d.value: s for d, s in parsed.scores.items()}
-            modes = [m.value for m in parsed.failure_modes]
-            if (scores, modes, parsed.repairs) != (i["scores"], i["judge_modes"], i["repairs"]):
+            verdicts: list[tuple[Any, ...] | None] = []
+            for reply in i["replies"]:
+                replies += 1
+                try:
+                    parsed = parse_judgment(reply, dims)
+                except JudgmentError:
+                    verdicts.append(None)
+                    continue
+                scores = {d.value: sc for d, sc in parsed.scores.items()}
+                verdicts.append((scores, [m.value for m in parsed.failure_modes], parsed.repairs))
+            ok = i["error"] is None
+            recorded = (i["scores"], i["judge_modes"], i["repairs"]) if ok else None
+            # A failed request after the last reply leaves that reply re-asked, not final.
+            final = verdicts[-1] if ok else None
+            earlier = verdicts[:-1] if ok else verdicts
+            if final != recorded or any(v is not None for v in earlier):
                 changed += 1
                 print(f"{name} {i['model']} {i['id']}: changed", file=sys.stderr)
-    print(f"re-graded {path}: {changed} verdicts changed")
+    print(f"re-graded {path}: {replies} replies, {changed} judgments changed")
     return 1 if changed else 0
 
 
