@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -48,6 +49,26 @@ def test_replace_file_gives_up(
     with pytest.raises(PermissionError):
         files.replace_file(src, tmp_path / "a")
     assert sum(no_sleep) == pytest.approx(0.3)  # bounded: this blocks the event loop
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX file modes")
+def test_atomic_write_uses_the_normal_file_mode(tmp_path: Path) -> None:
+    # mkstemp creates 0600; run logs and manifests must stay readable to
+    # other users (e.g. a host user reading a Docker bind mount).
+    files.write_text_atomic(tmp_path / "manifest.json", "{}\n")
+    plain = tmp_path / "plain.txt"
+    plain.write_text("x", encoding="utf-8")
+    mode = (tmp_path / "manifest.json").stat().st_mode & 0o777
+    assert mode == plain.stat().st_mode & 0o777
+    assert mode & 0o044  # group/other can read under a typical umask
+
+
+def test_atomic_write_round_trip(tmp_path: Path) -> None:
+    target = tmp_path / "x.json"
+    files.write_text_atomic(target, "satu\ndua\n")
+    files.write_text_atomic(target, "tiga\n")
+    assert target.read_bytes() == b"tiga\n"
+    assert [p.name for p in tmp_path.iterdir()] == ["x.json"]
 
 
 def test_read_utf8_strips_a_bom(tmp_path: Path) -> None:
