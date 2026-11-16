@@ -38,15 +38,18 @@ def normalize_host(host: str) -> str:
     """Accept ``OLLAMA_HOST`` the way Ollama does.
 
     ``localhost``, ``localhost:11434`` and ``http://localhost:11434/`` all mean
-    the same server. A bare host gets Ollama's default port, and the bind-all
-    address ``0.0.0.0`` (a common server setting) becomes loopback, because
-    a client can't connect to it on every OS.
+    the same server. A bare host gets Ollama's default port, an IPv6 address
+    keeps its brackets (``[::1]:11434``), and the bind-all address ``0.0.0.0``
+    (a common server setting) becomes loopback, because a client can't connect
+    to it on every OS.
     """
     host = host.strip().rstrip("/")
     if "://" not in host:
         parts = urlsplit(f"http://{host}")
         port = parts.port or 11434
         hostname = parts.hostname or "127.0.0.1"
+        if ":" in hostname:  # IPv6
+            hostname = f"[{hostname}]"
         host = f"http://{hostname}:{port}"
     parts = urlsplit(host)
     if parts.hostname == "0.0.0.0":
@@ -58,8 +61,8 @@ class OllamaProvider(Provider):
     """A model served by a local (or remote) Ollama server.
 
     The host comes from ``host=``, else ``OLLAMA_HOST``, else
-    ``http://127.0.0.1:11434``. The cache key uses the model *tag*: if you
-    re-pull a tag and get new weights, clear the cache.
+    ``http://127.0.0.1:11434``. The cache key uses the host and the model
+    *tag*: if you re-pull a tag and get new weights, clear the cache.
     """
 
     name = "ollama"
@@ -80,6 +83,10 @@ class OllamaProvider(Provider):
             timeout=httpx.Timeout(timeout, connect=10.0),
             transport=transport,
         )
+
+    def identity(self) -> dict[str, str]:
+        # Two servers can hold different weights under the same tag.
+        return {**super().identity(), "host": self.host}
 
     def _options(self, params: GenerationParams) -> dict[str, Any]:
         return {_OPTIONS[k]: v for k, v in self.effective_params(params).items()}

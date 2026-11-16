@@ -9,7 +9,12 @@ import httpx2
 import pytest
 
 from evalkit.prompts import Prompt
-from evalkit.providers import AnthropicProvider, GenerationParams, ProviderError
+from evalkit.providers import (
+    AnthropicProvider,
+    GenerationParams,
+    ProviderConfigError,
+    ProviderError,
+)
 from evalkit.providers.anthropic_api import DEFAULT_MAX_TOKENS
 
 
@@ -85,6 +90,22 @@ def test_request_has_no_sampling_params() -> None:
     assert (out.input_tokens, out.output_tokens) == (12, 5)
 
 
+def test_identity_includes_the_endpoint() -> None:
+    direct = AnthropicProvider("claude-opus-5-5", api_key="k")
+    proxied = AnthropicProvider("claude-opus-5-5", api_key="k", base_url="https://gw.example.com/")
+    assert direct.identity() == {
+        "provider": "anthropic",
+        "model": "claude-opus-5-5",
+        "base_url": "https://api.anthropic.com",
+    }
+    assert proxied.identity()["base_url"] == "https://gw.example.com"
+
+
+def test_scheme_less_base_url_is_a_config_error() -> None:
+    with pytest.raises(ProviderConfigError, match="must start with http"):
+        AnthropicProvider("claude-opus-5-5", api_key="k", base_url="gw.example.com")
+
+
 def test_defaults_omit_system_and_stop() -> None:
     seen: dict[str, Any] = {}
 
@@ -104,6 +125,7 @@ def test_defaults_omit_system_and_stop() -> None:
     ("stop", "expected"),
     [
         ("max_tokens", "length"),
+        ("model_context_window_exceeded", "length"),
         ("refusal", "refusal"),
         ("stop_sequence", "stop"),
         ("pause_turn", "other"),

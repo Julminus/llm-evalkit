@@ -13,7 +13,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from evalkit.providers._http import optional_int, post_json
+from evalkit.providers._http import optional_int, post_json, require_http_url
 from evalkit.providers.base import (
     Completion,
     FinishReason,
@@ -59,7 +59,7 @@ class OpenAICompatProvider(Provider):
     ) -> None:
         super().__init__(model)
         url = base_url or os.environ.get("OPENAI_BASE_URL") or DEFAULT_OPENAI_BASE_URL
-        self.base_url = url.strip().rstrip("/")
+        self.base_url = require_http_url(url, provider=self.name)
         key = api_key if api_key is not None else os.environ.get("OPENAI_API_KEY")
         if not key and urlsplit(self.base_url).hostname == "api.openai.com":
             raise ProviderConfigError(

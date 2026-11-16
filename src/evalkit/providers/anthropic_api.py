@@ -1,6 +1,9 @@
 """Claude models through the official ``anthropic`` SDK (optional extra).
 
-Install with ``pip install "llm-evalkit[anthropic]"``. Credentials are found
+Install with ``uv sync --extra anthropic`` in a clone (``uv sync`` installs it
+too, through the dev group). llm-evalkit is not on PyPI, so with pip install
+it from GitHub: ``pip install "llm-evalkit[anthropic] @
+git+https://github.com/Julminus/llm-evalkit"``. Credentials are found
 the way the SDK finds them: ``ANTHROPIC_API_KEY``, ``ANTHROPIC_AUTH_TOKEN`` or
 an ``ant auth login`` profile.
 
@@ -22,6 +25,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from evalkit.providers._http import require_http_url
 from evalkit.providers.base import (
     RETRYABLE_STATUS,
     Completion,
@@ -52,6 +56,7 @@ _FINISH: dict[str, FinishReason] = {
     "end_turn": "stop",
     "stop_sequence": "stop",
     "max_tokens": "length",
+    "model_context_window_exceeded": "length",
     "refusal": "refusal",
 }
 
@@ -83,9 +88,12 @@ class AnthropicProvider(Provider):
         super().__init__(model)
         if not _HAVE_SDK:  # pragma: no cover - only without the [anthropic] extra
             raise ProviderConfigError(
-                "anthropic: the SDK is not installed. "
-                'Install the extra: pip install "llm-evalkit[anthropic]"'
+                "anthropic: the SDK is not installed. Install the extra: "
+                "uv sync --extra anthropic (in a clone), or "
+                'pip install "llm-evalkit[anthropic] @ git+https://github.com/Julminus/llm-evalkit"'
             )
+        if base_url is not None:
+            base_url = require_http_url(base_url, provider=self.name)
         self._client = anthropic.AsyncAnthropic(
             api_key=api_key,
             base_url=base_url,
@@ -93,6 +101,10 @@ class AnthropicProvider(Provider):
             max_retries=0,
             http_client=http_client,
         )
+
+    def identity(self) -> dict[str, str]:
+        # A proxy or gateway may route the same model name elsewhere.
+        return {**super().identity(), "base_url": str(self._client.base_url).rstrip("/")}
 
     async def generate(self, prompt: Prompt, params: GenerationParams) -> Completion:
         p = self.effective_params(params)

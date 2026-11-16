@@ -200,10 +200,37 @@ class TestPreflight:
         ("http://0.0.0.0:11434/", "http://127.0.0.1:11434"),
         ("https://ollama.example.com", "https://ollama.example.com"),
         ("  http://box:11434/  ", "http://box:11434"),
+        ("[::1]:11434", "http://[::1]:11434"),
+        ("[::1]", "http://[::1]:11434"),
     ],
 )
 def test_normalize_host(given: str, expected: str) -> None:
     assert normalize_host(given) == expected
+
+
+def test_ipv6_host_reaches_the_server() -> None:
+    seen: dict[str, str] = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen["url"] = str(req.url)
+        return httpx.Response(200, json={"message": {"content": "ok"}, "done_reason": "stop"})
+
+    p = OllamaProvider("m", host="[::1]:11434", transport=httpx.MockTransport(handler))
+    assert generate(p).text == "ok"
+    assert seen["url"] == "http://[::1]:11434/api/chat"
+
+
+def test_identity_includes_the_host() -> None:
+    # Two servers can hold different weights under the same tag, so their
+    # responses must not share cache entries.
+    a = OllamaProvider("qwen2.5:7b", host="http://box-a:11434")
+    b = OllamaProvider("qwen2.5:7b", host="http://box-b:11434")
+    assert a.identity() == {
+        "provider": "ollama",
+        "model": "qwen2.5:7b",
+        "host": "http://box-a:11434",
+    }
+    assert a.identity() != b.identity()
 
 
 def test_host_from_env(monkeypatch: pytest.MonkeyPatch) -> None:

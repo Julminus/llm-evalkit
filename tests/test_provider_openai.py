@@ -154,3 +154,23 @@ class TestConfig:
         monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
         monkeypatch.setenv("OPENAI_API_KEY", "sk-env")
         assert OpenAICompatProvider("gpt-4o-mini").base_url == "https://api.openai.com/v1"
+
+    @pytest.mark.parametrize(
+        "url", ["localhost:8000/v1", "127.0.0.1:8000", "ftp://box/v1", "http://"]
+    )
+    def test_scheme_less_or_bad_base_url_is_a_config_error(self, url: str) -> None:
+        # Before, "localhost:8000/v1" failed every request with a transport
+        # error that looked transient, so each case was retried 4 times.
+        with pytest.raises(ProviderConfigError, match="must start with http"):
+            OpenAICompatProvider("m", base_url=url, api_key="")
+
+
+def test_invalid_url_at_request_time_is_not_retryable() -> None:
+    def handler(req: httpx.Request) -> httpx.Response:
+        raise httpx.UnsupportedProtocol(
+            "Request URL is missing an 'http://' or 'https://' protocol."
+        )
+
+    with pytest.raises(ProviderError, match="invalid URL") as info:
+        generate(handler)
+    assert info.value.retryable is False

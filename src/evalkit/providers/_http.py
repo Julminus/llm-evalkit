@@ -8,12 +8,34 @@ happy-path response shape.
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx
 
-from evalkit.providers.base import RETRYABLE_STATUS, ProviderError, parse_retry_after
+from evalkit.providers.base import (
+    RETRYABLE_STATUS,
+    ProviderConfigError,
+    ProviderError,
+    parse_retry_after,
+)
 
 _MAX_DETAIL = 300
+
+
+def require_http_url(url: str, *, provider: str) -> str:
+    """Return ``url`` without a trailing slash, or raise if it isn't http(s)://host.
+
+    Without this, ``--base-url localhost:8000/v1`` fails on every request
+    with a transport error that looks transient and gets retried.
+    """
+    url = url.strip().rstrip("/")
+    parts = urlsplit(url)
+    if parts.scheme not in {"http", "https"} or not parts.netloc:
+        raise ProviderConfigError(
+            f"{provider}: base URL {url!r} must start with http:// or https://, "
+            "e.g. http://127.0.0.1:8000/v1"
+        )
+    return url
 
 
 def error_detail(resp: httpx.Response) -> str:
@@ -44,6 +66,9 @@ async def post_json(
         resp = await client.post(url, json=body)
     except httpx.TimeoutException as exc:
         raise ProviderError(f"{provider}: request timed out", retryable=True) from exc
+    except (httpx.UnsupportedProtocol, httpx.InvalidURL) as exc:
+        # A configuration error, not a transient one: retrying won't help.
+        raise ProviderError(f"{provider}: invalid URL ({exc})", retryable=False) from exc
     except httpx.TransportError as exc:  # connection refused, reset, DNS, protocol errors
         raise ProviderError(
             f"{provider}: cannot reach {client.base_url} ({type(exc).__name__})", retryable=True
