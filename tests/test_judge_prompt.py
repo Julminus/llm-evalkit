@@ -104,6 +104,22 @@ def test_failed_checks_name_their_failure_mode() -> None:
     assert "- SKIP word_count: n/a" in user
 
 
+def test_checks_are_facts_the_judge_must_not_contradict() -> None:
+    # Prompt v1 let qwen2.5:14b call one long sentence "more than one sentence"
+    # while the sentence_count check it was shown said PASS.
+    results = [CheckResult(check="sentence_count", status=Status.PASS, message="1 sentences")]
+    user = build_judge_prompt(case(), "x", results).user
+    assert "never contradict one" in user
+    assert "A constraint marked PASS is met" in user
+
+
+def test_failure_modes_are_for_clear_failures_only() -> None:
+    prompt = build_judge_prompt(case(), "x")
+    assert "only for a clear failure you can point to" in prompt.user
+    assert prompt.system is not None
+    assert "Do not invent requirements" in prompt.system
+
+
 def test_checks_none_or_empty_add_no_section() -> None:
     assert "<automated_checks>" not in build_judge_prompt(case(), "x", None).user
     assert "<automated_checks>" not in build_judge_prompt(case(), "x", []).user

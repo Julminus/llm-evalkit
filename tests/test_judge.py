@@ -9,7 +9,14 @@ import pytest
 
 from evalkit.cache import ResponseCache
 from evalkit.checks import Status
-from evalkit.judge import Judge, JudgeRecord, JudgeSummary, judge_suite, responses_digest
+from evalkit.judge import (
+    JUDGE_PROMPT_VERSION,
+    Judge,
+    JudgeRecord,
+    JudgeSummary,
+    judge_suite,
+    responses_digest,
+)
 from evalkit.judge.core import make_judge_run_id
 from evalkit.prompts import Prompt
 from evalkit.providers import Completion, GenerationParams, Provider, ProviderError
@@ -423,7 +430,7 @@ class TestJudgeSuite:
             "output_tokens": 15,
         }
         assert manifest["summary"]["parse"]["reasked"] == 1
-        assert manifest["judge_prompt_version"] == "1"
+        assert manifest["judge_prompt_version"] == JUDGE_PROMPT_VERSION
 
     def test_case_ids_and_no_out_dir(self, tmp_path: Path) -> None:
         suite = make_suite(3)
