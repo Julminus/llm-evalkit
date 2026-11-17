@@ -42,6 +42,7 @@ from evalkit.agreement import consistency as consistency_report
 from evalkit.cache import ResponseCache
 from evalkit.checks import CHECK_TYPES, Status
 from evalkit.evaluate import CheckSummary, ResponsesError, check_case, check_suite, load_responses
+from evalkit.files import write_text_atomic
 from evalkit.judge import (
     DEFAULT_MAX_RESPONSE_CHARS,
     Judge,
@@ -936,7 +937,12 @@ def agree(
         ),
     ],
     sample: Annotated[
-        int, typer.Option(min=0, help="With several samples per case, compare this one.")
+        int,
+        typer.Option(min=0, help="With several samples per case in JUDGMENTS, compare this one."),
+    ] = 0,
+    reference_sample: Annotated[
+        int,
+        typer.Option(min=0, help="The same for a REFERENCE that is a judgments file."),
     ] = 0,
     resamples: Annotated[
         int, typer.Option(min=0, help="Bootstrap resamples for the intervals (0 = none).")
@@ -950,7 +956,7 @@ def agree(
     """Agreement between a judge and a reference: kappa, Spearman, confusion matrices."""
     try:
         judged = load_ratings(judgments_path, sample=sample)
-        reference = load_ratings(reference_path, sample=sample)
+        reference = load_ratings(reference_path, sample=reference_sample)
     except LabelsError as exc:
         raise _exit_error(str(exc)) from exc
     report = compare(judged, reference, resamples=resamples, seed=seed)
@@ -959,6 +965,8 @@ def agree(
     else:
         _print_agreement(report, verbose=verbose)
     if not report.matched:
+        if not reference.ratings and reference.skipped:
+            raise _exit_error(f"no row of {reference_path} is labelled yet")
         raise _exit_error("no case is rated in both files: check that they are for the same suite")
 
 
@@ -1158,6 +1166,11 @@ def consistency(
 
     result = _run_async(main, progress, what="judgments")
     report = consistency_report(result.records)
+    if result.run_dir is not None:
+        try:
+            write_text_atomic(result.run_dir / "consistency.json", _dumps(report.to_dict()) + "\n")
+        except OSError as exc:
+            err_console.print(f"[yellow]warning:[/] could not save consistency.json: {exc}")
     if as_json:
         payload = {
             "run": {

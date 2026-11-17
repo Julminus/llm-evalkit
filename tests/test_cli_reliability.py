@@ -434,3 +434,65 @@ class TestPairwise:
         )
         assert result.exit_code == 1
         assert "--mock-judgments only works with --judge mock" in result.output
+
+
+class TestReviewFindings:
+    """CLI behaviour the post-S4 review found misleading."""
+
+    def consistency_run(self, dirs: list[str], tmp_path: Path) -> Path:
+        result = invoke(
+            "consistency",
+            SUITE,
+            RESPONSES,
+            "-j",
+            "mock",
+            "--mock-judgments",
+            JUDGMENTS,
+            "-n",
+            "3",
+            *dirs,
+            "--run-id",
+            "cons",
+            "--json",
+        )
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.output)
+        # 10 cases judged 3 times: the counts said "cases": 30.
+        assert (data["run"]["counts"]["cases"], data["run"]["counts"]["judgments"]) == (10, 30)
+        return tmp_path / "runs" / "cons"
+
+    def test_the_consistency_report_is_saved_with_the_run(
+        self, dirs: list[str], tmp_path: Path
+    ) -> None:
+        run_dir = self.consistency_run(dirs, tmp_path)
+        saved = json.loads((run_dir / "consistency.json").read_text(encoding="utf-8"))
+        assert saved["samples"] == 3
+        assert saved["cases"] == 10
+        manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+        assert manifest["counts"]["cases"] == 10
+
+    def test_a_sample_of_a_consistency_run_against_a_plain_judge_run(
+        self, dirs: list[str], tmp_path: Path
+    ) -> None:
+        cons = self.consistency_run(dirs, tmp_path) / "judgments.jsonl"
+        plain = mock_judgments(tmp_path, dirs)
+        # --sample used to apply to both files, and the plain run has no sample 2.
+        result = invoke("agree", cons, plain, "--sample", "2", "--resamples", "0")
+        assert result.exit_code == 0, result.output
+        assert "10 cases rated by both" in result.output
+        assert "used sample 2 of 3" in result.output
+        both = invoke(
+            "agree", cons, cons, "--sample", "1", "--reference-sample", "2", "--resamples", "0"
+        )
+        assert both.exit_code == 0, both.output
+
+    def test_an_unfilled_sheet_says_so(self, dirs: list[str], tmp_path: Path) -> None:
+        sheet = tmp_path / "sheet.csv"
+        assert invoke("labels", SUITE, RESPONSES, "-o", sheet).exit_code == 0
+        result = invoke("agree", mock_judgments(tmp_path, dirs), sheet)
+        assert result.exit_code == 1
+        assert "no row of" in result.output
+        assert "is labelled yet" in result.output
+        # each id listed once, as not labelled, not also as "only the judge rated"
+        assert "not labelled yet (skipped) (10):" in result.output
+        assert "only the judge rated" not in result.output

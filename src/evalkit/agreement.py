@@ -450,8 +450,9 @@ def compare(
         judge=judge.source,
         reference=reference.source,
         matched=len(common),
-        only_judge=sorted(set(judge.ratings) - set(reference.ratings)),
-        only_reference=sorted(set(reference.ratings) - set(judge.ratings)),
+        # An id the other side skipped (unlabelled, or a judge error) is listed there instead.
+        only_judge=sorted(set(judge.ratings) - set(reference.ratings) - set(reference.skipped)),
+        only_reference=sorted(set(reference.ratings) - set(judge.ratings) - set(judge.skipped)),
         skipped_judge=judge.skipped,
         skipped_reference=reference.skipped,
         notes=notes,

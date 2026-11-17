@@ -496,7 +496,9 @@ class JudgeResult:
     def counts(self) -> dict[str, int]:
         records = self.records
         return {
-            "cases": len(records),
+            # One record per case and sample: with several samples, cases < judgments.
+            "cases": sum(r.sample == 0 for r in records),
+            "judgments": len(records),
             "judged": sum(r.ok for r in records),
             "errors": sum(not r.ok for r in records),
             "cached": sum(r.cached for r in records),

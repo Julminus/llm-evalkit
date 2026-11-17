@@ -507,6 +507,7 @@ class TestJudgeSuite:
         assert manifest["suite"]["cases_selected"] == 3
         assert manifest["counts"] == {
             "cases": 2,
+            "judgments": 2,
             "judged": 2,
             "errors": 0,
             "cached": 0,
