@@ -270,7 +270,7 @@ numbers. `uv run --with langdetect==1.0.9 python scripts/measure_langdetect.py` 
 rows of the table, including the baseline's wrong guesses.
 
 **Engineering.** 4 providers, 11 check types, an LLM judge with agreement, consistency and
-position-bias tools, 862 tests (3 of them opt-in live tests, 2 that run only where SciPy and
+position-bias tools, 871 tests (3 of them opt-in live tests, 2 that run only where SciPy and
 scikit-learn are installed, 1 POSIX-only), 99.2% branch coverage, strict mypy. Every provider is tested offline against the request and response shapes of
 its API (the Anthropic one through the real SDK with a mock transport), and
 `EVALKIT_LIVE_OLLAMA=1 uv run pytest -m live` runs the Ollama paths for real. CI runs the tests on
@@ -430,9 +430,12 @@ Three ways to find out how far a judge can be trusted, each its own command:
   half-done sheet can be compared as it stands. `failure_modes` is all or nothing: fill it on every
   labelled row (`none` where no mode applies, several modes separated by `|`), or leave it blank
   on every row to compare scores only. A mix is an error, because a blank next to tagged rows could
-  mean "none" or "not done yet", and either guess skews precision. A sheet saved with `;` as the
-  delimiter, as Excel does in an Indonesian locale, is read too. A row with more non-empty cells
-  than the header is an error, and columns that `evalkit labels` doesn't write are listed in a
+  mean "none" or "not done yet", and either guess skews precision. For the same reason, if you
+  label only failure modes, write `none` on the clean rows: a row with nothing filled in is "not
+  labelled yet", and `agree` warns when such rows leave some of the judge's tags uncounted. A sheet
+  saved with `;` or tabs as the delimiter, as Excel does in an Indonesian locale or as `.txt`, is
+  read too (a file is a judgments file if it starts with `{`, whatever its name). A row with more
+  non-empty cells than the header is an error, and columns evalkit doesn't know are listed in a
   note, so a misspelt label column shows up instead of vanishing.
 - **Against itself: `evalkit consistency SUITE RESPONSES -j JUDGE -n 5`.** Judges each response n
   times at temperature 0.7, sample i with seed i, and reports per dimension how many cases got the
