@@ -32,6 +32,7 @@ Indonesian locale saves CSV with ``;``.
 from __future__ import annotations
 
 import csv
+import difflib
 import io
 import re
 import statistics
@@ -113,6 +114,31 @@ def _delimiter(header: str) -> str:
     return max(counts, key=lambda d: counts[d]) if any(counts.values()) else ","
 
 
+def _column(name: str) -> str:
+    """ "Instruction Following" and "instruction-following" name the same column."""
+    return re.sub(r"[\s-]+", "_", name.strip().lower())
+
+
+def _check_header(path: Path, raw: list[str]) -> list[str]:
+    header = [_column(h) for h in raw]
+    if "id" not in header:
+        raise LabelsError(f"{path}: the header has no 'id' column (found: {', '.join(raw)})")
+    repeated = sorted({h for h in header if h and header.count(h) > 1})
+    if repeated:
+        raise LabelsError(f"{path}: the header repeats {', '.join(repeated)}")
+    known = ("id", "language", *LABEL_COLUMNS)
+    for name, shown in zip(header, raw, strict=True):
+        # Other columns are ignored, so a misspelt label column would be too.
+        close = difflib.get_close_matches(name, known, n=1, cutoff=0.8)
+        if name and name not in known and close:
+            raise LabelsError(
+                f"{path}: unknown column {shown.strip()!r}; did you mean {close[0]!r}?"
+            )
+    if not any(name in LABEL_COLUMNS for name in header):
+        raise LabelsError(f"{path}: no label columns; expected some of: {', '.join(LABEL_COLUMNS)}")
+    return header
+
+
 def load_labels(path: Path) -> Ratings:
     """Read a labels CSV (see the module docstring for the columns)."""
     try:
@@ -125,35 +151,37 @@ def load_labels(path: Path) -> Ratings:
         io.StringIO(text, newline=""), delimiter=_delimiter(first_line), strict=True
     )
     try:
-        header = [h.strip().lower() for h in next(reader)]
+        header = _check_header(path, next(reader))
     except StopIteration:
         raise LabelsError(f"{path}: the file is empty") from None
-    if "id" not in header:
-        raise LabelsError(f"{path}: the header has no 'id' column (found: {', '.join(header)})")
-    repeated = sorted({h for h in header if h and header.count(h) > 1})
-    if repeated:
-        raise LabelsError(f"{path}: the header repeats {', '.join(repeated)}")
+    except csv.Error as exc:
+        raise LabelsError(f"{path}:1: not valid CSV: {exc}") from exc
     col = {name: header.index(name) for name in header}
     dims = [d for d in Dimension if d.value in col]
     has_modes = "failure_modes" in col
-    if not dims and not has_modes:
-        raise LabelsError(f"{path}: no label columns; expected some of: {', '.join(LABEL_COLUMNS)}")
 
     ratings: dict[str, Rating] = {}
     first_seen: dict[str, int] = {}
     skipped: list[str] = []
+    line = reader.line_num + 1  # where the next row starts; a quoted cell can span lines
     try:
         for row in reader:
-            line = reader.line_num
+            row_line, line = line, reader.line_num + 1
             if not any(cell.strip() for cell in row):
                 continue
+            where = f"{path}:{row_line}"
+            if any(cell.strip() for cell in row[len(header) :]):
+                raise LabelsError(
+                    f"{where}: the row has {len(row)} cells but the header has {len(header)} "
+                    "columns; quote a cell that contains the delimiter, or separate failure "
+                    "modes with '|'"
+                )
 
             def cell(name: str, row: list[str] = row) -> str:
                 i = col[name]
                 return row[i].strip() if i < len(row) else ""
 
             case_id = cell("id")
-            where = f"{path}:{line}"
             if not case_id:
                 raise LabelsError(f"{where}: the row has labels but no id")
             if case_id in first_seen:
@@ -161,7 +189,7 @@ def load_labels(path: Path) -> Ratings:
                     f"{where}: id {case_id!r} is labelled twice "
                     f"(first on line {first_seen[case_id]})"
                 )
-            first_seen[case_id] = line
+            first_seen[case_id] = row_line
             names = [d.value for d in dims] + (["failure_modes"] if has_modes else [])
             raw = {name: cell(name) for name in names}
             if all(value.lower() in _BLANK for value in raw.values()):
@@ -185,9 +213,13 @@ def load_labels(path: Path) -> Ratings:
                     listed = ""
                 parts = [p for p in _MODE_SPLIT.split(listed) if p.strip()]
                 modes = frozenset(_mode(p, where) for p in parts)
-            ratings[case_id] = Rating(id=case_id, scores=scores, failure_modes=modes)
+            language = cell("language") if "language" in col else ""
+            ratings[case_id] = Rating(
+                id=case_id, scores=scores, failure_modes=modes, language=language or None
+            )
     except csv.Error as exc:
-        raise LabelsError(f"{path}:{reader.line_num}: not valid CSV: {exc}") from exc
+        # `line` is where the row being read started, e.g. where an unclosed quote opened.
+        raise LabelsError(f"{path}:{line}: not valid CSV: {exc}") from exc
     return Ratings(str(path), ratings, skipped)
 
 
@@ -205,7 +237,9 @@ def load_judgments(path: Path, *, sample: int = 0) -> Ratings:
     skipped: list[str] = []
     seen: set[tuple[str, int]] = set()
     samples: set[int] = set()
-    for n, line in enumerate(text.splitlines(), 1):
+    # Split on "\n" only: str.splitlines() also splits on U+2028 and friends,
+    # which JSON writes raw inside strings (a judge's rationale can hold one).
+    for n, line in enumerate(text.split("\n"), 1):
         if not line.strip():
             continue
         try:
@@ -243,8 +277,8 @@ def load_judgments(path: Path, *, sample: int = 0) -> Ratings:
 
 
 def load_ratings(path: Path, *, sample: int = 0) -> Ratings:
-    """A labels CSV (``.csv``) or a judgments file (anything else)."""
-    if path.suffix.lower() == ".csv":
+    """A labels sheet (``.csv``, ``.tsv`` or ``.txt``) or a judgments file (anything else)."""
+    if path.suffix.lower() in {".csv", ".tsv", ".txt"}:
         return load_labels(path)
     return load_judgments(path, sample=sample)
 

@@ -503,3 +503,78 @@ class TestLabelSheet:
         text = path.read_text(encoding="utf-8-sig").replace("c1,en,,", "c1,en,2,", 1)
         path.write_text(text, encoding="utf-8-sig")
         assert load_labels(path).ratings["c1"].scores == {IF: 2}
+
+
+class TestReviewFindings:
+    """Inputs the first version read wrong without an error (post-S4 review)."""
+
+    def test_a_line_separator_inside_a_rationale(self, tmp_path: Path) -> None:
+        # model_dump_json writes U+2028 raw; str.splitlines() cut the record in two.
+        rec = record("c1").model_copy(update={"rationale": "one\u2028two\u0085three"})
+        path = write_judgments(tmp_path, [rec, record("c2")])
+        assert "\u2028" in path.read_text(encoding="utf-8")
+        assert set(load_judgments(path).ratings) == {"c1", "c2"}
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "id;helpfulness;failure_modes;notes\nc1;4;format_error;hallucination;looks fine\n",
+            "id,notes,helpfulness\nc1,a,5,4\n",
+        ],
+    )
+    def test_more_cells_than_columns(self, tmp_path: Path, text: str) -> None:
+        with pytest.raises(LabelsError, match=r":2: the row has \d cells but the header has \d"):
+            load_labels(write(tmp_path, text))
+
+    def test_trailing_empty_cells_are_fine(self, tmp_path: Path) -> None:
+        # Spreadsheets sometimes save a row with a few empty cells too many.
+        path = write(tmp_path, "id,helpfulness\nc1,4,,\n")
+        assert load_labels(path).ratings["c1"].scores == {HE: 4}
+
+    @pytest.mark.parametrize(
+        "name", ["Instruction Following", "instruction-following", " INSTRUCTION_FOLLOWING"]
+    )
+    def test_column_names_are_normalised(self, tmp_path: Path, name: str) -> None:
+        path = write(tmp_path, f"id,{name},helpfulness\nc1,4,5\n")
+        assert load_labels(path).ratings["c1"].scores == {IF: 4, HE: 5}
+
+    @pytest.mark.parametrize(
+        ("name", "meant"),
+        [
+            ("helpfullness", "helpfulness"),
+            ("failure_mode", "failure_modes"),
+            ("faithfullness", "faithfulness"),
+        ],
+    )
+    def test_a_misspelt_label_column_is_an_error(
+        self, tmp_path: Path, name: str, meant: str
+    ) -> None:
+        path = write(tmp_path, f"id,instruction_following,{name}\nc1,4,5\n")
+        with pytest.raises(LabelsError, match=f"unknown column '{name}'; did you mean '{meant}'"):
+            load_labels(path)
+
+    def test_other_columns_are_still_ignored(self, tmp_path: Path) -> None:
+        cols = ["labeler", "notes", "prompt", "response", "system", "context", "criteria"]
+        cols += ["reference_answer", "model"]
+        header = ",".join(["id", *cols, "helpfulness"])
+        row = ",".join(["c1", *("x" for _ in cols), "4"])
+        path = write(tmp_path, f"{header}\n{row}\n")
+        assert load_labels(path).ratings["c1"].scores == {HE: 4}
+
+    def test_an_unclosed_quote_is_reported_where_it_opened(self, tmp_path: Path) -> None:
+        path = write(tmp_path, 'id,instruction_following,notes\nc1,4,"forgot\nc2,3,\nc3,5,\n')
+        with pytest.raises(LabelsError, match=r"labels\.csv:2: not valid CSV"):
+            load_labels(path)
+
+    def test_the_sheets_language_column_is_read(self, tmp_path: Path) -> None:
+        a = write(tmp_path, "id,language,helpfulness\nc1,id,4\nc2,en,3\n", name="a.csv")
+        b = write(tmp_path, "id,language,helpfulness\nc1,id,4\nc2,en,2\n", name="b.csv")
+        report = compare(load_labels(a), load_labels(b), resamples=0)
+        assert set(report.by_language) == {"en", "id"}
+
+    @pytest.mark.parametrize("suffix", [".tsv", ".txt", ".TSV"])
+    def test_tab_separated_sheets_go_to_the_labels_reader(
+        self, tmp_path: Path, suffix: str
+    ) -> None:
+        path = write(tmp_path, "id\thelpfulness\nc1\t4\n", name=f"labels{suffix}")
+        assert load_ratings(path).ratings["c1"].scores == {HE: 4}
