@@ -979,8 +979,18 @@ def labels(
     if out.exists() and not force:
         # It may hold hours of labelling.
         raise _exit_error(f"{out} exists; pass --force to overwrite it")
+    # Everything the judge sees: faithfulness can't be labelled without the context.
     rows = [
-        {"id": c.id, "language": c.language, "prompt": c.prompt, "response": responses[c.id]}
+        {
+            "id": c.id,
+            "language": c.language,
+            "prompt": c.prompt,
+            "response": responses[c.id],
+            "context": c.context or "",
+            "criteria": "\n".join(c.rubric.criteria) if c.rubric else "",
+            "reference_answer": (c.rubric.reference_answer or "") if c.rubric else "",
+            "system": c.system or "",
+        }
         for c in selected
         if c.id in responses
     ]

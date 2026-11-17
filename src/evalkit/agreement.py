@@ -566,20 +566,38 @@ def consistency(records: Sequence[JudgeRecord]) -> ConsistencyReport:
 # ---------------------------------------------------------------- label sheets
 
 
+SHEET_TEXT_COLUMNS: tuple[str, ...] = (
+    "prompt",
+    "response",
+    "context",
+    "criteria",
+    "reference_answer",
+    "system",
+)
+"""What the judge saw, written beside each row of a label sheet (and ignored on reading)."""
+
+
+def _as_text(value: str) -> str:
+    """A spreadsheet reads a cell that starts with = + - @ as a formula (a
+    bulleted answer would show as #NAME?); a leading ' keeps it text."""
+    return "'" + value if value[:1] in ("=", "+", "-", "@", "\t", "\r") else value
+
+
 def write_label_sheet(
     path: Path,
     rows: Sequence[Mapping[str, str]],
     *,
     scored: Callable[[str], Sequence[Dimension]],
 ) -> int:
-    """Write an empty labels CSV with each row's prompt and response beside it.
+    """Write an empty labels CSV with what the judge saw beside each row.
 
-    ``rows`` are ``{"id", "language", "prompt", "response"}``; ``scored(id)``
-    gives the dimensions the case's rubric scores, and the others are
-    pre-filled with ``n/a``. Written as UTF-8 with a byte-order mark, which
-    is what makes Excel read Indonesian text correctly.
+    ``rows`` are ``{"id", "language", "prompt", "response"}`` plus, where the
+    case has them, ``context``, ``criteria``, ``reference_answer`` and
+    ``system``. ``scored(id)`` gives the dimensions the case's rubric scores;
+    the others are pre-filled with ``n/a``. Written as UTF-8 with a
+    byte-order mark, which is what makes Excel read Indonesian text correctly.
     """
-    columns = ["id", "language", *LABEL_COLUMNS, "notes", "prompt", "response"]
+    columns = ["id", "language", *LABEL_COLUMNS, "notes", *SHEET_TEXT_COLUMNS]
     buf = io.StringIO()
     writer = csv.writer(buf, lineterminator="\n")
     writer.writerow(columns)
@@ -592,8 +610,7 @@ def write_label_sheet(
                 *("" if d in dims else "n/a" for d in Dimension),
                 "",
                 "",
-                row["prompt"],
-                row["response"],
+                *(_as_text(row.get(name) or "") for name in SHEET_TEXT_COLUMNS),
             ]
         )
     path.parent.mkdir(parents=True, exist_ok=True)

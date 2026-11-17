@@ -1,5 +1,6 @@
 """The S4 commands: agree, labels, consistency, pairwise."""
 
+import csv
 import json
 import re
 from pathlib import Path
@@ -166,6 +167,13 @@ class TestLabels:
         assert lines[0].startswith("id,language,instruction_following,")
         # en-json-001's rubric doesn't score reasoning_quality or helpfulness
         assert any(line.startswith("en-json-001,en,,n/a,,n/a,") for line in lines)
+        # The text to summarise is the case's context: without it faithfulness
+        # can't be labelled (found in the post-S4 review).
+        with out.open(encoding="utf-8-sig", newline="") as f:
+            rows = {r["id"]: r for r in csv.DictReader(f)}
+        assert "Python" in rows["en-summary-001"]["context"]
+        assert rows["en-bullets-001"]["response"].startswith("'- ")  # not a formula
+        assert set(rows["en-bullets-001"]) >= {"criteria", "reference_answer", "system"}
 
     def test_refuses_to_overwrite_without_force(self, tmp_path: Path) -> None:
         out = tmp_path / "labels.csv"

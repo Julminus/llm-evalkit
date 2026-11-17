@@ -1,3 +1,4 @@
+import csv
 import json
 from pathlib import Path
 
@@ -495,9 +496,41 @@ class TestLabelSheet:
         header, first = path.read_text(encoding="utf-8-sig").splitlines()[:2]
         assert header == (
             "id,language,instruction_following,reasoning_quality,faithfulness,helpfulness,"
-            "failure_modes,notes,prompt,response"
+            "failure_modes,notes,prompt,response,context,criteria,reference_answer,system"
         )
         assert first.startswith("c1,id,,n/a,n/a,,,,")
+
+    @pytest.mark.parametrize("start", ["=", "+", "-", "@", "\t", "\r"])
+    def test_text_a_spreadsheet_would_run_as_a_formula(self, tmp_path: Path, start: str) -> None:
+        path = tmp_path / "labels.csv"
+        response = f"{start}1+1 or a bullet"
+        rows = [{"id": "c1", "language": "en", "prompt": "=HYPERLINK(1)", "response": response}]
+        write_label_sheet(path, rows, scored=lambda i: [IF])
+        with path.open(encoding="utf-8-sig", newline="") as f:
+            [_, row] = list(csv.reader(f))
+        assert row[8:10] == ["'=HYPERLINK(1)", "'" + response]
+        assert load_labels(path).skipped == ["c1"]  # the text columns are never read back
+
+    def test_ordinary_text_is_written_as_it_is(self, tmp_path: Path) -> None:
+        path = tmp_path / "labels.csv"
+        rows = [
+            {
+                "id": "c1",
+                "language": "id",
+                "prompt": "Tulis 3 poin",
+                "response": "1. satu\n- dua",
+                "context": "Pasal 2: ...",
+                "criteria": "Merujuk Pasal 2.",
+            }
+        ]
+        write_label_sheet(path, rows, scored=lambda i: [IF])
+        with path.open(encoding="utf-8-sig", newline="") as f:
+            [header, row] = list(csv.reader(f))
+        written = dict(zip(header, row, strict=True))
+        assert written["response"] == "1. satu\n- dua"
+        assert written["context"] == "Pasal 2: ..."
+        assert written["criteria"] == "Merujuk Pasal 2."
+        assert written["system"] == ""
 
     def test_filled_in_sheet_loads(self, tmp_path: Path) -> None:
         path = tmp_path / "labels.csv"
