@@ -31,9 +31,10 @@ Every other column (``notes``, ``prompt``, ``response``, ``labeler``...) is
 ignored; any that evalkit doesn't know are listed in a note, so a misspelt
 label column shows up. Column names are matched ignoring case, spaces and
 hyphens. A row whose label cells are all blank counts as not labelled yet
-and is skipped, so a half-filled sheet can be compared as it stands; when
-that leaves rows the judge rated out of the failure-mode comparison,
-:func:`compare` warns (a blank row can't also mean "no mode applies"). The
+and is skipped, so a half-filled sheet can be compared as it stands. A blank
+row can't also mean "no mode applies", so when the other side tagged failure
+modes on such rows (with the sheet in either position), :func:`compare`
+warns that those tags don't count. The
 delimiter is read from the header, since a spreadsheet in an Indonesian
 locale saves CSV with ``;``. :func:`load_ratings` goes by the suffix
 (``.csv``/``.tsv`` sheets, ``.jsonl``/``.json`` judgments) and, for any other
@@ -166,6 +167,8 @@ def load_labels(path: Path) -> Ratings:
         text = read_utf8(path)
     except (OSError, NotUtf8Error) as exc:
         raise LabelsError(f"{path}: {exc}") from exc
+    if text.lstrip().startswith('{"'):  # how every JSONL record starts
+        raise LabelsError(f"{path}: this looks like a judgments file, not a sheet: name it .jsonl")
     first_line = text.split("\n", 1)[0]
     # strict: an unclosed quote is an error, not a cell that swallows every row after it.
     reader = csv.reader(
@@ -509,7 +512,12 @@ def compare(
             warnings.append(
                 f"{other.source} tagged failure modes on {len(lost)} {rows} that "
                 f"{sheet.source} leaves blank ({_listed(lost)}); those tags don't count. If "
-                "those rows are clean, write 'none' in their failure_modes."
+                + (
+                    "that row is clean, write 'none' in its"
+                    if len(lost) == 1
+                    else "those rows are clean, write 'none' in their"
+                )
+                + " failure_modes."
             )
     return AgreementReport(
         judge=judge.source,

@@ -836,9 +836,10 @@ def _print_agreement(report: AgreementReport, *, verbose: bool) -> None:
     )
     case = "case" if report.matched == 1 else "cases"
     console.print(f"{report.matched} {case} rated by both")
-    if not report.dimensions:
+    # With nothing matched, the error after the report says why.
+    if report.matched and not report.dimensions:
         console.print("scores: not compared (no case has a dimension scored on both sides)")
-    else:
+    elif report.dimensions:
         table = Table(title="Scores: judge vs reference")
         table.add_column("")
         for name in ("n", "exact", "±1", "kappa", "quadratic kappa", "Spearman", "mean ref/judge"):
@@ -899,7 +900,8 @@ def _print_agreement(report: AgreementReport, *, verbose: bool) -> None:
         n = next(iter(report.failure_modes.values())).n
         untagged = [m.value for m in report.failure_modes if m not in tagged]
         quiet = f"; neither tagged {', '.join(untagged)}" if untagged else ""
-        console.print(f"[dim]failure modes over the {n} cases both labelled{quiet}[/]")
+        cases = "case" if n == 1 else "cases"
+        console.print(f"[dim]failure modes over the {n} {cases} both labelled{quiet}[/]")
     elif report.matched:
         console.print("failure modes: not compared (no case has them labelled on both sides)")
     if verbose:

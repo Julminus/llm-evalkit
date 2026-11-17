@@ -434,8 +434,8 @@ Three ways to find out how far a judge can be trusted, each its own command:
   label only failure modes, write `none` on the clean rows: a row with nothing filled in is "not
   labelled yet", and `agree` warns when such rows leave some of the judge's tags uncounted. A sheet
   saved with `;` or tabs as the delimiter, as Excel does in an Indonesian locale or as `.txt`, is
-  read too (`.csv` and `.tsv` are sheets and `.jsonl` judgments; any other name is a judgments
-  file if it starts with `{`). A row with more
+  read too (`.csv` and `.tsv` are sheets, `.jsonl` and `.json` judgments; any other name is a
+  judgments file if it starts with `{`). A row with more
   non-empty cells than the header is an error, and columns evalkit doesn't know are listed in a
   note, so a misspelt label column shows up instead of vanishing.
 - **Against itself: `evalkit consistency SUITE RESPONSES -j JUDGE -n 5`.** Judges each response n

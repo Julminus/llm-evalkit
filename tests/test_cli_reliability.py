@@ -668,3 +668,33 @@ class TestRoundThreeFindings:
         result = invoke("agree", mock_judgments(tmp_path, dirs), sheet)
         assert result.exit_code == 1
         assert "share no rated dimension or failure mode" in result.output
+
+
+class TestRoundFiveFindings:
+    """Low findings from the fifth review."""
+
+    def test_a_judgments_file_named_csv_says_so(self, dirs: list[str], tmp_path: Path) -> None:
+        named = tmp_path / "j.csv"
+        named.write_bytes(mock_judgments(tmp_path, dirs).read_bytes())
+        result = invoke("agree", named, LABELS)
+        assert result.exit_code == 1
+        assert "this looks like a judgments file, not a sheet: name it .jsonl" in result.output
+
+    def test_one_case_and_one_row_are_singular(self, dirs: list[str], tmp_path: Path) -> None:
+        sheet = tmp_path / "s.csv"
+        sheet.write_text(
+            "id,instruction_following,failure_modes\nen-bullets-001,5,none\nid-json-001,,\n",
+            encoding="utf-8",
+        )
+        result = invoke("agree", mock_judgments(tmp_path, dirs), sheet, "--resamples", "0")
+        assert result.exit_code == 0, result.output
+        assert "failure modes over the 1 case both labelled" in result.output
+        assert "If that row is clean, write 'none' in its failure_modes" in result.output
+
+    def test_nothing_matched_prints_no_scores_line(self, dirs: list[str], tmp_path: Path) -> None:
+        sheet = tmp_path / "other.csv"
+        sheet.write_text("id,helpfulness,failure_modes\nx,4,none\n", encoding="utf-8")
+        result = invoke("agree", mock_judgments(tmp_path, dirs), sheet)
+        assert result.exit_code == 1
+        assert "scores: not compared" not in result.output
+        assert "no case is rated in both files" in result.output
