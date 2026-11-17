@@ -411,7 +411,7 @@ class TestCompare:
 
     def test_notes_are_passed_on(self) -> None:
         jud = Ratings("j", {}, note="used sample 1 of 3")
-        assert compare(jud, ratings({}), resamples=0).notes == ["used sample 1 of 3"]
+        assert compare(jud, ratings({}), resamples=0).notes == ["j: used sample 1 of 3"]
 
 
 class TestConsistency:
@@ -586,7 +586,7 @@ class TestReviewFindings:
         assert labels.ratings["c1"].scores == {IF: 4}
         assert labels.note == f"columns not read: {name}"
         report = compare(labels, labels, resamples=0)
-        assert f"columns not read: {name}" in report.notes
+        assert report.notes == [f"{path}: columns not read: {name}"] * 2
 
     @pytest.mark.parametrize(
         "name",
@@ -635,7 +635,8 @@ class TestReviewFindings:
         # clean rows from the comparison and made precision 1.0 (second review).
         text = "id,instruction_following,failure_modes\nc1,4,hallucination\nc2,5,\nc3,5,\n"
         with pytest.raises(
-            LabelsError, match=r"2 labelled rows have a blank failure_modes \(lines 3, 4\)"
+            LabelsError,
+            match=r"2 labelled rows have no failure_modes \(blank, n/a or -; lines 3, 4\)",
         ):
             load_labels(write(tmp_path, text))
 

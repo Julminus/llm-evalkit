@@ -895,6 +895,8 @@ def _print_agreement(report: AgreementReport, *, verbose: bool) -> None:
         untagged = [m.value for m in report.failure_modes if m not in tagged]
         quiet = f"; neither tagged {', '.join(untagged)}" if untagged else ""
         console.print(f"[dim]failure modes over the {n} cases both labelled{quiet}[/]")
+    elif report.matched:
+        console.print("failure modes: not compared (no case has them labelled on both sides)")
     if verbose:
         for dim, d in report.dimensions.items():
             grid = Table(title=f"{dim.value}: rows = reference, columns = judge", box=None)
@@ -906,6 +908,8 @@ def _print_agreement(report: AgreementReport, *, verbose: bool) -> None:
             console.print(grid)
     for note in report.notes:
         console.print(f"[dim]note: {escape(note)}[/]")
+    for warning in report.warnings:
+        err_console.print(f"[yellow]warning:[/] {escape(warning)}")
     skip_label = {
         "labels": "not labelled yet (skipped)",
         "judgments": "no judgment (judge error, skipped)",
@@ -963,10 +967,9 @@ def agree(
     """Agreement between a judge and a reference: kappa, Spearman, confusion matrices."""
     try:
         judged = load_ratings(judgments_path, sample=sample)
+        ref_sample = sample if reference_sample is None else reference_sample
         try:
-            reference = load_ratings(
-                reference_path, sample=sample if reference_sample is None else reference_sample
-            )
+            reference = load_ratings(reference_path, sample=ref_sample)
         except NoSuchSampleError as exc:
             if reference_sample is not None:
                 raise
@@ -979,13 +982,26 @@ def agree(
     else:
         _print_agreement(report, verbose=verbose)
     if not report.matched:
-        for path, side in ((reference_path, reference), (judgments_path, judged)):
-            if not side.ratings and side.skipped:
+        for path, side, n in (
+            (reference_path, reference, ref_sample),
+            (judgments_path, judged, sample),
+        ):
+            if side.ratings:
+                continue
+            if side.kind == "labels":
+                what = "no row is labelled yet" if side.skipped else "the sheet has no rows"
+            else:
                 what = (
-                    "no row is labelled yet" if side.kind == "labels" else "every judgment failed"
+                    f"every judgment of sample {n} failed" if side.note else "every judgment failed"
                 )
-                raise _exit_error(f"{path}: {what}")
+            raise _exit_error(f"{path}: {what}")
+        if set(judged.ratings) & set(reference.skipped) or set(reference.ratings) & set(
+            judged.skipped
+        ):
+            raise _exit_error("the cases both files have were skipped on one side (listed above)")
         raise _exit_error("no case is rated in both files: check that they are for the same suite")
+    if not report.dimensions and not report.failure_modes:
+        raise _exit_error("the cases both files have share no rated dimension or failure mode")
 
 
 @app.command()

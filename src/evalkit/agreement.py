@@ -28,13 +28,15 @@ response next to each row. The columns:
     Optional; used for the per-language split when the other side has none.
 
 Every other column (``notes``, ``prompt``, ``response``, ``labeler``...) is
-ignored; any that ``evalkit labels`` doesn't write are listed in a note, so
-a misspelt label column shows up. Column names are matched ignoring case,
-spaces and hyphens. A row whose label cells are all blank counts as not
-labelled yet and is skipped, so a half-filled sheet can be compared as it
-stands. The delimiter
-is read from the header, since a spreadsheet in an Indonesian locale saves
-CSV with ``;``.
+ignored; any that evalkit doesn't know are listed in a note, so a misspelt
+label column shows up. Column names are matched ignoring case, spaces and
+hyphens. A row whose label cells are all blank counts as not labelled yet
+and is skipped, so a half-filled sheet can be compared as it stands; when
+that leaves rows the judge rated out of the failure-mode comparison,
+:func:`compare` warns (a blank row can't also mean "no mode applies"). The
+delimiter is read from the header, since a spreadsheet in an Indonesian
+locale saves CSV with ``;``. :func:`load_ratings` tells a judgments file
+from a sheet by its first character (``{``), not its name.
 """
 
 from __future__ import annotations
@@ -247,9 +249,9 @@ def load_labels(path: Path) -> Ratings:
         lines = ", ".join(str(first_seen[i]) for i in blank[:5])
         more = f" and {len(blank) - 5} more" if len(blank) > 5 else ""
         raise LabelsError(
-            f"{path}: {len(blank)} labelled rows have a blank failure_modes (lines {lines}{more}) "
-            "while others name modes; write 'none' where no mode applies, or leave the "
-            "column blank on every row to compare scores only"
+            f"{path}: {len(blank)} labelled rows have no failure_modes (blank, n/a or -; lines "
+            f"{lines}{more}) while others name modes; write 'none' where no mode applies, or "
+            "leave the column blank on every row to compare scores only"
         )
     return Ratings(str(path), ratings, skipped, _unread_note(header, raw_header), kind="labels")
 
@@ -308,10 +310,19 @@ def load_judgments(path: Path, *, sample: int = 0) -> Ratings:
 
 
 def load_ratings(path: Path, *, sample: int = 0) -> Ratings:
-    """A labels sheet (``.csv`` or ``.tsv``) or a judgments file (anything else)."""
-    if path.suffix.lower() in {".csv", ".tsv"}:
-        return load_labels(path)
-    return load_judgments(path, sample=sample)
+    """A judgments file if its first non-blank character is ``{``, else a labels sheet.
+
+    By content, not by suffix: a spreadsheet saves tab-separated text as
+    ``.txt``, and a judgments file can be renamed to anything.
+    """
+    try:
+        with path.open("rb") as f:
+            start = f.read(4096).lstrip(b"\xef\xbb\xbf \t\r\n")
+    except OSError as exc:
+        raise LabelsError(f"{path}: {exc}") from exc
+    if start.startswith(b"{"):
+        return load_judgments(path, sample=sample)
+    return load_labels(path)
 
 
 # ---------------------------------------------------------------- comparison
@@ -373,6 +384,8 @@ class AgreementReport(BaseModel):
     skipped_judge: list[str]
     skipped_reference: list[str]
     notes: list[str]
+    warnings: list[str] = []
+    """Ways the numbers cover less than they seem to."""
     dimensions: dict[Dimension, DimensionAgreement]
     by_language: dict[str, dict[Dimension, DimensionAgreement]]
     failure_modes: dict[FailureMode, ModeAgreement]
@@ -473,7 +486,16 @@ def compare(
         for mode in FailureMode:
             modes[mode] = _mode_agreement(mode, [(mode in r, mode in j) for r, j in labelled])
 
-    notes = [n for n in (judge.note, reference.note) if n]
+    notes = [f"{side.source}: {side.note}" for side in (judge, reference) if side.note]
+    warnings: list[str] = []
+    unlabelled = [i for i in reference.skipped if i in judge.ratings]
+    if labelled and reference.kind == "labels" and unlabelled:
+        # A wholly blank row is "not labelled yet": it can't also mean "clean".
+        warnings.append(
+            f"failure modes are compared on {len(labelled)} cases; {len(unlabelled)} rows the "
+            "judge rated have nothing filled in, so its tags on them don't count. If those "
+            "rows are clean, write 'none' in their failure_modes."
+        )
     return AgreementReport(
         judge=judge.source,
         reference=reference.source,
@@ -486,6 +508,7 @@ def compare(
         judge_kind=judge.kind,
         reference_kind=reference.kind,
         notes=notes,
+        warnings=warnings,
         dimensions=dims_for(pairs, resamples),
         by_language={lang: dims_for(group, 0) for lang, group in sorted(by_lang.items())},
         failure_modes=modes,

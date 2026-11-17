@@ -490,7 +490,7 @@ class TestReviewFindings:
         assert "used sample 2 of 3" in result.output
         # By default --sample applies to a judgments reference too, as before the fix.
         same = invoke("agree", cons, cons, "--sample", "2", "--resamples", "0", "--json")
-        assert json.loads(same.output)["notes"] == ["used sample 2 of 3", "used sample 2 of 3"]
+        assert json.loads(same.output)["notes"] == [f"{cons}: used sample 2 of 3"] * 2
         both = invoke(
             "agree", cons, cons, "--sample", "1", "--reference-sample", "2", "--resamples", "0"
         )
@@ -522,3 +522,114 @@ class TestReviewFindings:
         result = invoke("agree", failed, LABELS)
         assert "every judgment failed" in result.output
         assert "judge: no judgment (judge error, skipped) (10):" in result.output
+
+
+class TestRoundThreeFindings:
+    """From the review of the second round of fixes."""
+
+    def sheet(self, tmp_path: Path, rows: dict[str, str], name: str = "s.csv") -> Path:
+        """The example sheet with only `rows` filled in (id -> failure_modes)."""
+        path = tmp_path / name
+        lines = ["id,instruction_following,failure_modes"]
+        lines += [f"{i},,{modes}" for i, modes in rows.items()]
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return path
+
+    def test_a_modes_only_pass_warns_about_untouched_rows(
+        self, dirs: list[str], tmp_path: Path
+    ) -> None:
+        # Tag only the row with a mode, leave the rest untouched: the judge's
+        # tags on the untouched rows can't count, and agree must say so.
+        rows = {"id-bullets-001": "format_error", "en-bullets-001": ""}
+        result = invoke("agree", mock_judgments(tmp_path, dirs), self.sheet(tmp_path, rows))
+        assert result.exit_code == 0, result.output
+        assert "warning: failure modes are compared on 1 cases; 1 rows the judge rated" in (
+            result.output
+        )
+        assert "write 'none' in their failure_modes" in result.output
+
+    def test_no_warning_when_every_row_says_something(
+        self, dirs: list[str], tmp_path: Path
+    ) -> None:
+        rows = {"id-bullets-001": "format_error", "en-bullets-001": "none"}
+        result = invoke("agree", mock_judgments(tmp_path, dirs), self.sheet(tmp_path, rows))
+        assert result.exit_code == 0, result.output
+        assert "warning:" not in result.output
+
+    def test_a_tab_separated_sheet_saved_as_txt(self, dirs: list[str], tmp_path: Path) -> None:
+        sheet = tmp_path / "labels.txt"
+        sheet.write_text(LABELS.read_text(encoding="utf-8").replace(",", "\t"), encoding="utf-8")
+        # the notes column has commas inside quotes; drop it to keep the test simple
+        rows = [r.split("\t")[:7] for r in sheet.read_text(encoding="utf-8").splitlines()]
+        sheet.write_text("\n".join("\t".join(r) for r in rows) + "\n", encoding="utf-8")
+        result = invoke("agree", mock_judgments(tmp_path, dirs), sheet, "--resamples", "0")
+        assert result.exit_code == 0, result.output
+        assert "10 cases rated by both" in result.output
+
+    def test_a_judgments_file_with_any_name(self, dirs: list[str], tmp_path: Path) -> None:
+        renamed = tmp_path / "judgments.csv"
+        renamed.write_bytes(mock_judgments(tmp_path, dirs).read_bytes())
+        result = invoke("agree", renamed, LABELS, "--resamples", "0")
+        assert result.exit_code == 0, result.output
+
+    def test_a_sheet_with_only_a_header(self, dirs: list[str], tmp_path: Path) -> None:
+        empty = tmp_path / "empty.csv"
+        empty.write_text("id,instruction_following\n", encoding="utf-8")
+        result = invoke("agree", mock_judgments(tmp_path, dirs), empty)
+        assert result.exit_code == 1
+        assert "the sheet has no rows" in result.output
+
+    def test_shared_cases_skipped_on_one_side(self, dirs: list[str], tmp_path: Path) -> None:
+        judged = mock_judgments(tmp_path, dirs)
+        rows = [json.loads(x) for x in judged.read_text(encoding="utf-8").splitlines()]
+        rows[0].update(error="timeout", scores={}, rationale=None)  # en-bullets-001
+        broken = tmp_path / "one-error.jsonl"
+        broken.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+        one = tmp_path / "one.csv"
+        one.write_text("id,instruction_following\nen-bullets-001,5\n", encoding="utf-8")
+        result = invoke("agree", broken, one)
+        assert result.exit_code == 1
+        assert "the cases both files have were skipped on one side" in result.output
+
+    def test_every_judgment_of_one_sample_failed(self, dirs: list[str], tmp_path: Path) -> None:
+        result = invoke(
+            "consistency",
+            SUITE,
+            RESPONSES,
+            "-j",
+            "mock",
+            "--mock-judgments",
+            JUDGMENTS,
+            "-n",
+            "2",
+            *dirs,
+            "--run-id",
+            "c2",
+        )
+        assert result.exit_code == 0, result.output
+        path = tmp_path / "runs" / "c2" / "judgments.jsonl"
+        rows = [json.loads(x) for x in path.read_text(encoding="utf-8").splitlines()]
+        for r in rows:
+            if r["sample"] == 1:
+                r.update(error="timeout", scores={}, rationale=None)
+        path.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+        result = invoke("agree", path, LABELS, "--sample", "1")
+        assert result.exit_code == 1
+        assert "every judgment of sample 1 failed" in result.output
+
+    def test_scores_only_says_failure_modes_were_not_compared(
+        self, dirs: list[str], tmp_path: Path
+    ) -> None:
+        sheet = tmp_path / "scores.csv"
+        sheet.write_text("id,instruction_following\nen-bullets-001,5\n", encoding="utf-8")
+        result = invoke("agree", mock_judgments(tmp_path, dirs), sheet, "--resamples", "0")
+        assert result.exit_code == 0, result.output
+        assert "failure modes: not compared" in result.output
+
+    def test_nothing_shared_to_compare_fails(self, dirs: list[str], tmp_path: Path) -> None:
+        # en-json-001's rubric doesn't score reasoning_quality, so the judge didn't.
+        sheet = tmp_path / "rq.csv"
+        sheet.write_text("id,reasoning_quality\nen-json-001,4\n", encoding="utf-8")
+        result = invoke("agree", mock_judgments(tmp_path, dirs), sheet)
+        assert result.exit_code == 1
+        assert "share no rated dimension or failure mode" in result.output
