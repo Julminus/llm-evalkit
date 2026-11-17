@@ -270,7 +270,7 @@ numbers. `uv run --with langdetect==1.0.9 python scripts/measure_langdetect.py` 
 rows of the table, including the baseline's wrong guesses.
 
 **Engineering.** 4 providers, 11 check types, an LLM judge with agreement, consistency and
-position-bias tools, 871 tests (3 of them opt-in live tests, 2 that run only where SciPy and
+position-bias tools, 874 tests (3 of them opt-in live tests, 2 that run only where SciPy and
 scikit-learn are installed, 1 POSIX-only), 99.2% branch coverage, strict mypy. Every provider is tested offline against the request and response shapes of
 its API (the Anthropic one through the real SDK with a mock transport), and
 `EVALKIT_LIVE_OLLAMA=1 uv run pytest -m live` runs the Ollama paths for real. CI runs the tests on
@@ -434,7 +434,8 @@ Three ways to find out how far a judge can be trusted, each its own command:
   label only failure modes, write `none` on the clean rows: a row with nothing filled in is "not
   labelled yet", and `agree` warns when such rows leave some of the judge's tags uncounted. A sheet
   saved with `;` or tabs as the delimiter, as Excel does in an Indonesian locale or as `.txt`, is
-  read too (a file is a judgments file if it starts with `{`, whatever its name). A row with more
+  read too (`.csv` and `.tsv` are sheets and `.jsonl` judgments; any other name is a judgments
+  file if it starts with `{`). A row with more
   non-empty cells than the header is an error, and columns evalkit doesn't know are listed in a
   note, so a misspelt label column shows up instead of vanishing.
 - **Against itself: `evalkit consistency SUITE RESPONSES -j JUDGE -n 5`.** Judges each response n
