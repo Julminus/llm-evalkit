@@ -10,8 +10,8 @@ A lightweight, bilingual (English / Bahasa Indonesia) harness for evaluating ins
 > deterministic checks, model providers with an async runner, a response cache and run logs, an
 > LLM judge that scores responses 1–5 against a rubric and tags failure modes, and tools that
 > measure how far to trust it (agreement with labels or another judge, self-consistency, position
-> bias). Human labels, HTML reports and the benchmark are still to come; see
-> [What's next](#whats-next).
+> bias). Stage 4 lacks one thing a program can't supply: human labels to compare the judge with.
+> HTML reports and the benchmark are the last two stages; see [What's next](#whats-next).
 
 ![evalkit judge output: qwen2.5:14b judging the example responses](docs/img/judge-output.svg)
 
@@ -104,13 +104,13 @@ model, and the llama3.1:8b judge grading its own 40 responses. Agreement with hu
 next stage.
 
 **How far to trust the judge.** The same 80 responses and the same two judges, measured three more
-ways (Ollama 0.40.16, RTX 5080 with 3.1 of 16.3 GB in use at the start, one request at a time, a
-fresh model load per condition, at most 1024 tokens per reply):
+ways (Ollama 0.40.16, RTX 5080, one request at a time, no cache, at most 1024 tokens per reply;
+each judge gets a fresh model load for the pairs and controls, and another for self-consistency):
 
 - *Position bias:* each of the 40 cases as a pair, A = qwen2.5:7b's answer and B = llama3.1:8b's,
   judged twice: A shown first, then B shown first (temperature 0, seed 0).
 - *Control:* each model's answers against themselves (80 pairs), where the only right verdict is a
-  tie.
+  tie. Both orders are the same prompt, so each control pair is also the same request sent twice.
 - *Self-consistency:* every answer judged 5 times at temperature 0.7, seeds 0 to 4.
 
 Script: `scripts/measure_reliability.py`. Raw output, with every record and reply:
@@ -122,54 +122,69 @@ recomputes every number below from that file with the library's own code.
 | Pairs whose verdict changed with the order (flip rate) | **15/40 (0.375)** | 14/40 (0.35) |
 | ... flips where the first position won both times / the second / a tie once | 14 / 0 / 1 | 8 / 6 / 0 |
 | Positions chosen over the 80 judgments: 1 / 2 / tie | 54 / 25 / 1 | 42 / 38 / 0 |
-| Flips when the checks pass both answers or fail both | 14/29 | 13/29 |
+| Flips when both answers pass their checks (no pair failed both) | 14/29 | 13/29 |
 | Flips when one answer passes its checks and the other fails | 1/10 | 0/10 |
 | ... pairs where the judge picked the answer that passed | 9/10 | 10/10 |
-| Control, the same text twice: judged a tie | **80/80** | 22/80 (the first copy won 48 times) |
+| Control, the same text twice: judged a tie | **80/80** | 22/80 (first copy won both times 48, second 3, tie in one order 7) |
+| Control: the identical request got a different reply / a different verdict | 28/80 / **0/80** | 33/80 / 7/80 |
 | qwen2.5:7b's win rate over llama3.1:8b (a flip counts half) | 0.64 | 0.60 |
 | 5 samples at temperature 0.7: answers with the same `instruction_following` score every time | 24/80 | 18/80 |
 | ... mean standard deviation of that score; answers whose samples span 2+ points | 0.38; 8/80 | 0.45; 12/80 |
 | Wall time: pairs and controls (240 judgments); self-consistency (400) | 186 s; 525 s | 123 s; 312 s |
+
+The one pair not in the two "checks" rows (`id-04`) has one answer passing and the other skipped:
+llama3.1:8b's "Halo, besok ada rapat." is too short for the language check. llama3.1:8b's 14th
+flip is that pair.
 
 What this shows:
 
 - **qwen2.5:14b has a first-position bias, and it shows on close calls.** The verdict changed with
   the order on 15 of the 40 pairs, and in 14 of them the answer shown first won both times. It is
   not a blind preference for position 1: shown the same text twice, it said "tie" all 80 times.
-  The flips sit where the two answers are close. Where the checks gave both answers the same
-  verdict, 14 of 29 pairs flipped; where one answer passed and the other failed, 1 of 10 did, and
-  the judge picked the passing answer 9 times. So for this judge, a pairwise verdict from one order
-  is unreliable on about half of the close pairs, and running both orders is necessary.
+  The flips are concentrated where the two answers are close: where both passed their checks, 14
+  of 29 pairs flipped; where one passed and the other failed, 1 of 10 did, and the judge picked the
+  passing answer 9 times. With 10 pairs in the second group that contrast is suggestive rather
+  than firm (Fisher's exact test, p ≈ 0.06). Still, for this judge a pairwise verdict from one
+  order is unreliable on about half of the close pairs, so `evalkit pairwise` always runs both.
+- **Temperature 0 is not deterministic within one model load.** Each control pair sent the same
+  request twice, and the reply text differed 28 times out of 80 for qwen2.5:14b (never the verdict)
+  and 33 times for llama3.1:8b, whose verdict changed 7 times. So part of llama3.1:8b's flip rate
+  on real pairs can be plain run-to-run noise: on the same request its position changed 7 times in
+  80 (9%), against 14 flips in 40 (35%) when the order changed. Two fresh loads of qwen2.5:14b in
+  S3 gave identical replies on 80/80, so the variation is within a load, not between loads.
 - **llama3.1:8b is worse on the control.** Shown the same answer twice, it preferred the first copy
-  48 times out of 80, and said "tie" 22 times. Its flips on real pairs go both ways (8 first, 6
-  second).
-- **Both judges prefer qwen2.5:7b's answers**, with win rates of 0.64 and 0.60, though the
-  deterministic checks pass both models almost equally often (87.5% vs 87.2%, below). In
-  Indonesian, both judges gave qwen2.5:7b 11 wins, llama3.1:8b 4, and 5 flips. The qwen2.5:14b
-  judge is from the same family as A, but llama3.1:8b, comparing its own answers with
-  qwen2.5:7b's, also prefers qwen2.5:7b's, so family preference alone doesn't explain it. Without
-  human labels I can't say whether the judges are right.
-- **At temperature 0.7 the scores move by about half a point.** qwen2.5:14b gave the same
-  `instruction_following` score in all 5 samples for only 24 of the 80 answers (mean standard
-  deviation 0.38), and 8 answers got scores 2 or more points apart. `faithfulness` was the most
-  stable dimension (55/80 the same every time). llama3.1:8b was less stable: `reasoning_quality`
-  stayed the same for only 6 of 80, and one answer got both a 1 and a 5. Tags move too:
-  qwen2.5:14b tagged `hallucination` in some samples but not all on 16 answers, and in all 5 on 3.
-  At temperature 0 the judge is reproducible (80/80 identical replies in the S3 run), but that is
-  one draw from this spread, not a measure of it. One of the 800 samples had no usable judgment:
-  qwen2.5:14b answered `"failure_modes": [""]` three times running.
-- **Kappa makes the judge-vs-judge agreement look weaker than the raw counts.** On the S3 data
-  (temperature 0), llama3.1:8b and qwen2.5:14b agree within one point on 69 of 80
-  `instruction_following` scores. But both give mostly 4s and 5s, and kappa, which corrects for
+  both times in 48 of 80 pairs, and said "tie" both times in only 22. Its flips on real pairs go
+  both ways (8 first, 6 second).
+- **Both judges lean towards qwen2.5:7b's answers**, with win rates of 0.64 and 0.60, though the
+  deterministic checks pass both models almost equally often (87.5% vs 87.2%, below). For
+  qwen2.5:14b the decisive pairs split 18 to 7 (sign test p ≈ 0.04); for llama3.1:8b 17 to 9
+  (p ≈ 0.17), which could be chance. In Indonesian both judges gave qwen2.5:7b 11 wins, llama3.1:8b
+  4, and 5 flips. The qwen2.5:14b judge is from the same family as A; llama3.1:8b, comparing its own
+  answers with qwen2.5:7b's, leans the same way, so family preference doesn't obviously explain it.
+  Without human labels I can't say whether the judges are right.
+- **At temperature 0.7 the scores move by a fifth of a point to half a point.** The mean standard
+  deviation per dimension is 0.19 to 0.38 for qwen2.5:14b and 0.45 to 0.57 for llama3.1:8b.
+  qwen2.5:14b gave the same `instruction_following` score in all 5 samples for only 24 of the 80
+  answers, and 8 answers got scores 2 or more points apart. `faithfulness` was its most stable
+  dimension (55/80 the same every time). llama3.1:8b was less stable: `reasoning_quality` stayed
+  the same for only 6 of 80, and one answer got both a 1 and a 5. Tags move too: qwen2.5:14b
+  tagged `hallucination` in some samples but not all on 16 answers, and in all 5 on 3. A
+  temperature-0 verdict is one draw from this spread, not a measure of it. One of the 800 samples
+  had no usable judgment: qwen2.5:14b, judging llama3.1:8b's answer to `id-09`, answered
+  `"failure_modes": [""]` three times running.
+- **Corrected for chance, the two judges agree weakly.** On the S3 data (temperature 0),
+  llama3.1:8b and qwen2.5:14b give the same `instruction_following` score on 36 of 80 answers and
+  scores within one point on 69. But both give mostly 4s and 5s, and kappa, which corrects for
   chance, puts their agreement at a quadratic kappa of 0.38 [95% CI 0.19, 0.52] for
   `instruction_following`, 0.23 [0.07, 0.38] for `helpfulness`, and 0.15 to 0.19 for
-  `reasoning_quality` and `faithfulness`, whose intervals include 0. Spearman's rho is 0.14 to
+  `reasoning_quality` and `faithfulness`, whose intervals include 0. Spearman's rho is 0.13 to
   0.38. Two fresh loads of qwen2.5:14b agree perfectly (kappa 1.0 everywhere).
 
 Limits: 40 pairs and 80 answers to 20 prompts I wrote, two small local judges, one pairwise prompt,
-"close" measured only by what the checks can see, and still no human labels. The label sheets for
-the 80 answers are ready (`evalkit labels`); comparing them with the judge is one command once
-they are filled in.
+"close" measured only by what the checks can see, and still no human labels. The 80 answers are in
+`examples/responses/everyday-s2-*.jsonl`, so `evalkit labels` makes their label sheets; comparing
+a person's labels with a judge then takes an `evalkit judge` run on them (Ollama) and
+`evalkit agree`.
 
 **Providers and runner on real local models.** `examples/suites/everyday.yaml` has 20 everyday
 prompts, each asked in English and in Indonesian (40 cases). I ran it through Ollama 0.40.16 on
@@ -255,8 +270,8 @@ numbers. `uv run --with langdetect==1.0.9 python scripts/measure_langdetect.py` 
 rows of the table, including the baseline's wrong guesses.
 
 **Engineering.** 4 providers, 11 check types, an LLM judge with agreement, consistency and
-position-bias tools, 852 tests (3 of them opt-in live tests, 2 that run only where SciPy and
-scikit-learn are installed), 99.2% branch coverage, strict mypy. Every provider is tested offline against the request and response shapes of
+position-bias tools, 862 tests (3 of them opt-in live tests, 2 that run only where SciPy and
+scikit-learn are installed, 1 POSIX-only), 99.2% branch coverage, strict mypy. Every provider is tested offline against the request and response shapes of
 its API (the Anthropic one through the real SDK with a mock transport), and
 `EVALKIT_LIVE_OLLAMA=1 uv run pytest -m live` runs the Ollama paths for real. CI runs the tests on
 Python 3.11, 3.12 and 3.13 (Linux) plus the whole pipeline with the mock provider and the mock
@@ -402,19 +417,23 @@ Three ways to find out how far a judge can be trusted, each its own command:
   95% bootstrap intervals, the means, and the confusion matrix (`-v`); the same split by language;
   per failure mode, how often both, only the judge, or only the reference tagged it, with kappa,
   precision and recall. `evalkit labels SUITE RESPONSES -o sheet.csv` writes the empty sheet, with
-  everything the judge saw beside each row (prompt, response, context, criteria, reference answer,
-  system prompt), ready for a spreadsheet:
+  what the judge saw beside each row (prompt, response, context, criteria, reference answer,
+  system prompt; not the check results, so a person labels without them), ready for a
+  spreadsheet:
 
   ```csv
   id,language,instruction_following,reasoning_quality,faithfulness,helpfulness,failure_modes,notes,prompt,response,context,...
   id-json-001,id,3,n/a,5,n/a,format_error,"umur is a string",Ubah kalimat berikut ...,"{""nama"": ...}",,...
   ```
 
-  Blank or `n/a` is "not labelled yet", for a score and for `failure_modes` alike, so a half-done
-  sheet can be compared as it stands; `none` says that no failure mode applies, and several modes
-  are separated by `|`. A sheet saved with `;` as the delimiter, as Excel does in an Indonesian
-  locale, is read too. A misspelt label column, or a row with more cells than the header, is an
-  error rather than something to skip.
+  A blank or `n/a` score is "not labelled yet", and a row with nothing filled in is skipped, so a
+  half-done sheet can be compared as it stands. `failure_modes` is all or nothing: fill it on every
+  labelled row (`none` where no mode applies, several modes separated by `|`), or leave it blank
+  on every row to compare scores only. A mix is an error, because a blank next to tagged rows could
+  mean "none" or "not done yet", and either guess skews precision. A sheet saved with `;` as the
+  delimiter, as Excel does in an Indonesian locale, is read too. A row with more non-empty cells
+  than the header is an error, and columns that `evalkit labels` doesn't write are listed in a
+  note, so a misspelt label column shows up instead of vanishing.
 - **Against itself: `evalkit consistency SUITE RESPONSES -j JUDGE -n 5`.** Judges each response n
   times at temperature 0.7, sample i with seed i, and reports per dimension how many cases got the
   same score every time, the mean standard deviation and range, and which judge tags come and go
@@ -554,8 +573,9 @@ list-checks` lists the constraint types. To install the Anthropic SDK without th
   the interval, and an undefined statistic (every score the same) is shown as `-`, never as 0.
 - **Statistics in plain Python.** Kappa, Spearman (with average ranks for ties, which a 1–5 scale
   is full of) and the bootstrap are about 150 lines with no NumPy or SciPy, so every number can be
-  traced by hand. The tests pin them against hand-worked values and against scikit-learn and SciPy
-  where those are installed.
+  traced by hand. The tests pin them against hand-worked values, and two more compare them with
+  scikit-learn and SciPy; those two skip unless the libraries are there, so run them with
+  `uv run --with scikit-learn --with scipy pytest tests/test_stats.py`.
 - **A flip counts as half a win, like a tie.** When the two orders disagree, neither verdict can be
   trusted over the other, so a flipped pair says nothing about which response is better. Counting
   it as a win for whichever order came first would hide the bias in the win rate.
@@ -607,19 +627,22 @@ after it) is re-asked rather than searched for, which costs one request.
 
 **Known limits of the reliability tools.** A pairwise verdict from one order is not trustworthy
 with these local judges (see Results), so `evalkit pairwise` always runs both and reports flips
-instead of picking one. In the same-text control, both orders are the same prompt, so the second
-is answered from the cache (or identically, at temperature 0): the control measures which position
-the judge picks for identical text, from one judgment per pair. Self-consistency moves the seed
-with the sample, so on a provider that takes no seed (Anthropic) the samples differ only through
-temperature, and none of them can be replayed except from the cache. The label sheet marks text
+instead of picking one. In the same-text control, both orders are the same prompt: with the cache
+on (the CLI's default), the second order is a cache hit, so the control rests on one judgment per
+pair. Pass `--no-cache` to make it two judgments, which also shows run-to-run noise (the Results
+measurement ran without a cache). Self-consistency moves the seed with the sample; the Anthropic
+provider takes neither a seed nor a temperature, so there the samples come from the API's default
+sampling and can be replayed only from the cache. The label sheet marks text
 that starts with `=`, `+`, `-` or `@` with a leading `'` so a spreadsheet doesn't run it as a
 formula; that wasn't tried in Excel itself.
 
 ## What's next
 
-1. **Human labels.** The agreement tooling is done, but nobody has labelled the 80 responses yet,
-   so the judge has been compared with another judge and with itself, not with a person.
-   `evalkit labels examples/suites/everyday.yaml RESPONSES -o labels.csv` makes the sheet.
+1. **Human labels** (the rest of stage 4). The agreement tooling is done, but nobody has labelled
+   the 80 responses yet, so the judge has been compared with another judge and with itself, not
+   with a person. `uv run evalkit labels examples/suites/everyday.yaml
+   examples/responses/everyday-s2-qwen2.5-7b.jsonl -o labels.csv` makes a sheet;
+   `evalkit judge` on the same file and `evalkit agree` then compare.
 2. **Reports:** HTML and Markdown reports, model-vs-model comparison, regression diffs between runs.
 3. **Benchmark:** a hand-written 40-item EN/ID suite of harder, multi-constraint tasks, run on local
    models, with findings.

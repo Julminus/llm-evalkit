@@ -191,12 +191,18 @@ def pairwise_analysis(cond: dict[str, Any]) -> dict[str, Any]:
     }
     controls = [r for rows in cond["controls"].values() for r in _pairs(rows)]
     ctrl = PairwiseSummary(records=controls, name_a="same", name_b="same")
+    # In a control pair both orders are the same prompt, sent twice (no cache):
+    # how often two identical requests at temperature 0 got different answers.
+    usable = ctrl.usable
     out["control"] = {
         "pairs": len(controls),
-        "usable": len(ctrl.usable),
+        "usable": len(usable),
         "verdicts": ctrl.verdicts(),
         "flips": ctrl.flips(),
         "positions": ctrl.positions(),
+        "cached_orders": sum(o.cached for r in controls for o in r.orders),
+        "replies_differ": sum(r.orders[0].replies != r.orders[1].replies for r in usable),
+        "positions_differ": sum(r.orders[0].position != r.orders[1].position for r in usable),
     }
     out["wall_s"] = cond["wall_s"]
     return out
@@ -302,9 +308,18 @@ def markdown(results: dict[str, Any]) -> str:
         c = p(j)["control"]
         f = c["flips"]
         ties = f"{c['verdicts']['tie']}/{c['usable']} ties"
-        return f"{ties}; flips pos1 {f['first']}, pos2 {f['second']}"
+        return f"{ties}; flips pos1 {f['first']}, pos2 {f['second']}, tie once {f['tie_once']}"
+
+    def repeat(j: str) -> str:
+        c = p(j)["control"]
+        n = c["usable"]
+        return (
+            f"reply differs {c['replies_differ']}/{n}, position differs {c['positions_differ']}/{n}"
+            f" ({c['cached_orders']} cached)"
+        )
 
     row("control (same text)", control)
+    row("same prompt twice, temp 0", repeat)
     for dim in Dimension:
 
         def cons(j: str, key: str = dim.value) -> str:
