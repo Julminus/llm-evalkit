@@ -59,6 +59,15 @@ jobs:
           # Re-judging must replay every judgment from the cache.
           uv run evalkit judge examples/suites/smoke.yaml examples/responses/smoke.jsonl -j mock --mock-judgments examples/judgments/smoke.jsonl | tee judge-again.txt
           grep -q "0 requests, 10 cases from cache" judge-again.txt
+      - name: Judge reliability test (mock judge, no network)
+        run: |
+          uv run evalkit judge examples/suites/smoke.yaml examples/responses/smoke.jsonl -j mock --mock-judgments examples/judgments/smoke.jsonl --out ci-runs --run-id judged
+          uv run evalkit agree ci-runs/judged/judgments.jsonl examples/labels/smoke.csv | tee agree.txt
+          grep -q "10 cases rated by both" agree.txt
+          uv run evalkit pairwise examples/suites/smoke.yaml examples/responses/smoke.jsonl examples/responses/smoke-b.jsonl -j mock --mock-judgments examples/judgments/smoke-pairwise.jsonl | tee pairwise.txt
+          grep -q "flip rate: 1/10 = 0.100" pairwise.txt
+          uv run evalkit consistency examples/suites/smoke.yaml examples/responses/smoke.jsonl -j mock --mock-judgments examples/judgments/smoke.jsonl -n 3 | tee consistency.txt
+          grep -q "0 of 10 cases changed a score between samples" consistency.txt
 
   docker:
     runs-on: ubuntu-latest
