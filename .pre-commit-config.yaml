@@ -9,6 +9,9 @@ repos:
       - id: check-merge-conflict
       - id: check-added-large-files
         args: ["--maxkb=500"]
+        # Measured raw data the README cites (800 judge records with every reply,
+        # 1.4 MB). Listed by name, so any other large file is still caught.
+        exclude: ^docs/results/reliability-s4\.json$
       - id: mixed-line-ending
         args: ["--fix=lf"]
 
