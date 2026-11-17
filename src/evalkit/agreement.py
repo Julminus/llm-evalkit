@@ -10,8 +10,8 @@
   times (``evalkit consistency``): how much its scores move between samples.
 
 Label files are CSV, one row per response, so they can be filled in a
-spreadsheet. ``evalkit labels`` writes an empty sheet with the prompt and
-the response next to each row. The columns:
+spreadsheet. ``evalkit labels`` writes an empty sheet with the case and the
+response next to each row. The columns:
 
 ``id``
     The case id (required).
@@ -19,14 +19,19 @@ the response next to each row. The columns:
     A whole number 1-5, or blank / ``n/a`` for "not rated". Any subset of
     the four columns may be present.
 ``failure_modes``
-    The failure modes that apply, separated by ``;``, ``,`` or ``|``; blank
-    means none applies. Leave the column out to label scores only.
+    The failure modes that apply, separated by ``|``, ``;`` or ``,``, or
+    ``none`` when no mode applies. Blank means "not labelled yet", like a
+    blank score, so a sheet with only the scores filled in compares scores
+    only.
+``language``
+    Optional; used for the per-language split when the other side has none.
 
-Every other column (``language``, ``notes``, ``prompt``, ``response``,
-``labeler``...) is ignored. A row whose label cells are all blank counts as
-not labelled yet and is skipped, so a half-filled sheet can be compared as it
-stands. The delimiter is read from the header, since a spreadsheet in an
-Indonesian locale saves CSV with ``;``.
+Every other column (``notes``, ``prompt``, ``response``, ``labeler``...) is
+ignored, unless its name is a typo of a label column, which is an error. A
+row whose label cells are all blank counts as not labelled yet and is
+skipped, so a half-filled sheet can be compared as it stands. The delimiter
+is read from the header, since a spreadsheet in an Indonesian locale saves
+CSV with ``;``.
 """
 
 from __future__ import annotations
@@ -206,11 +211,11 @@ def load_labels(path: Path) -> Ratings:
                         f"(or blank), not {value!r}"
                     )
                 scores[dim] = int(value)
-            modes: frozenset[FailureMode] | None = None
-            if has_modes:
-                listed = raw["failure_modes"]
-                if listed.lower() in {*_BLANK, "none", "[]"}:
-                    listed = ""
+            modes: frozenset[FailureMode] | None = None  # blank: not labelled yet
+            listed = raw.get("failure_modes", "")
+            if listed.lower() in {"none", "[]"}:
+                modes = frozenset()
+            elif listed.lower() not in _BLANK:
                 parts = [p for p in _MODE_SPLIT.split(listed) if p.strip()]
                 modes = frozenset(_mode(p, where) for p in parts)
             language = cell("language") if "language" in col else ""

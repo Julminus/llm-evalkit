@@ -123,9 +123,15 @@ class TestLoadLabels:
         path = write(tmp_path, f"id,instruction_following,failure_modes\nc1,5,{written}\n")
         assert load_labels(path).ratings["c1"].failure_modes == frozenset()
 
-    def test_blank_failure_modes_means_none_applies(self, tmp_path: Path) -> None:
-        path = write(tmp_path, "id,instruction_following,failure_modes\nc1,5,\n")
-        assert load_labels(path).ratings["c1"].failure_modes == frozenset()
+    def test_blank_failure_modes_means_not_labelled_yet(self, tmp_path: Path) -> None:
+        # Found in the post-S4 review: blank meant "none applies", so a sheet
+        # with only the scores filled in counted every judge tag as judge-only.
+        path = write(tmp_path, "id,instruction_following,failure_modes\nc1,5,\nc2,4,n/a\n")
+        labels = load_labels(path)
+        assert labels.ratings["c1"].failure_modes is None
+        assert labels.ratings["c2"].failure_modes is None
+        judge = ratings({"c1": {IF: 5}, "c2": {IF: 4}}, c1=frozenset({FailureMode.FORMAT_ERROR}))
+        assert compare(judge, labels, resamples=0).failure_modes == {}
 
     def test_unlabelled_rows_are_skipped(self, tmp_path: Path) -> None:
         path = write(
