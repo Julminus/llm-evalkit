@@ -20,16 +20,19 @@ response next to each row. The columns:
     the four columns may be present.
 ``failure_modes``
     The failure modes that apply, separated by ``|``, ``;`` or ``,``, or
-    ``none`` when no mode applies. Blank means "not labelled yet", like a
-    blank score, so a sheet with only the scores filled in compares scores
-    only.
+    ``none`` when no mode applies. All or nothing: either every labelled row
+    fills it in (``none`` included), or every row leaves it blank and only
+    the scores are compared. A mix is an error, because a blank beside a
+    tagged row could mean "none" or "not done yet".
 ``language``
     Optional; used for the per-language split when the other side has none.
 
 Every other column (``notes``, ``prompt``, ``response``, ``labeler``...) is
-ignored, unless its name is a typo of a label column, which is an error. A
-row whose label cells are all blank counts as not labelled yet and is
-skipped, so a half-filled sheet can be compared as it stands. The delimiter
+ignored; any that ``evalkit labels`` doesn't write are listed in a note, so
+a misspelt label column shows up. Column names are matched ignoring case,
+spaces and hyphens. A row whose label cells are all blank counts as not
+labelled yet and is skipped, so a half-filled sheet can be compared as it
+stands. The delimiter
 is read from the header, since a spreadsheet in an Indonesian locale saves
 CSV with ``;``.
 """
@@ -37,7 +40,6 @@ CSV with ``;``.
 from __future__ import annotations
 
 import csv
-import difflib
 import io
 import re
 import statistics
@@ -45,7 +47,7 @@ from collections import Counter, defaultdict
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
@@ -62,6 +64,7 @@ __all__ = [
     "DimensionAgreement",
     "LabelsError",
     "ModeAgreement",
+    "NoSuchSampleError",
     "Rating",
     "Ratings",
     "compare",
@@ -80,6 +83,10 @@ _MODE_NAMES = {m.value: m for m in FailureMode}
 
 class LabelsError(ValueError):
     """A labels or judgments file can't be read. The message is user-facing."""
+
+
+class NoSuchSampleError(LabelsError):
+    """A judgments file doesn't hold the sample asked for."""
 
 
 class Rating(BaseModel):
@@ -103,6 +110,8 @@ class Ratings:
     skipped: list[str] = field(default_factory=list)
     """Ids with no usable rating: unlabelled rows, or judge errors."""
     note: str | None = None
+    kind: Literal["labels", "judgments"] = "judgments"
+    """What the file is, so messages can say "not labelled yet" or "judge error"."""
 
 
 def _mode(value: str, where: str) -> FailureMode:
@@ -131,17 +140,21 @@ def _check_header(path: Path, raw: list[str]) -> list[str]:
     repeated = sorted({h for h in header if h and header.count(h) > 1})
     if repeated:
         raise LabelsError(f"{path}: the header repeats {', '.join(repeated)}")
-    known = ("id", "language", *LABEL_COLUMNS)
-    for name, shown in zip(header, raw, strict=True):
-        # Other columns are ignored, so a misspelt label column would be too.
-        close = difflib.get_close_matches(name, known, n=1, cutoff=0.8)
-        if name and name not in known and close:
-            raise LabelsError(
-                f"{path}: unknown column {shown.strip()!r}; did you mean {close[0]!r}?"
-            )
     if not any(name in LABEL_COLUMNS for name in header):
         raise LabelsError(f"{path}: no label columns; expected some of: {', '.join(LABEL_COLUMNS)}")
     return header
+
+
+def _unread_note(header: list[str], raw: list[str]) -> str | None:
+    """Columns that are neither read nor written by `evalkit labels`, so that a
+    misspelt label column ("helpfullness") shows up instead of vanishing."""
+    expected = {"id", "language", *LABEL_COLUMNS, "notes", "labeler", *SHEET_TEXT_COLUMNS}
+    unread = [
+        shown.strip()
+        for name, shown in zip(header, raw, strict=True)
+        if name and name not in expected
+    ]
+    return f"columns not read: {', '.join(unread)}" if unread else None
 
 
 def load_labels(path: Path) -> Ratings:
@@ -156,7 +169,8 @@ def load_labels(path: Path) -> Ratings:
         io.StringIO(text, newline=""), delimiter=_delimiter(first_line), strict=True
     )
     try:
-        header = _check_header(path, next(reader))
+        raw_header = next(reader)
+        header = _check_header(path, raw_header)
     except StopIteration:
         raise LabelsError(f"{path}: the file is empty") from None
     except csv.Error as exc:
@@ -225,7 +239,19 @@ def load_labels(path: Path) -> Ratings:
     except csv.Error as exc:
         # `line` is where the row being read started, e.g. where an unclosed quote opened.
         raise LabelsError(f"{path}:{line}: not valid CSV: {exc}") from exc
-    return Ratings(str(path), ratings, skipped)
+    # Failure modes are labelled on every labelled row or on none. A blank
+    # beside a scored row could mean "none applies" or "not done yet", and
+    # either guess skews precision, so it is an error rather than a guess.
+    blank = [i for i, r in ratings.items() if r.failure_modes is None]
+    if has_modes and blank and len(blank) < len(ratings):
+        lines = ", ".join(str(first_seen[i]) for i in blank[:5])
+        more = f" and {len(blank) - 5} more" if len(blank) > 5 else ""
+        raise LabelsError(
+            f"{path}: {len(blank)} labelled rows have a blank failure_modes (lines {lines}{more}) "
+            "while others name modes; write 'none' where no mode applies, or leave the "
+            "column blank on every row to compare scores only"
+        )
+    return Ratings(str(path), ratings, skipped, _unread_note(header, raw_header), kind="labels")
 
 
 def load_judgments(path: Path, *, sample: int = 0) -> Ratings:
@@ -276,14 +302,14 @@ def load_judgments(path: Path, *, sample: int = 0) -> Ratings:
     if not seen:
         raise LabelsError(f"{path}: no judge records")
     if sample not in samples:
-        raise LabelsError(f"{path}: no sample {sample} (the file has {sorted(samples)})")
+        raise NoSuchSampleError(f"{path}: no sample {sample} (the file has {sorted(samples)})")
     note = f"used sample {sample} of {len(samples)}" if len(samples) > 1 else None
     return Ratings(str(path), ratings, skipped, note)
 
 
 def load_ratings(path: Path, *, sample: int = 0) -> Ratings:
-    """A labels sheet (``.csv``, ``.tsv`` or ``.txt``) or a judgments file (anything else)."""
-    if path.suffix.lower() in {".csv", ".tsv", ".txt"}:
+    """A labels sheet (``.csv`` or ``.tsv``) or a judgments file (anything else)."""
+    if path.suffix.lower() in {".csv", ".tsv"}:
         return load_labels(path)
     return load_judgments(path, sample=sample)
 
@@ -339,6 +365,8 @@ class ModeAgreement(BaseModel):
 class AgreementReport(BaseModel):
     judge: str
     reference: str
+    judge_kind: Literal["labels", "judgments"] = "judgments"
+    reference_kind: Literal["labels", "judgments"] = "labels"
     matched: int
     only_judge: list[str]
     only_reference: list[str]
@@ -455,6 +483,8 @@ def compare(
         only_reference=sorted(set(reference.ratings) - set(judge.ratings) - set(judge.skipped)),
         skipped_judge=judge.skipped,
         skipped_reference=reference.skipped,
+        judge_kind=judge.kind,
+        reference_kind=reference.kind,
         notes=notes,
         dimensions=dims_for(pairs, resamples),
         by_language={lang: dims_for(group, 0) for lang, group in sorted(by_lang.items())},

@@ -661,3 +661,14 @@ class TestSamples:
         data = record.model_dump(mode="json")
         del data["sample"]
         assert JudgeRecord.model_validate(data).sample == 0
+
+    def test_counts_on_an_interrupted_multi_sample_run(self) -> None:
+        # An interrupted run keeps records in completion order, so a case may
+        # have samples 1 and 2 but not 0; it still counts as a case.
+        from evalkit.judge import JudgeResult
+
+        [case] = make_suite(1).cases
+        records = run(Judge(FakeJudge()).judge_all([(case, "x")], samples=3))
+        partial = JudgeResult("r", None, JudgeSummary(records=records[1:]), 0.0)
+        assert partial.counts()["cases"] == 1
+        assert partial.counts()["judgments"] == 2

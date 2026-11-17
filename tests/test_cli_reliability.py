@@ -476,11 +476,21 @@ class TestReviewFindings:
     ) -> None:
         cons = self.consistency_run(dirs, tmp_path) / "judgments.jsonl"
         plain = mock_judgments(tmp_path, dirs)
-        # --sample used to apply to both files, and the plain run has no sample 2.
-        result = invoke("agree", cons, plain, "--sample", "2", "--resamples", "0")
+        # The plain run has no sample 2: say how to pick the reference's.
+        missing = invoke("agree", cons, plain, "--sample", "2", "--resamples", "0")
+        assert missing.exit_code == 1
+        assert "no sample 2 (the file has [0]); pick the reference's with --reference-sample" in (
+            missing.output
+        )
+        result = invoke(
+            "agree", cons, plain, "--sample", "2", "--reference-sample", "0", "--resamples", "0"
+        )
         assert result.exit_code == 0, result.output
         assert "10 cases rated by both" in result.output
         assert "used sample 2 of 3" in result.output
+        # By default --sample applies to a judgments reference too, as before the fix.
+        same = invoke("agree", cons, cons, "--sample", "2", "--resamples", "0", "--json")
+        assert json.loads(same.output)["notes"] == ["used sample 2 of 3", "used sample 2 of 3"]
         both = invoke(
             "agree", cons, cons, "--sample", "1", "--reference-sample", "2", "--resamples", "0"
         )
@@ -491,8 +501,24 @@ class TestReviewFindings:
         assert invoke("labels", SUITE, RESPONSES, "-o", sheet).exit_code == 0
         result = invoke("agree", mock_judgments(tmp_path, dirs), sheet)
         assert result.exit_code == 1
-        assert "no row of" in result.output
-        assert "is labelled yet" in result.output
+        assert "no row is labelled yet" in result.output
         # each id listed once, as not labelled, not also as "only the judge rated"
-        assert "not labelled yet (skipped) (10):" in result.output
+        assert "reference: not labelled yet (skipped) (10):" in result.output
         assert "only the judge rated" not in result.output
+
+    def test_messages_follow_the_kind_of_file(self, dirs: list[str], tmp_path: Path) -> None:
+        judged = mock_judgments(tmp_path, dirs)
+        failed = tmp_path / "failed.jsonl"
+        rows = [json.loads(x) for x in judged.read_text(encoding="utf-8").splitlines()]
+        for r in rows:
+            r.update(error="timeout", scores={}, rationale=None)
+        failed.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+        # an all-error judgments file as the reference is not "not labelled"
+        result = invoke("agree", judged, failed)
+        assert result.exit_code == 1
+        assert "every judgment failed" in result.output
+        assert "reference: no judgment (judge error, skipped) (10):" in result.output
+        # and as the judge, against the example labels
+        result = invoke("agree", failed, LABELS)
+        assert "every judgment failed" in result.output
+        assert "judge: no judgment (judge error, skipped) (10):" in result.output

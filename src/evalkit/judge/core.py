@@ -497,7 +497,7 @@ class JudgeResult:
         records = self.records
         return {
             # One record per case and sample: with several samples, cases < judgments.
-            "cases": sum(r.sample == 0 for r in records),
+            "cases": len({r.id for r in records}),
             "judgments": len(records),
             "judged": sum(r.ok for r in records),
             "errors": sum(not r.ok for r in records),

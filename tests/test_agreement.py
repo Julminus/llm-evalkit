@@ -577,28 +577,34 @@ class TestReviewFindings:
         path = write(tmp_path, f"id,{name},helpfulness\nc1,4,5\n")
         assert load_labels(path).ratings["c1"].scores == {IF: 4, HE: 5}
 
-    @pytest.mark.parametrize(
-        ("name", "meant"),
-        [
-            ("helpfullness", "helpfulness"),
-            ("failure_mode", "failure_modes"),
-            ("faithfullness", "faithfulness"),
-        ],
-    )
-    def test_a_misspelt_label_column_is_an_error(
-        self, tmp_path: Path, name: str, meant: str
-    ) -> None:
+    @pytest.mark.parametrize("name", ["helpfullness", "failure_mode", "Faithfullness"])
+    def test_a_misspelt_label_column_is_listed_not_read(self, tmp_path: Path, name: str) -> None:
+        # A "did you mean" error (cutoff 0.8) also rejected real columns such as
+        # helpfulness_2 or uid (second post-S4 review), so unread columns are a note.
         path = write(tmp_path, f"id,instruction_following,{name}\nc1,4,5\n")
-        with pytest.raises(LabelsError, match=f"unknown column '{name}'; did you mean '{meant}'"):
-            load_labels(path)
+        labels = load_labels(path)
+        assert labels.ratings["c1"].scores == {IF: 4}
+        assert labels.note == f"columns not read: {name}"
+        report = compare(labels, labels, resamples=0)
+        assert f"columns not read: {name}" in report.notes
 
-    def test_other_columns_are_still_ignored(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize(
+        "name",
+        ["uid", "helpfulness_2", "faithfulness_notes", "reasoning_quality_comment", "languages"],
+    )
+    def test_columns_close_to_a_label_column_still_load(self, tmp_path: Path, name: str) -> None:
+        path = write(tmp_path, f"id,helpfulness,{name}\nc1,4,x\n")
+        assert load_labels(path).ratings["c1"].scores == {HE: 4}
+
+    def test_the_sheets_own_columns_are_not_listed(self, tmp_path: Path) -> None:
         cols = ["labeler", "notes", "prompt", "response", "system", "context", "criteria"]
-        cols += ["reference_answer", "model"]
+        cols += ["reference_answer", "language"]
         header = ",".join(["id", *cols, "helpfulness"])
         row = ",".join(["c1", *("x" for _ in cols), "4"])
-        path = write(tmp_path, f"{header}\n{row}\n")
-        assert load_labels(path).ratings["c1"].scores == {HE: 4}
+        labels = load_labels(write(tmp_path, f"{header}\n{row}\n"))
+        assert labels.ratings["c1"].scores == {HE: 4}
+        assert labels.note is None
+        assert labels.kind == "labels"
 
     def test_an_unclosed_quote_is_reported_where_it_opened(self, tmp_path: Path) -> None:
         path = write(tmp_path, 'id,instruction_following,notes\nc1,4,"forgot\nc2,3,\nc3,5,\n')
@@ -611,9 +617,35 @@ class TestReviewFindings:
         report = compare(load_labels(a), load_labels(b), resamples=0)
         assert set(report.by_language) == {"en", "id"}
 
-    @pytest.mark.parametrize("suffix", [".tsv", ".txt", ".TSV"])
+    @pytest.mark.parametrize("suffix", [".tsv", ".TSV"])
     def test_tab_separated_sheets_go_to_the_labels_reader(
         self, tmp_path: Path, suffix: str
     ) -> None:
         path = write(tmp_path, "id\thelpfulness\nc1\t4\n", name=f"labels{suffix}")
         assert load_ratings(path).ratings["c1"].scores == {HE: 4}
+
+    def test_a_judgments_file_saved_as_txt_is_still_judgments(self, tmp_path: Path) -> None:
+        path = write_judgments(tmp_path, [record("c1")], name="judgments.txt")
+        assert load_ratings(path).kind == "judgments"
+
+    def test_failure_modes_on_some_rows_and_blank_on_others_is_an_error(
+        self, tmp_path: Path
+    ) -> None:
+        # Tagging only where a mode applies (blank on clean rows) dropped the
+        # clean rows from the comparison and made precision 1.0 (second review).
+        text = "id,instruction_following,failure_modes\nc1,4,hallucination\nc2,5,\nc3,5,\n"
+        with pytest.raises(
+            LabelsError, match=r"2 labelled rows have a blank failure_modes \(lines 3, 4\)"
+        ):
+            load_labels(write(tmp_path, text))
+
+    def test_failure_modes_blank_everywhere_compares_scores_only(self, tmp_path: Path) -> None:
+        text = "id,instruction_following,failure_modes\nc1,4,\nc2,5,\n"
+        labels = load_labels(write(tmp_path, text))
+        assert all(r.failure_modes is None for r in labels.ratings.values())
+
+    def test_rows_not_labelled_at_all_dont_count_as_blank_modes(self, tmp_path: Path) -> None:
+        text = "id,instruction_following,failure_modes\nc1,4,none\nc2,,\nc3,5,hallucination\n"
+        labels = load_labels(write(tmp_path, text))
+        assert labels.skipped == ["c2"]
+        assert labels.ratings["c1"].failure_modes == frozenset()

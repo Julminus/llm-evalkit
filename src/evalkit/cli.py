@@ -34,6 +34,7 @@ from evalkit.agreement import (
     AgreementReport,
     ConsistencyReport,
     LabelsError,
+    NoSuchSampleError,
     compare,
     load_ratings,
     write_label_sheet,
@@ -905,11 +906,15 @@ def _print_agreement(report: AgreementReport, *, verbose: bool) -> None:
             console.print(grid)
     for note in report.notes:
         console.print(f"[dim]note: {escape(note)}[/]")
+    skip_label = {
+        "labels": "not labelled yet (skipped)",
+        "judgments": "no judgment (judge error, skipped)",
+    }
     for label, ids in (
         ("only the judge rated", report.only_judge),
         ("only the reference rated", report.only_reference),
-        ("not labelled yet (skipped)", report.skipped_reference),
-        ("no judgment (judge error, skipped)", report.skipped_judge),
+        (f"reference: {skip_label[report.reference_kind]}", report.skipped_reference),
+        (f"judge: {skip_label[report.judge_kind]}", report.skipped_judge),
     ):
         if ids:
             shown = ", ".join(ids[:10]) + (f" and {len(ids) - 10} more" if len(ids) > 10 else "")
@@ -941,9 +946,11 @@ def agree(
         typer.Option(min=0, help="With several samples per case in JUDGMENTS, compare this one."),
     ] = 0,
     reference_sample: Annotated[
-        int,
-        typer.Option(min=0, help="The same for a REFERENCE that is a judgments file."),
-    ] = 0,
+        int | None,
+        typer.Option(
+            min=0, help="The same for a REFERENCE that is a judgments file. Default: --sample."
+        ),
+    ] = None,
     resamples: Annotated[
         int, typer.Option(min=0, help="Bootstrap resamples for the intervals (0 = none).")
     ] = 2000,
@@ -956,7 +963,14 @@ def agree(
     """Agreement between a judge and a reference: kappa, Spearman, confusion matrices."""
     try:
         judged = load_ratings(judgments_path, sample=sample)
-        reference = load_ratings(reference_path, sample=reference_sample)
+        try:
+            reference = load_ratings(
+                reference_path, sample=sample if reference_sample is None else reference_sample
+            )
+        except NoSuchSampleError as exc:
+            if reference_sample is not None:
+                raise
+            raise NoSuchSampleError(f"{exc}; pick the reference's with --reference-sample") from exc
     except LabelsError as exc:
         raise _exit_error(str(exc)) from exc
     report = compare(judged, reference, resamples=resamples, seed=seed)
@@ -965,8 +979,12 @@ def agree(
     else:
         _print_agreement(report, verbose=verbose)
     if not report.matched:
-        if not reference.ratings and reference.skipped:
-            raise _exit_error(f"no row of {reference_path} is labelled yet")
+        for path, side in ((reference_path, reference), (judgments_path, judged)):
+            if not side.ratings and side.skipped:
+                what = (
+                    "no row is labelled yet" if side.kind == "labels" else "every judgment failed"
+                )
+                raise _exit_error(f"{path}: {what}")
         raise _exit_error("no case is rated in both files: check that they are for the same suite")
 
 
@@ -1015,8 +1033,9 @@ def labels(
     except OSError as exc:
         raise _exit_error(f"could not write {out}: {exc}") from exc
     console.print(
-        f"wrote {n} rows to {escape(str(out))}: fill in the score columns (1-5) and "
-        "failure_modes, then run `evalkit agree JUDGMENTS LABELS`"
+        f"wrote {n} rows to {escape(str(out))}: fill in the scores (1-5) and failure_modes "
+        "('none' where no mode applies, or leave that column blank on every row), then run "
+        "`evalkit agree JUDGMENTS LABELS`"
     )
 
 
