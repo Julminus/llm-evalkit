@@ -537,7 +537,7 @@ class TestJudgeSuite:
 
     def test_crash_is_recorded(self, tmp_path: Path) -> None:
         class Broken(Judge):
-            async def judge_all(self, items, *, on_record=None):  # type: ignore[no-untyped-def]
+            async def judge_all(self, items, *, samples=1, on_record=None):  # type: ignore[no-untyped-def]
                 raise RuntimeError("bug")
 
         with pytest.raises(RuntimeError):
@@ -556,3 +556,107 @@ class TestJudgeSuite:
         judge = Judge(FakeJudge())
         when = datetime(2026, 11, 17, 1, 0, tzinfo=UTC)
         assert make_judge_run_id(judge, when) == "20261117T010000Z-judge-fakejudge-j"
+
+
+class SeededJudge(FakeJudge):
+    """A FakeJudge that takes a seed and answers each seed differently."""
+
+    supported_params: ClassVar[frozenset[str]] = frozenset({"temperature", "seed", "max_tokens"})
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.seeds: list[int | None] = []
+
+    async def generate(self, prompt: Prompt, params: GenerationParams) -> Completion:
+        self.seeds.append(params.seed)
+        await asyncio.sleep(0.001)
+        score = 1 + (params.seed or 0) % 5
+        text = good(**{d.value: score for d in Dimension})
+        return Completion(text=text, model="j", finish_reason="stop")
+
+
+class TestSamples:
+    def test_each_sample_gets_the_next_seed(self) -> None:
+        provider = SeededJudge()
+        judge = Judge(provider, params=GenerationParams(temperature=0.7, seed=10))
+        [case] = make_suite(1).cases
+        records = run(judge.judge_all([(case, "x")], samples=3))
+        assert [r.sample for r in records] == [0, 1, 2]
+        assert sorted(provider.seeds) == [10, 11, 12]
+        scores = [r.scores[Dimension.INSTRUCTION_FOLLOWING] for r in records]
+        assert scores == [1 + s % 5 for s in (10, 11, 12)]
+
+    def test_without_a_seed_every_sample_uses_the_same_settings(self) -> None:
+        judge = Judge(FakeJudge(), params=GenerationParams(temperature=0.7))
+        assert judge.sample_params(0) is None
+        assert judge.sample_params(3) is None
+
+    def test_sample_zero_keeps_the_runners_settings(self) -> None:
+        judge = Judge(SeededJudge(), params=GenerationParams(seed=5))
+        assert judge.sample_params(0) is None
+        params = judge.sample_params(2)
+        assert params is not None
+        assert params.seed == 7
+
+    def test_samples_are_cached_side_by_side(self, tmp_path: Path) -> None:
+        # Sample 0 must hit the same cache entry a plain `evalkit judge` made,
+        # and samples 1, 2 must not replay it.
+        cache = ResponseCache(tmp_path)
+        [case] = make_suite(1).cases
+        params = GenerationParams(temperature=0.7, seed=0)
+        first = SeededJudge()
+        run(Judge(first, params=params, cache=cache).judge_all([(case, "x")]))
+        again = SeededJudge()
+        records = run(Judge(again, params=params, cache=cache).judge_all([(case, "x")], samples=3))
+        assert [r.cached for r in records] == [True, False, False]
+        assert sorted(again.seeds) == [1, 2]
+        replay = SeededJudge()
+        records = run(Judge(replay, params=params, cache=cache).judge_all([(case, "x")], samples=3))
+        assert all(r.cached for r in records)
+        assert replay.seeds == []
+
+    def test_unseeded_samples_still_get_their_own_cache_entries(self, tmp_path: Path) -> None:
+        cache = ResponseCache(tmp_path)
+        [case] = make_suite(1).cases
+        provider = FakeJudge()
+        records = run(Judge(provider, cache=cache).judge_all([(case, "x")], samples=3))
+        assert len(provider.prompts["prompt 0"]) == 3
+        assert not any(r.cached for r in records)
+
+    def test_records_are_ordered_by_item_then_sample(self) -> None:
+        suite = make_suite(2)
+        records = run(Judge(FakeJudge()).judge_all([(c, "x") for c in suite.cases], samples=2))
+        assert [(r.id, r.sample) for r in records] == [("c0", 0), ("c0", 1), ("c1", 0), ("c1", 1)]
+
+    def test_samples_must_be_positive(self) -> None:
+        [case] = make_suite(1).cases
+        with pytest.raises(ValueError, match="at least 1"):
+            run(Judge(FakeJudge()).judge_all([(case, "x")], samples=0))
+
+    def test_judge_suite_records_samples_in_the_manifest(self, tmp_path: Path) -> None:
+        result = run(
+            judge_suite(
+                make_suite(2),
+                {"c0": "a", "c1": "b"},
+                Judge(FakeJudge()),
+                out_dir=tmp_path,
+                samples=2,
+            )
+        )
+        assert len(result.records) == 4
+        assert result.run_dir is not None
+        manifest = json.loads((result.run_dir / "manifest.json").read_text(encoding="utf-8"))
+        assert manifest["samples"] == 2
+        lines = (result.run_dir / "judgments.jsonl").read_text(encoding="utf-8").splitlines()
+        assert sorted((json.loads(x)["id"], json.loads(x)["sample"]) for x in lines) == [
+            ("c0", 0),
+            ("c0", 1),
+            ("c1", 0),
+            ("c1", 1),
+        ]
+
+    def test_old_records_without_a_sample_field_still_load(self) -> None:
+        record = judge_one(FakeJudge())
+        data = record.model_dump(mode="json")
+        del data["sample"]
+        assert JudgeRecord.model_validate(data).sample == 0

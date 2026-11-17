@@ -122,6 +122,12 @@ _TAGS = (
     "automated_checks",
     "response",
     "previous_reply",
+    # Pairwise mode (evalkit.judge.pairwise). A name followed by "_" is a
+    # different word to the regex's \b, so each variant is listed.
+    "response_1",
+    "response_2",
+    "automated_checks_1",
+    "automated_checks_2",
 )
 # "<" right before one of our tag names ("<response", "</response"), and a
 # closing tag with whitespace or zero-width characters around its "/"
@@ -163,28 +169,11 @@ def cut_response(response: str, max_chars: int | None) -> tuple[str, bool]:
     return text, False
 
 
-def build_judge_prompt(
-    case: EvalCase,
-    response: str,
-    checks: Sequence[CheckResult] | None = None,
-    *,
-    max_response_chars: int | None = None,
-) -> Prompt:
-    """The prompt asking the judge to grade ``response`` to ``case``.
-
-    ``checks``, if given, are listed as reliable facts, so the judge need not
-    count words or sentences itself (which LLMs do badly). Pass ``None`` to
-    leave them out; an empty sequence also adds nothing.
-
-    A response longer than ``max_response_chars`` is cut, and the prompt says
-    so. Without a cut, a local judge with a 4,096-token context gets a prompt
-    the server silently shortens: a 40,960-token degenerate answer reached
-    qwen2.5:14b as 2,050 tokens, and its verdict cited words not in the
-    response.
-    """
+def case_sections(case: EvalCase) -> list[str]:
+    """The case as the judge sees it: system prompt, context, request, the
+    expected language, the author's criteria and reference answer."""
     rubric = case.rubric
-    dimensions = rubric.dimensions if rubric is not None else list(Dimension)
-    parts = ["Grade the response to the request below."]
+    parts = []
     if case.system:
         parts.append(_section("system_prompt", _quote(case.system)))
     if case.context:
@@ -208,22 +197,59 @@ def build_judge_prompt(
                 + _quote(rubric.reference_answer),
             )
         )
-    if checks:
-        lines = "\n".join(_check_line(r) for r in checks)
-        parts.append(
-            _section(
-                "automated_checks",
-                "Results of deterministic checks that code ran on this response. They are "
-                f"reliable: use them instead of counting yourself.\n{_quote(lines)}",
-            )
-        )
-    shown, was_cut = cut_response(response, max_response_chars)
-    parts.append(_section("response", _quote(shown)))
+    return parts
+
+
+def checks_section(
+    checks: Sequence[CheckResult], *, tag: str = "automated_checks", whose: str = "this response"
+) -> str:
+    lines = "\n".join(_check_line(r) for r in checks)
+    return _section(
+        tag,
+        f"Results of deterministic checks that code ran on {whose}. They are "
+        f"reliable: use them instead of counting yourself.\n{_quote(lines)}",
+    )
+
+
+def response_sections(
+    response: str, max_chars: int | None, *, tag: str = "response", name: str = "The response"
+) -> list[str]:
+    """The response in its tag, and a note if it had to be cut."""
+    shown, was_cut = cut_response(response, max_chars)
+    parts = [_section(tag, _quote(shown))]
     if was_cut:
         parts.append(
-            f"The response is {len(response.strip()):,} characters long. Only the first "
+            f"{name} is {len(response.strip()):,} characters long. Only the first "
             f"{len(shown):,} are shown, to fit your context; don't count the cut as a failure."
         )
+    return parts
+
+
+def build_judge_prompt(
+    case: EvalCase,
+    response: str,
+    checks: Sequence[CheckResult] | None = None,
+    *,
+    max_response_chars: int | None = None,
+) -> Prompt:
+    """The prompt asking the judge to grade ``response`` to ``case``.
+
+    ``checks``, if given, are listed as reliable facts, so the judge need not
+    count words or sentences itself (which LLMs do badly). Pass ``None`` to
+    leave them out; an empty sequence also adds nothing.
+
+    A response longer than ``max_response_chars`` is cut, and the prompt says
+    so. Without a cut, a local judge with a 4,096-token context gets a prompt
+    the server silently shortens: a 40,960-token degenerate answer reached
+    qwen2.5:14b as 2,050 tokens, and its verdict cited words not in the
+    response.
+    """
+    rubric = case.rubric
+    dimensions = rubric.dimensions if rubric is not None else list(Dimension)
+    parts = ["Grade the response to the request below.", *case_sections(case)]
+    if checks:
+        parts.append(checks_section(checks))
+    parts.extend(response_sections(response, max_response_chars))
 
     rubric_lines = ["Score the response on each of these dimensions:"]
     for dim in dimensions:

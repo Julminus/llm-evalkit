@@ -29,7 +29,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
@@ -45,6 +45,7 @@ from evalkit.judge.prompt import (
     cut_response,
 )
 from evalkit.langdetect import Language
+from evalkit.prompts import Prompt
 from evalkit.providers.base import GenerationParams, Provider
 from evalkit.runner import (
     RetryPolicy,
@@ -112,6 +113,8 @@ class JudgeRecord(BaseModel):
     """Every raw reply from the judge, in order; the last one was accepted (if ok)."""
     response_cut: bool = False
     """The response was longer than ``max_response_chars``; the judge saw only its start."""
+    sample: int = 0
+    """Which sample this is, when each response is judged several times (self-consistency)."""
 
     @property
     def ok(self) -> bool:
@@ -153,6 +156,36 @@ def _add(total: int | None, value: int | None) -> int | None:
     if value is None:
         return total
     return (total or 0) + value
+
+
+_P = TypeVar("_P")
+
+
+@dataclass
+class Asked(Generic[_P]):
+    """The outcome of :meth:`Judge.ask`: a parsed reply or an error, plus what it cost."""
+
+    value: _P | None
+    error: str | None = None
+    replies: list[str] = field(default_factory=list)
+    reasks: int = 0
+    requests: int = 0
+    cached: bool = True
+    latency_s: float = 0.0
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+
+    def usage(self) -> dict[str, Any]:
+        """The fields :class:`JudgeRecord` and the pairwise records share."""
+        return {
+            "requests": self.requests,
+            "cached": self.cached,
+            "latency_s": round(self.latency_s, 4),
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "replies": self.replies,
+            "reasks": self.reasks,
+        }
 
 
 class Judge:
@@ -201,8 +234,76 @@ class Judge:
     def provider(self) -> Provider:
         return self.runner.provider
 
+    def sample_params(self, sample: int) -> GenerationParams | None:
+        """Settings for sample ``sample``: the runner's, with the seed moved on by
+        ``sample`` if one is set, so samples differ yet each can be repeated.
+        ``None`` (the runner's own settings) for sample 0."""
+        params = self.runner.params
+        if sample == 0 or params.seed is None:
+            return None
+        return params.model_copy(update={"seed": params.seed + sample})
+
+    async def ask(
+        self,
+        original: Prompt,
+        parse: Callable[[str], _P],
+        *,
+        label: str,
+        slots: asyncio.Semaphore | None = None,
+        sample: int = 0,
+    ) -> Asked[_P]:
+        """Send ``original`` and parse the reply, re-asking after an unusable one.
+
+        ``parse`` raises :class:`JudgmentError` with the problems to send back.
+        Never raises for a bad reply or a failed request: those end up in
+        :attr:`Asked.error`.
+        """
+        out_: Asked[_P] = Asked(None)
+        params = self.sample_params(sample)
+        prompt = original
+        for reasks in range(self.max_reasks + 1):
+            out = await self.runner.complete(
+                prompt, slots, label=label, sample=sample, params=params
+            )
+            out_.reasks = reasks
+            out_.requests += out.attempts
+            out_.latency_s += out.latency_s
+            out_.cached = out_.cached and out.cached
+            completion = out.completion
+            if completion is None:
+                out_.error = out.error
+                return out_
+            out_.input_tokens = _add(out_.input_tokens, completion.input_tokens)
+            out_.output_tokens = _add(out_.output_tokens, completion.output_tokens)
+            out_.replies.append(completion.text)
+            if completion.finish_reason == "refusal":
+                out_.error = "the judge refused"
+                return out_
+            try:
+                out_.value = parse(completion.text)
+            except JudgmentError as exc:
+                problems = exc.problems
+                if completion.finish_reason == "length":
+                    problems = [
+                        *problems,
+                        "the reply was cut off at the token limit: keep the rationale short",
+                    ]
+                if reasks == self.max_reasks:
+                    tries = f" (after {reasks} re-asks)" if reasks else ""
+                    out_.error = f"unusable judge reply{tries}: {'; '.join(problems)}"
+                    return out_
+                prompt = build_repair_prompt(original, completion.text, problems)
+                continue
+            return out_
+        raise AssertionError("unreachable")  # pragma: no cover - the loop always returns
+
     async def judge_case(
-        self, case: EvalCase, response: str, slots: asyncio.Semaphore | None = None
+        self,
+        case: EvalCase,
+        response: str,
+        slots: asyncio.Semaphore | None = None,
+        *,
+        sample: int = 0,
     ) -> JudgeRecord:
         """Judge one response. Never raises for a bad reply or a failed request."""
         report = check_case(case, response)
@@ -220,83 +321,55 @@ class Judge:
             "check_status": report.status,
             "check_failure_modes": report.failure_modes,
             "response_cut": was_cut,
+            "sample": sample,
         }
-        replies: list[str] = []
-        requests, latency = 0, 0.0
-        tokens_in: int | None = None
-        tokens_out: int | None = None
-        all_cached = True
-        prompt = original
-        for reasks in range(self.max_reasks + 1):
-            out = await self.runner.complete(prompt, slots, label=case.id)
-            requests += out.attempts
-            latency += out.latency_s
-            all_cached = all_cached and out.cached
-            completion = out.completion
-            if completion is not None:
-                tokens_in = _add(tokens_in, completion.input_tokens)
-                tokens_out = _add(tokens_out, completion.output_tokens)
-                replies.append(completion.text)
-            usage = {
-                "requests": requests,
-                "cached": all_cached,
-                "latency_s": round(latency, 4),
-                "input_tokens": tokens_in,
-                "output_tokens": tokens_out,
-                "replies": replies,
-                "reasks": reasks,
-            }
-            if completion is None:
-                return JudgeRecord(**base, **usage, error=out.error)
-            if completion.finish_reason == "refusal":
-                return JudgeRecord(**base, **usage, error="the judge refused")
-            try:
-                parsed = parse_judgment(completion.text, dimensions)
-            except JudgmentError as exc:
-                problems = exc.problems
-                if completion.finish_reason == "length":
-                    problems = [
-                        *problems,
-                        "the reply was cut off at the token limit: keep the rationale short",
-                    ]
-                if reasks == self.max_reasks:
-                    tries = f" (after {reasks} re-asks)" if reasks else ""
-                    return JudgeRecord(
-                        **base, **usage, error=f"unusable judge reply{tries}: {'; '.join(problems)}"
-                    )
-                prompt = build_repair_prompt(original, completion.text, problems)
-                continue
-            return JudgeRecord(
-                **base,
-                **usage,
-                scores=parsed.scores,
-                rationale=parsed.rationale,
-                judge_failure_modes=parsed.failure_modes,
-                repairs=parsed.repairs,
-            )
-        raise AssertionError("unreachable")  # pragma: no cover - the loop always returns
+        asked = await self.ask(
+            original,
+            lambda text: parse_judgment(text, dimensions),
+            label=case.id,
+            slots=slots,
+            sample=sample,
+        )
+        parsed = asked.value
+        if parsed is None:
+            return JudgeRecord(**base, **asked.usage(), error=asked.error)
+        return JudgeRecord(
+            **base,
+            **asked.usage(),
+            scores=parsed.scores,
+            rationale=parsed.rationale,
+            judge_failure_modes=parsed.failure_modes,
+            repairs=parsed.repairs,
+        )
 
     async def judge_all(
         self,
         items: Sequence[tuple[EvalCase, str]],
         *,
+        samples: int = 1,
         on_record: OnJudgment | None = None,
     ) -> list[JudgeRecord]:
-        """Judge every ``(case, response)``; records come back in input order."""
+        """Judge every ``(case, response)`` ``samples`` times.
+
+        Records come back in input order, and within an item by sample.
+        """
+        if samples < 1:
+            raise ValueError("samples must be at least 1")
         slots = asyncio.Semaphore(self.runner.concurrency)
         # Keyed by position, not case id: two answers to one case are two items.
-        done: dict[int, JudgeRecord] = {}
+        done: dict[tuple[int, int], JudgeRecord] = {}
 
-        async def one(index: int, case: EvalCase, response: str) -> None:
-            record = await self.judge_case(case, response, slots)
-            done[index] = record
+        async def one(index: int, case: EvalCase, response: str, sample: int) -> None:
+            record = await self.judge_case(case, response, slots, sample=sample)
+            done[index, sample] = record
             if on_record is not None:
                 on_record(record)
 
         async with asyncio.TaskGroup() as tg:
             for index, (case, response) in enumerate(items):
-                tg.create_task(one(index, case, response))
-        return [done[index] for index in range(len(items))]
+                for sample in range(samples):
+                    tg.create_task(one(index, case, response, sample))
+        return [done[index, s] for index in range(len(items)) for s in range(samples)]
 
 
 def _mean(values: Sequence[int]) -> float | None:
@@ -458,6 +531,7 @@ async def judge_suite(
     suite_path: Path | None = None,
     responses_path: Path | None = None,
     on_record: OnJudgment | None = None,
+    samples: int = 1,
 ) -> JudgeResult:
     """Judge every selected case that has a response, and write a run directory.
 
@@ -492,6 +566,7 @@ async def judge_suite(
             include_checks=judge.include_checks,
             max_reasks=judge.max_reasks,
             max_response_chars=judge.max_response_chars,
+            samples=samples,
             params={
                 "requested": runner.params.explicit(),
                 "sent": provider.effective_params(runner.params),
@@ -515,7 +590,7 @@ async def judge_suite(
     status: RunStatus = "interrupted"
     records = seen
     try:
-        records = await judge.judge_all(items, on_record=record_done)
+        records = await judge.judge_all(items, samples=samples, on_record=record_done)
         status = "complete"
     except Exception:
         status = "crashed"

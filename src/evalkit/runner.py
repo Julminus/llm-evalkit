@@ -214,17 +214,28 @@ class Runner:
         )
 
     async def complete(
-        self, prompt: Prompt, slots: asyncio.Semaphore | None = None, *, label: str = ""
+        self,
+        prompt: Prompt,
+        slots: asyncio.Semaphore | None = None,
+        *,
+        label: str = "",
+        sample: int = 0,
+        params: GenerationParams | None = None,
     ) -> Outcome:
         """One prompt through the cache, the concurrency limit and the retries.
 
         ``label`` names the request in cache-write warnings (a case id).
+        ``sample`` > 0 asks for another answer to the same request: it is part
+        of the cache key, so samples 0, 1, 2... are cached side by side.
+        ``params`` replaces the runner's settings for this request (a
+        per-sample seed, say).
         """
-        params = self.provider.effective_params(self.params)
+        params = params or self.params
+        sent = self.provider.effective_params(params)
         identity = self.provider.identity()
-        key = cache_key(identity, prompt, params)
+        key = cache_key(identity, prompt, sent, sample=sample)
         if self.cache is None:
-            return await self._fresh(prompt, key, slots, label=label)
+            return await self._fresh(prompt, params, key, slots, label=label)
 
         # One lock per request: a second case with the identical request waits
         # for the first, then finds its answer in the cache. Without this both
@@ -233,12 +244,19 @@ class Runner:
             entry = self.cache.get(key)
             if entry is not None:
                 return Outcome(key, entry.completion, latency_s=entry.latency_s, cached=True)
-            request = {"identity": identity, "prompt": prompt.model_dump(), "params": params}
-            return await self._fresh(prompt, key, slots, label=label, request=request)
+            request: dict[str, Any] = {
+                "identity": identity,
+                "prompt": prompt.model_dump(),
+                "params": sent,
+            }
+            if sample:
+                request["sample"] = sample
+            return await self._fresh(prompt, params, key, slots, label=label, request=request)
 
     async def _fresh(
         self,
         prompt: Prompt,
+        params: GenerationParams,
         key: str,
         slots: asyncio.Semaphore | None,
         *,
@@ -247,7 +265,7 @@ class Runner:
     ) -> Outcome:
         """Generate (with retries) and, on success and given a ``request``, cache it."""
         async with slots or asyncio.Semaphore(1):
-            outcome, latency, attempts = await self._generate(prompt)
+            outcome, latency, attempts = await self._generate(prompt, params)
         if isinstance(outcome, str):
             return Outcome(key, None, error=outcome, attempts=attempts)
         if request is not None and self.cache is not None:
@@ -259,7 +277,9 @@ class Runner:
                 self.cache_write_errors.append(f"{label or key[:12]}: {exc}")
         return Outcome(key, outcome, latency_s=latency, attempts=attempts)
 
-    async def _generate(self, prompt: Prompt) -> tuple[Completion | str, float, int]:
+    async def _generate(
+        self, prompt: Prompt, params: GenerationParams
+    ) -> tuple[Completion | str, float, int]:
         """Try until success, a non-retryable error, or no retries left.
 
         Returns ``(completion or error message, latency_s, attempts)``.
@@ -271,7 +291,7 @@ class Runner:
             attempts += 1
             start = self._clock()
             try:
-                completion = await self.provider.generate(prompt, self.params)
+                completion = await self.provider.generate(prompt, params)
             except ProviderError as exc:
                 retries_used = attempts - 1
                 if not exc.retryable or retries_used >= self.retry.max_retries:

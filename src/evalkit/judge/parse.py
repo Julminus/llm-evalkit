@@ -214,6 +214,20 @@ def _extract(text: str) -> tuple[dict[str, Any], list[str]]:
     raise JudgmentError([problem, _ONLY_ONE])
 
 
+def read_object(text: str) -> tuple[dict[str, Any], list[str]]:
+    """The reply's one JSON object and the syntax repairs it needed.
+
+    The same reading rules as :func:`parse_judgment`, for other reply shapes
+    (the pairwise judge's). Raises only :class:`JudgmentError`.
+    """
+    try:
+        return _extract(text)
+    except JudgmentError:
+        raise
+    except Exception as exc:  # untrusted input: never crash the run on one
+        raise JudgmentError([f"the reply could not be read ({type(exc).__name__})"]) from exc
+
+
 def _show(value: Any) -> str:
     """A short, printable rendering of a value from the reply, for a problem message."""
     try:

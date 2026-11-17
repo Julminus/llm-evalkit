@@ -5,7 +5,10 @@
 * :mod:`evalkit.judge.parse` turns the judge's reply into a validated
   :class:`ParsedJudgment`, repairing syntax slips locally.
 * :mod:`evalkit.judge.core` runs the judge over a suite, re-asking when a
-  reply can't be used, and aggregates the verdicts.
+  reply can't be used, and aggregates the verdicts. With ``samples > 1``
+  it judges each response several times (self-consistency).
+* :mod:`evalkit.judge.pairwise` compares two responses to each case, in
+  both orders, and measures how often the order changes the verdict.
 """
 
 from evalkit.judge.core import (

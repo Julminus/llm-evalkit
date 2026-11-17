@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-from evalkit.judge.parse import JudgmentError, parse_judgment
+from evalkit.judge.parse import JudgmentError, parse_judgment, read_object
 from evalkit.schema import Dimension
 from evalkit.taxonomy import FailureMode
 
@@ -447,3 +447,26 @@ class TestRoundFive:
         with pytest.raises(JudgmentError):
             parse_judgment("```" + " " * 29_986 + "x", IF_FA)
         assert time.perf_counter() - start < 0.5
+
+
+class TestReadObject:
+    def test_same_rules_as_parse_judgment(self) -> None:
+        data, repairs = read_object('```json\n{"winner": "1", "rationale": "r"}\n```')
+        assert data == {"winner": "1", "rationale": "r"}
+        assert repairs == ["removed a code fence"]
+
+    def test_no_object_is_a_judgment_error(self) -> None:
+        with pytest.raises(JudgmentError):
+            read_object("I prefer the first one.")
+
+    def test_an_unexpected_exception_becomes_a_judgment_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import evalkit.judge.parse as parse
+
+        def boom(text: str) -> object:
+            raise RecursionError("deep")
+
+        monkeypatch.setattr(parse, "_extract", boom)
+        with pytest.raises(JudgmentError, match=r"could not be read \(RecursionError\)"):
+            read_object("{}")
