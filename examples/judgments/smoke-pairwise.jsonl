@@ -1,0 +1,18 @@
+{"id": "en-bullets-001", "response": "{\"rationale\": \"Response 1 is a bare list of three distinct benefits; response 2 opens with an introduction the request ruled out.\", \"winner\": \"1\"}"}
+{"id": "en-bullets-001/swapped", "response": "{\"rationale\": \"Response 2 is a bare list; response 1 adds an introduction the request ruled out.\", \"winner\": \"2\"}"}
+{"id": "id-bullets-001", "response": "{\"rationale\": \"Response 1 opens with an introductory line the request ruled out; response 2 is the bare list.\", \"winner\": \"2\"}"}
+{"id": "id-bullets-001/swapped", "response": "{\"rationale\": \"Response 1 is the bare list; response 2 opens with an introduction.\", \"winner\": \"1\"}"}
+{"id": "en-json-001", "response": "```json\n{\"rationale\": \"Both give the right values with age as an integer; the code fence around one is harmless.\", \"winner\": \"Tie\"}\n```"}
+{"id": "id-json-001", "response": "{\"rationale\": \"Response 1 gives umur as the string \\\"34\\\"; response 2 gives the integer the request asked for.\", \"winner\": \"2\"}"}
+{"id": "id-json-001/swapped", "response": "{\"rationale\": \"Response 1 gives umur as an integer; response 2 as a string.\", \"winner\": \"1\"}"}
+{"id": "en-summary-001", "response": "{\"rationale\": \"Both are faithful two-sentence summaries; response 1 also mentions the shared laptops.\", \"winner\": \"1\"}"}
+{"id": "en-summary-001/swapped", "response": "{\"rationale\": \"Both are faithful two-sentence summaries; response 1 reads a little more smoothly.\", \"winner\": \"1\"}"}
+{"id": "id-summary-001", "response": "{\"rationale\": \"Both are faithful and within two sentences; neither is clearly better.\", \"winner\": \"tie\"}"}
+{"id": "en-math-001", "response": "{\"rationale\": \"Response 1 puts the number in a sentence although the request asked for the number only; response 2 is the bare number.\", \"winner\": \"2\"}"}
+{"id": "en-math-001/swapped", "response": "{\"rationale\": \"Response 1 is the bare number; response 2 puts it in a sentence.\", \"winner\": \"1\"}"}
+{"id": "id-citation-001", "response": "{\"rationale\": \"Response 1 cites Pasal 2, which holds the 14-day rule; response 2 cites Pasal 3, which is about carrying leave over.\", \"winner\": \"1\"}"}
+{"id": "id-citation-001/swapped", "response": "{\"rationale\": \"Response 2 cites the right article (Pasal 2); response 1 cites Pasal 3.\", \"winner\": \"2\"}"}
+{"id": "en-explain-001", "response": "{\"rationale\": \"Response 1 has the two paragraphs asked for; response 2 is a single paragraph.\", \"winner\": \"1\"}"}
+{"id": "en-explain-001/swapped", "response": "{\"rationale\": \"Response 2 has the two paragraphs asked for; response 1 is one paragraph.\", \"winner\": \"2\"}"}
+{"id": "id-explain-001", "response": "{\"rationale\": \"Response 1 is in English although the request is in Indonesian; response 2 answers in Indonesian.\", \"winner\": \"2\"}"}
+{"id": "id-explain-001/swapped", "response": "{\"rationale\": \"Response 1 answers in Indonesian; response 2 is in English.\", \"winner\": \"1\"}"}

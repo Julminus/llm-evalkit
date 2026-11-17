@@ -1,8 +1,12 @@
-"""Command-line interface: ``evalkit validate | check | run | judge | list-checks | taxonomy``.
+"""Command-line interface.
 
-Exit codes: 0 = success; 1 = a suite/responses file is invalid, a provider
-can't be set up, a case got no response (``run``) or no judgment
-(``judge``, which also fails if no response matches a case), or (with
+``evalkit validate | check | run | judge | consistency | pairwise | agree |
+labels | list-checks | taxonomy``.
+
+Exit codes: 0 = success; 1 = a suite/responses/labels file is invalid, a
+provider can't be set up, a case got no response (``run``) or no judgment
+(``judge``, ``consistency``, ``pairwise``, which also fail if nothing matches
+a case), ``agree`` found no case rated in both files, or (with
 ``--strict``) at least one case failed its checks or, for ``check``, had no
 response, or a response matched no case; 130 = interrupted. Typer itself
 uses 2 for bad usage.
@@ -26,6 +30,15 @@ from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn, T
 from rich.table import Table
 
 from evalkit import __version__
+from evalkit.agreement import (
+    AgreementReport,
+    ConsistencyReport,
+    LabelsError,
+    compare,
+    load_ratings,
+    write_label_sheet,
+)
+from evalkit.agreement import consistency as consistency_report
 from evalkit.cache import ResponseCache
 from evalkit.checks import CHECK_TYPES, Status
 from evalkit.evaluate import CheckSummary, ResponsesError, check_case, check_suite, load_responses
@@ -37,6 +50,7 @@ from evalkit.judge import (
     build_judge_prompt,
     judge_suite,
 )
+from evalkit.judge.pairwise import PairRecord, PairwiseResult, build_pairwise_prompt, judge_pairs
 from evalkit.providers import (
     GenerationParams,
     MockProvider,
@@ -46,7 +60,7 @@ from evalkit.providers import (
     make_provider,
     parse_spec,
 )
-from evalkit.runner import RetryPolicy, RunRecord, RunResult, run_suite
+from evalkit.runner import RetryPolicy, RunRecord, RunResult, make_run_id, run_suite
 from evalkit.schema import Dimension, EvalCase, Suite, SuiteError, load_suite
 from evalkit.taxonomy import CHECKABLE, DESCRIPTIONS, FailureMode
 
@@ -105,6 +119,35 @@ CaseIds = Annotated[
     list[str] | None, typer.Option("--case", help="Only this case id (repeatable).")
 ]
 AsJson = Annotated[bool, typer.Option("--json", help="Print JSON instead of tables.")]
+
+# Options shared by `judge`, `consistency` and `pairwise`.
+JudgeSpec = Annotated[
+    str,
+    typer.Option(
+        "--judge",
+        "-j",
+        help="The judge model: mock | ollama:MODEL | openai:MODEL | anthropic:MODEL.",
+    ),
+]
+NoChecks = Annotated[
+    bool,
+    typer.Option("--no-checks", help="Don't show the judge the deterministic check results."),
+]
+MaxReasks = Annotated[
+    int, typer.Option(min=0, help="Times to re-ask the judge after an unusable reply.")
+]
+JudgeMaxTokens = Annotated[
+    int | None,
+    typer.Option(min=1, help="Token limit per judge reply. Default: the provider's."),
+]
+MaxResponseChars = Annotated[
+    int,
+    typer.Option(
+        min=0,
+        help="Show the judge at most this many characters of each response "
+        "(0 = no limit). The checks always see all of it.",
+    ),
+]
 
 
 def _version_callback(value: bool) -> None:
@@ -541,6 +584,39 @@ def _build_judge(
         raise _exit_error(str(exc)) from exc
 
 
+def _responses_or_exit(path: Path) -> dict[str, str]:
+    try:
+        return load_responses(path)
+    except ResponsesError as exc:
+        raise _exit_error(str(exc)) from exc
+
+
+def _make_judge(
+    provider: Provider,
+    *,
+    temperature: float | None,
+    seed: int | None,
+    max_tokens: int | None,
+    concurrency: int,
+    retries: int,
+    cache_dir: Path | None,
+    include_checks: bool,
+    max_reasks: int,
+    max_response_chars: int | None,
+) -> Judge:
+    params = _params_for(provider, temperature=temperature, seed=seed, max_tokens=max_tokens)
+    return Judge(
+        provider,
+        params=params,
+        concurrency=concurrency,
+        retry=RetryPolicy(max_retries=retries),
+        cache=None if cache_dir is None else ResponseCache(cache_dir),
+        include_checks=include_checks,
+        max_reasks=max_reasks,
+        max_response_chars=max_response_chars,
+    )
+
+
 def _modes_text(record: JudgeRecord) -> str:
     return "\n".join(f"{mode.value} ({source})" for mode, source in record.sources().items())
 
@@ -639,35 +715,13 @@ def _print_judgments(result: JudgeResult, judge: Judge, *, verbose: bool) -> Non
 def judge(
     suite_path: SuitePath,
     responses_path: ResponsesPath,
-    judge_spec: Annotated[
-        str,
-        typer.Option(
-            "--judge",
-            "-j",
-            help="The judge model: mock | ollama:MODEL | openai:MODEL | anthropic:MODEL.",
-        ),
-    ],
-    no_checks: Annotated[
-        bool,
-        typer.Option("--no-checks", help="Don't show the judge the deterministic check results."),
-    ] = False,
-    max_reasks: Annotated[
-        int, typer.Option(min=0, help="Times to re-ask the judge after an unusable reply.")
-    ] = 2,
+    judge_spec: JudgeSpec,
+    no_checks: NoChecks = False,
+    max_reasks: MaxReasks = 2,
     temperature: Temperature = None,
     seed: Seed = None,
-    max_tokens: Annotated[
-        int | None,
-        typer.Option(min=1, help="Token limit per judge reply. Default: the provider's."),
-    ] = None,
-    max_response_chars: Annotated[
-        int,
-        typer.Option(
-            min=0,
-            help="Show the judge at most this many characters of each response "
-            "(0 = no limit). The checks always see all of it.",
-        ),
-    ] = DEFAULT_MAX_RESPONSE_CHARS,
+    max_tokens: JudgeMaxTokens = None,
+    max_response_chars: MaxResponseChars = DEFAULT_MAX_RESPONSE_CHARS,
     concurrency: Concurrency = 4,
     retries: Retries = 3,
     timeout: Timeout = 300.0,
@@ -693,10 +747,7 @@ def judge(
     """Score responses 1-5 with an LLM judge and tag their failure modes."""
     suite = _load_or_exit(suite_path)
     selected = _selected_or_exit(suite, suite_path, case)
-    try:
-        responses = load_responses(responses_path)
-    except ResponsesError as exc:
-        raise _exit_error(str(exc)) from exc
+    responses = _responses_or_exit(responses_path)
     cut_at = max_response_chars or None
     provider = _build_judge(
         judge_spec,
@@ -708,13 +759,14 @@ def judge(
         timeout=timeout,
         base_url=base_url,
     )
-    params = _params_for(provider, temperature=temperature, seed=seed, max_tokens=max_tokens)
-    judge_ = Judge(
+    judge_ = _make_judge(
         provider,
-        params=params,
+        temperature=temperature,
+        seed=seed,
+        max_tokens=max_tokens,
         concurrency=concurrency,
-        retry=RetryPolicy(max_retries=retries),
-        cache=None if no_cache else ResponseCache(cache_dir),
+        retries=retries,
+        cache_dir=None if no_cache else cache_dir,
         include_checks=not no_checks,
         max_reasks=max_reasks,
         max_response_chars=cut_at,
@@ -763,6 +815,610 @@ def judge(
         # Judging nothing is a wrong responses file, not a pass.
         raise _exit_error("nothing to judge: no selected case has a response in the file")
     if result.summary.errors:
+        raise typer.Exit(1)
+
+
+def _num(value: float | None, digits: int = 2) -> str:
+    return "-" if value is None else f"{value:.{digits}f}"
+
+
+def _with_ci(value: float | None, ci: list[float] | None) -> str:
+    if value is None:
+        return "-"
+    return f"{value:.2f}" + (f" [{ci[0]:.2f}, {ci[1]:.2f}]" if ci else "")
+
+
+def _print_agreement(report: AgreementReport, *, verbose: bool) -> None:
+    console.print(
+        f"judge: [bold]{escape(report.judge)}[/]\nreference: [bold]{escape(report.reference)}[/]"
+    )
+    console.print(f"{report.matched} cases rated by both")
+    table = Table(title="Scores: judge vs reference")
+    table.add_column("")
+    for name in ("n", "exact", "±1", "kappa", "quadratic kappa", "Spearman", "mean ref/judge"):
+        table.add_column(name, justify="right")
+    for dim, d in report.dimensions.items():
+        table.add_row(
+            _DIM_SHORT[dim],
+            str(d.n),
+            f"{d.exact / d.n:.0%}",
+            f"{d.within_1 / d.n:.0%}",
+            _num(d.kappa),
+            _with_ci(d.kappa_quadratic, d.kappa_quadratic_ci),
+            _with_ci(d.spearman, d.spearman_ci),
+            f"{_num(d.mean_reference)}/{_num(d.mean_judge)}",
+        )
+    console.print(table)
+    legend = ", ".join(f"{s} = {d.value}" for d, s in _DIM_SHORT.items())
+    console.print(f"[dim]{legend}[/]")
+    intervals = (
+        f"[95% CI]: percentile bootstrap over {report.resamples} resamples of cases "
+        f"(seed {report.seed}); "
+        if report.resamples
+        else ""
+    )
+    console.print(
+        f"[dim]{intervals}'-' = undefined (a rater gave everything one score); "
+        "linear kappa is in --json[/]"
+    )
+    for lang, dims in report.by_language.items():
+        parts = [
+            f"{_DIM_SHORT[dim]} n {d.n}, exact {d.exact}, quadratic kappa {_num(d.kappa_quadratic)}"
+            for dim, d in dims.items()
+        ]
+        console.print(f"  {lang}: " + "; ".join(parts))
+    tagged = {
+        m: a for m, a in report.failure_modes.items() if a.both or a.judge_only or a.reference_only
+    }
+    if tagged:
+        modes = Table(title="Failure modes: does each apply?")
+        modes.add_column("failure mode")
+        modes.add_column("decided by")
+        for name in ("both", "judge only", "ref only", "kappa", "precision", "recall"):
+            modes.add_column(name, justify="right")
+        for mode, m in tagged.items():
+            modes.add_row(
+                mode.value,
+                m.decided_by,
+                str(m.both),
+                str(m.judge_only),
+                str(m.reference_only),
+                _num(m.kappa),
+                _num(m.precision),
+                _num(m.recall),
+            )
+        console.print(modes)
+    if report.failure_modes:
+        n = next(iter(report.failure_modes.values())).n
+        untagged = [m.value for m in report.failure_modes if m not in tagged]
+        quiet = f"; neither tagged {', '.join(untagged)}" if untagged else ""
+        console.print(f"[dim]failure modes over the {n} cases both labelled{quiet}[/]")
+    if verbose:
+        for dim, d in report.dimensions.items():
+            grid = Table(title=f"{dim.value}: rows = reference, columns = judge", box=None)
+            grid.add_column("")
+            for score in range(1, 6):
+                grid.add_column(str(score), justify="right")
+            for score, row in zip(range(1, 6), d.confusion, strict=True):
+                grid.add_row(str(score), *(str(c) if c else "." for c in row))
+            console.print(grid)
+    for note in report.notes:
+        console.print(f"[dim]note: {escape(note)}[/]")
+    for label, ids in (
+        ("only the judge rated", report.only_judge),
+        ("only the reference rated", report.only_reference),
+        ("not labelled yet (skipped)", report.skipped_reference),
+        ("no judgment (judge error, skipped)", report.skipped_judge),
+    ):
+        if ids:
+            shown = ", ".join(ids[:10]) + (f" and {len(ids) - 10} more" if len(ids) > 10 else "")
+            console.print(f"[yellow]{label} ({len(ids)}):[/] {escape(shown)}")
+
+
+@app.command()
+def agree(
+    judgments_path: Annotated[
+        Path,
+        typer.Argument(
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            help="judgments.jsonl from `evalkit judge` (the rater under test).",
+        ),
+    ],
+    reference_path: Annotated[
+        Path,
+        typer.Argument(
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            help="The reference: a labels .csv (see `evalkit labels`) or another judgments.jsonl.",
+        ),
+    ],
+    sample: Annotated[
+        int, typer.Option(min=0, help="With several samples per case, compare this one.")
+    ] = 0,
+    resamples: Annotated[
+        int, typer.Option(min=0, help="Bootstrap resamples for the intervals (0 = none).")
+    ] = 2000,
+    seed: Annotated[int, typer.Option(help="Bootstrap seed.")] = 0,
+    as_json: AsJson = False,
+    verbose: Annotated[
+        bool, typer.Option("--verbose", "-v", help="Print the confusion matrices.")
+    ] = False,
+) -> None:
+    """Agreement between a judge and a reference: kappa, Spearman, confusion matrices."""
+    try:
+        judged = load_ratings(judgments_path, sample=sample)
+        reference = load_ratings(reference_path, sample=sample)
+    except LabelsError as exc:
+        raise _exit_error(str(exc)) from exc
+    report = compare(judged, reference, resamples=resamples, seed=seed)
+    if as_json:
+        typer.echo(_dumps(report.to_dict()))
+    else:
+        _print_agreement(report, verbose=verbose)
+    if not report.matched:
+        raise _exit_error("no case is rated in both files: check that they are for the same suite")
+
+
+@app.command()
+def labels(
+    suite_path: SuitePath,
+    responses_path: ResponsesPath,
+    out: Annotated[Path, typer.Option("--out", "-o", help="The CSV to write.")],
+    case: CaseIds = None,
+    force: Annotated[
+        bool, typer.Option("--force", help="Overwrite the file if it exists.")
+    ] = False,
+) -> None:
+    """Write an empty labels sheet (CSV) for hand-labelling responses, for `evalkit agree`."""
+    suite = _load_or_exit(suite_path)
+    selected = _selected_or_exit(suite, suite_path, case)
+    responses = _responses_or_exit(responses_path)
+    if out.exists() and not force:
+        # It may hold hours of labelling.
+        raise _exit_error(f"{out} exists; pass --force to overwrite it")
+    rows = [
+        {"id": c.id, "language": c.language, "prompt": c.prompt, "response": responses[c.id]}
+        for c in selected
+        if c.id in responses
+    ]
+    if not rows:
+        raise _exit_error("no selected case has a response in the file")
+    by_id = {c.id: c for c in selected}
+
+    def scored(case_id: str) -> list[Dimension]:
+        rubric = by_id[case_id].rubric
+        return rubric.dimensions if rubric is not None else list(Dimension)
+
+    try:
+        n = write_label_sheet(out, rows, scored=scored)
+    except OSError as exc:
+        raise _exit_error(f"could not write {out}: {exc}") from exc
+    console.print(
+        f"wrote {n} rows to {escape(str(out))}: fill in the score columns (1-5) and "
+        "failure_modes, then run `evalkit agree JUDGMENTS LABELS`"
+    )
+
+
+def _print_consistency(report: ConsistencyReport, *, verbose: bool) -> None:
+    table = Table(title=f"Self-consistency: {report.samples} samples per case")
+    table.add_column("")
+    for name in (
+        "cases",
+        "all agree",
+        "= mode",
+        "mean SD",
+        "mean range",
+        "max range",
+        "range >=2",
+    ):
+        table.add_column(name, justify="right")
+    for dim, d in report.dimensions.items():
+        if not d.cases:
+            continue
+        table.add_row(
+            _DIM_SHORT[dim],
+            str(d.cases),
+            f"{d.all_same} ({d.all_same / d.cases:.0%})",
+            f"{d.mode_share:.0%}" if d.mode_share is not None else "-",
+            _num(d.mean_sd),
+            _num(d.mean_range),
+            str(d.max_range),
+            str(d.range_2_plus),
+        )
+    console.print(table)
+    console.print(
+        "[dim]all agree: cases whose samples all gave one score; = mode: share of samples "
+        "equal to their case's most common score; range: highest minus lowest score of a case[/]"
+    )
+    shown = [
+        f"{mode.value}: always {m.always}, sometimes {m.sometimes}, never {m.never}"
+        for mode, m in report.failure_modes.items()
+        if m.always or m.sometimes
+    ]
+    if shown:
+        console.print("judge tags across samples (judge-owned modes):")
+        for line in shown:
+            console.print(f"  {line}")
+    console.print(f"{len(report.unstable)} of {report.cases} cases changed a score between samples")
+    if verbose:
+        for case_id, dims in report.unstable.items():
+            parts = [f"{_DIM_SHORT[d]} {' '.join(map(str, s))}" for d, s in dims.items()]
+            console.print(f"  {escape(case_id)}: {'; '.join(parts)}")
+
+
+@app.command()
+def consistency(
+    suite_path: SuitePath,
+    responses_path: ResponsesPath,
+    judge_spec: JudgeSpec,
+    samples: Annotated[
+        int, typer.Option("--samples", "-n", min=2, help="Judgments per response.")
+    ] = 5,
+    temperature: Annotated[
+        float,
+        typer.Option(min=0.0, max=2.0, help="Sampling temperature (where the judge accepts one)."),
+    ] = 0.7,
+    seed: Annotated[
+        int | None,
+        typer.Option(help="First seed; sample i uses seed + i. Default: 0 where accepted."),
+    ] = None,
+    no_checks: NoChecks = False,
+    max_reasks: MaxReasks = 2,
+    max_tokens: JudgeMaxTokens = None,
+    max_response_chars: MaxResponseChars = DEFAULT_MAX_RESPONSE_CHARS,
+    concurrency: Concurrency = 4,
+    retries: Retries = 3,
+    timeout: Timeout = 300.0,
+    base_url: BaseUrl = None,
+    cache_dir: CacheDir = Path(".evalkit-cache"),
+    no_cache: NoCache = False,
+    out: OutDir = Path("runs"),
+    run_id: RunId = None,
+    case: CaseIds = None,
+    mock_judgments: Annotated[
+        Path | None,
+        typer.Option(
+            exists=True,
+            dir_okay=False,
+            help='With --judge mock: JSONL of {"id", "response"}, the judge reply for each case.',
+        ),
+    ] = None,
+    as_json: AsJson = False,
+    verbose: Annotated[
+        bool, typer.Option("--verbose", "-v", help="List the scores of every unstable case.")
+    ] = False,
+) -> None:
+    """Judge each response several times and measure how much the scores move."""
+    suite = _load_or_exit(suite_path)
+    selected = _selected_or_exit(suite, suite_path, case)
+    responses = _responses_or_exit(responses_path)
+    cut_at = max_response_chars or None
+    provider = _build_judge(
+        judge_spec,
+        selected=selected,
+        responses=responses,
+        include_checks=not no_checks,
+        max_response_chars=cut_at,
+        mock_judgments=mock_judgments,
+        timeout=timeout,
+        base_url=base_url,
+    )
+    if temperature == 0 and "temperature" in provider.supported_params:
+        err_console.print(
+            "[yellow]note:[/] at temperature 0 the samples are expected to be identical; "
+            "this measures determinism, not how much the judge's scores vary"
+        )
+    judge_ = _make_judge(
+        provider,
+        temperature=temperature,
+        seed=seed,
+        max_tokens=max_tokens,
+        concurrency=concurrency,
+        retries=retries,
+        cache_dir=None if no_cache else cache_dir,
+        include_checks=not no_checks,
+        max_reasks=max_reasks,
+        max_response_chars=cut_at,
+    )
+    progress = _progress()
+    total = sum(c.id in responses for c in selected) * samples
+    task = progress.add_task(f"judge {escape(provider.spec)} x{samples}", total=total)
+
+    def advance(_: JudgeRecord) -> None:
+        progress.advance(task)
+
+    async def main() -> JudgeResult:
+        async with provider:
+            await provider.preflight()
+            return await judge_suite(
+                suite,
+                responses,
+                judge_,
+                out_dir=out,
+                run_id=run_id or _run_id(provider, "consistency"),
+                case_ids=[c.id for c in selected] if case else None,
+                suite_path=suite_path,
+                responses_path=responses_path,
+                on_record=advance,
+                samples=samples,
+            )
+
+    result = _run_async(main, progress, what="judgments")
+    report = consistency_report(result.records)
+    if as_json:
+        payload = {
+            "run": {
+                "run_id": result.run_id,
+                "run_dir": str(result.run_dir) if result.run_dir else None,
+                "judge": provider.spec,
+                "params": judge_.runner.params.explicit(),
+                "duration_s": result.duration_s,
+                "counts": result.counts(),
+                "warnings": result.warnings,
+            },
+            "consistency": report.to_dict(),
+        }
+        typer.echo(_dumps(payload))
+    else:
+        _print_consistency(report, verbose=verbose)
+        sent = provider.effective_params(judge_.runner.params)
+        first_seed = sent.get("seed")
+        seeds = f", seeds {first_seed}-{first_seed + samples - 1}" if first_seed is not None else ""
+        shown_t = sent.get("temperature", "the provider's default")
+        console.print(
+            f"run [bold]{escape(result.run_id)}[/] ({escape(provider.spec)}, temperature "
+            f"{shown_t}{seeds}): {len(result.records)} judgments in {result.duration_s:.1f} s"
+        )
+        for warning in result.warnings:
+            err_console.print(f"[yellow]warning:[/] {escape(warning)}")
+        for record in result.summary.errors:
+            err_console.print(
+                f"[red]no judgment[/] {escape(record.id)} (sample {record.sample}): "
+                f"{escape(record.error or '')}"
+            )
+        if result.run_dir is not None:
+            console.print(f"log: {escape(str(result.run_dir / 'judgments.jsonl'))}")
+    if not result.records:
+        raise _exit_error("nothing to judge: no selected case has a response in the file")
+    if result.summary.errors:
+        raise typer.Exit(1)
+
+
+def _run_id(provider: Provider, kind: str) -> str:
+    """`20261118T010000Z-<kind>-ollama-qwen2.5-14b`."""
+    stamp, _, slug = make_run_id(provider).partition("-")
+    return f"{stamp}-{kind}-{slug}"
+
+
+def _default_name(path: Path) -> str:
+    """A run log is ``runs/<run_id>/responses.jsonl``: name it after the run."""
+    return path.parent.name if path.name == "responses.jsonl" else path.stem
+
+
+def _build_pairwise_judge(
+    spec: str,
+    *,
+    selected: list[EvalCase],
+    responses: tuple[dict[str, str], dict[str, str]],
+    include_checks: bool,
+    max_response_chars: int | None,
+    mock_judgments: Path | None,
+    timeout: float,
+    base_url: str | None,
+) -> Provider:
+    """With ``--mock-judgments``, reply to case ``ID`` with the canned reply for
+    ``ID`` when A is shown first, and for ``ID/swapped`` (else ``ID``) when B is."""
+    try:
+        if mock_judgments is None:
+            return make_provider(spec, timeout=timeout, base_url=base_url)
+        name, model = parse_spec(spec)
+        if name != "mock":
+            raise ProviderConfigError("--mock-judgments only works with --judge mock")
+        canned = load_responses(mock_judgments)
+        table = {}
+        a, b = responses
+        for c in selected:
+            if c.id not in canned or c.id not in a or c.id not in b:
+                continue
+            for first, second, reply in (
+                (b[c.id], a[c.id], canned.get(f"{c.id}/swapped", canned[c.id])),
+                (a[c.id], b[c.id], canned[c.id]),
+            ):
+                prompt = build_pairwise_prompt(
+                    c,
+                    first,
+                    second,
+                    include_checks=include_checks,
+                    max_response_chars=max_response_chars,
+                )
+                table[prompt] = reply
+        return MockProvider(model, table)
+    except (ProviderConfigError, ResponsesError) as exc:
+        raise _exit_error(str(exc)) from exc
+
+
+_SIDE = {"a": "A", "b": "B", "tie": "tie", None: "-"}
+_VERDICT_STYLE = {"a": "A", "b": "B", "tie": "tie", "inconsistent": "[yellow]flip[/]"}
+
+
+def _print_pairs(result: PairwiseResult, judge: Judge) -> None:
+    s = result.summary
+    console.print(f"A = [bold]{escape(s.name_a)}[/], B = [bold]{escape(s.name_b)}[/]")
+    table = Table(title=f"Pairwise judge: {escape(judge.provider.spec)}")
+    table.add_column("case")
+    table.add_column("lang")
+    table.add_column("checks A / B")
+    table.add_column("A shown first")
+    table.add_column("B shown first")
+    table.add_column("verdict")
+    for r in result.records:
+        cells = [_SIDE[o.winner] if o.ok else "[red]error[/]" for o in r.orders]
+        verdict = _VERDICT_STYLE[r.verdict] if r.verdict is not None else "[red]none[/]"
+        checks = (
+            f"[{_STATUS_STYLE[r.check_status_a]}]{r.check_status_a}[/] / "
+            f"[{_STATUS_STYLE[r.check_status_b]}]{r.check_status_b}[/]"
+        )
+        table.add_row(
+            r.id + (" (same text)" if r.identical else ""), r.language, checks, *cells, verdict
+        )
+    console.print(table)
+    v = s.verdicts()
+    usable = len(s.usable)
+    console.print(
+        f"{usable}/{len(s.records)} pairs judged in both orders: A wins {v['a']}, B wins {v['b']}, "
+        f"ties {v['tie']}, flips {v['inconsistent']}"
+    )
+    if usable:
+        console.print(f"win rate A: {_num(s.win_rate_a(), 3)} (ties and flips count half)")
+        for lang in s.languages():
+            lv = s.verdicts(lang)
+            console.print(
+                f"  {lang}: A {lv['a']}, B {lv['b']}, ties {lv['tie']}, flips "
+                f"{lv['inconsistent']}; win rate A {_num(s.win_rate_a(lang), 3)}"
+            )
+        f = s.flips()
+        console.print(
+            f"flip rate: {v['inconsistent']}/{usable} = {_num(s.flip_rate(), 3)} "
+            f"(position 1 won both times {f['first']}, position 2 both times {f['second']}, "
+            f"a tie in one order {f['tie_once']})"
+        )
+        p = s.positions()
+        console.print(
+            f"over {sum(p.values())} judgments the judge chose position 1 {p['1']} times, "
+            f"position 2 {p['2']} times, a tie {p['tie']} times"
+        )
+    if s.missing:
+        console.print(f"[yellow]not in both files:[/] {escape(', '.join(s.missing))}")
+    c = result.counts()
+    console.print(
+        f"run [bold]{escape(result.run_id)}[/]: {c['judgments']} judgments in "
+        f"{result.duration_s:.1f} s; {c['requests']} requests, {c['cached']} from cache, "
+        f"{c['reasks']} re-asks; {c['input_tokens']} input / {c['output_tokens']} output tokens"
+    )
+    for warning in result.warnings:
+        err_console.print(f"[yellow]warning:[/] {escape(warning)}")
+    for r in result.records:
+        for o in r.orders:
+            if not o.ok:
+                first = "A" if o.first == "a" else "B"
+                err_console.print(
+                    f"[red]no judgment[/] {escape(r.id)} ({first} shown first): "
+                    f"{escape(o.error or '')}"
+                )
+    if result.run_dir is not None:
+        console.print(f"log: {escape(str(result.run_dir / 'pairs.jsonl'))}")
+
+
+@app.command()
+def pairwise(
+    suite_path: SuitePath,
+    responses_a: ResponsesPath,
+    responses_b: ResponsesPath,
+    judge_spec: JudgeSpec,
+    name_a: Annotated[str | None, typer.Option(help="A's name. Default: from the file.")] = None,
+    name_b: Annotated[str | None, typer.Option(help="B's name. Default: from the file.")] = None,
+    no_checks: NoChecks = False,
+    max_reasks: MaxReasks = 2,
+    temperature: Temperature = None,
+    seed: Seed = None,
+    max_tokens: JudgeMaxTokens = None,
+    max_response_chars: MaxResponseChars = DEFAULT_MAX_RESPONSE_CHARS,
+    concurrency: Concurrency = 4,
+    retries: Retries = 3,
+    timeout: Timeout = 300.0,
+    base_url: BaseUrl = None,
+    cache_dir: CacheDir = Path(".evalkit-cache"),
+    no_cache: NoCache = False,
+    out: OutDir = Path("runs"),
+    run_id: RunId = None,
+    case: CaseIds = None,
+    mock_judgments: Annotated[
+        Path | None,
+        typer.Option(
+            exists=True,
+            dir_okay=False,
+            help='With --judge mock: JSONL of {"id", "response"}: the reply for each case '
+            'with A shown first, and for "ID/swapped" with B shown first.',
+        ),
+    ] = None,
+    as_json: AsJson = False,
+) -> None:
+    """Compare two sets of responses case by case, in both orders, and measure position bias."""
+    suite = _load_or_exit(suite_path)
+    selected = _selected_or_exit(suite, suite_path, case)
+    resp_a = _responses_or_exit(responses_a)
+    resp_b = _responses_or_exit(responses_b)
+    names = (name_a or _default_name(responses_a), name_b or _default_name(responses_b))
+    cut_at = max_response_chars or None
+    provider = _build_pairwise_judge(
+        judge_spec,
+        selected=selected,
+        responses=(resp_a, resp_b),
+        include_checks=not no_checks,
+        max_response_chars=cut_at,
+        mock_judgments=mock_judgments,
+        timeout=timeout,
+        base_url=base_url,
+    )
+    judge_ = _make_judge(
+        provider,
+        temperature=temperature,
+        seed=seed,
+        max_tokens=max_tokens,
+        concurrency=concurrency,
+        retries=retries,
+        cache_dir=None if no_cache else cache_dir,
+        include_checks=not no_checks,
+        max_reasks=max_reasks,
+        max_response_chars=cut_at,
+    )
+    progress = _progress()
+    total = sum(c.id in resp_a and c.id in resp_b for c in selected)
+    task = progress.add_task(f"pairwise {escape(provider.spec)}", total=total)
+
+    def advance(_: PairRecord) -> None:
+        progress.advance(task)
+
+    async def main() -> PairwiseResult:
+        async with provider:
+            await provider.preflight()
+            return await judge_pairs(
+                suite,
+                resp_a,
+                resp_b,
+                judge_,
+                names=names,
+                out_dir=out,
+                run_id=run_id,
+                case_ids=[c.id for c in selected] if case else None,
+                suite_path=suite_path,
+                paths=(responses_a, responses_b),
+                on_record=advance,
+            )
+
+    result = _run_async(main, progress, what="pairs")
+    if as_json:
+        payload = {
+            "run": {
+                "run_id": result.run_id,
+                "run_dir": str(result.run_dir) if result.run_dir else None,
+                "judge": provider.spec,
+                "duration_s": result.duration_s,
+                "counts": result.counts(),
+                "warnings": result.warnings,
+            },
+            "summary": result.summary.to_dict(),
+            "pairs": [{**r.model_dump(mode="json"), "verdict": r.verdict} for r in result.records],
+        }
+        typer.echo(_dumps(payload))
+    else:
+        _print_pairs(result, judge_)
+    if not result.records:
+        raise _exit_error("nothing to compare: no selected case has a response in both files")
+    if any(not r.ok for r in result.records):
         raise typer.Exit(1)
 
 

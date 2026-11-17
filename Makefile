@@ -4,10 +4,11 @@
 SUITE ?= examples/suites/smoke.yaml
 RESPONSES ?= examples/responses/smoke.jsonl
 JUDGMENTS ?= examples/judgments/smoke.jsonl
+RESPONSES_B ?= examples/responses/smoke-b.jsonl
 MODEL ?= qwen2.5:7b
 JUDGE ?= qwen2.5:14b
 
-.PHONY: help setup lint format typecheck test cov run run-ollama judge judge-ollama docker clean
+.PHONY: help setup lint format typecheck test cov run run-ollama judge judge-ollama pairwise consistency docker clean
 
 help:
 	@echo "setup       install deps + pre-commit hooks"
@@ -19,6 +20,8 @@ help:
 	@echo "run-ollama  run SUITE on a local Ollama model (MODEL=qwen2.5:7b)"
 	@echo "judge       judge the example responses with the mock judge (canned replies)"
 	@echo "judge-ollama  judge RESPONSES with a local Ollama judge (JUDGE=qwen2.5:14b)"
+	@echo "pairwise    compare RESPONSES with RESPONSES_B in both orders (mock judge)"
+	@echo "consistency judge each example response 3 times (mock judge)"
 	@echo "docker      build the CLI image"
 
 setup:
@@ -52,6 +55,12 @@ judge:
 
 judge-ollama:
 	uv run evalkit judge $(SUITE) $(RESPONSES) -j ollama:$(JUDGE)
+
+pairwise:
+	uv run evalkit pairwise $(SUITE) $(RESPONSES) $(RESPONSES_B) -j mock --mock-judgments examples/judgments/smoke-pairwise.jsonl
+
+consistency:
+	uv run evalkit consistency $(SUITE) $(RESPONSES) -j mock --mock-judgments $(JUDGMENTS) -n 3
 
 docker:
 	docker build -t llm-evalkit:dev .

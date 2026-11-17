@@ -1,0 +1,10 @@
+{"id": "en-bullets-001", "response": "Here are three benefits:\n- Bugs are found early\n- Refactoring is safer\n- Tests document the code"}
+{"id": "id-bullets-001", "response": "- Bug ditemukan lebih awal\n- Refaktor jadi lebih aman\n- Tes menjadi dokumentasi perilaku kode"}
+{"id": "en-json-001", "response": "{\"name\": \"Ayu\", \"age\": 21, \"city\": \"Yogyakarta\"}"}
+{"id": "id-json-001", "response": "{\"nama\": \"Budi\", \"umur\": 34, \"kota\": \"Bandung\"}"}
+{"id": "en-summary-001", "response": "Summary: A free weekend coding club at the town library grew from 8 to 35 teenagers by March. It now meets on Saturday mornings and Sunday afternoons."}
+{"id": "id-summary-001", "response": "Ringkasan: Klub coding gratis di perpustakaan kota, yang diajar relawan universitas, bertambah dari 8 menjadi 35 peserta hingga Maret. Karena itu dibuka sesi kedua pada Minggu sore."}
+{"id": "en-math-001", "response": "40.000"}
+{"id": "id-citation-001", "response": "Cuti harus diajukan paling lambat 14 hari sebelum tanggal cuti [Pasal 3]. Semoga membantu."}
+{"id": "en-explain-001", "response": "An API is how one program asks another for something, like a waiter taking your order to the kitchen and bringing back your food. It lets teams reuse systems that already exist instead of building everything again."}
+{"id": "id-explain-001", "response": "API adalah cara satu aplikasi meminta sesuatu dari aplikasi lain, seperti pelayan restoran yang membawa pesanan Anda ke dapur lalu mengantarkan makanannya.\n\nBagi perusahaan, API membuat tim bisa memakai sistem yang sudah ada tanpa membangunnya dari awal."}
