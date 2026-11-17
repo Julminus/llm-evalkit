@@ -1,0 +1,11 @@
+id,language,instruction_following,reasoning_quality,faithfulness,helpfulness,failure_modes,labeler,notes
+en-bullets-001,en,5,5,5,5,,claude-example,"Three distinct benefits, bare list, 21 words."
+id-bullets-001,id,3,5,5,4,format_error,claude-example,"Opens with ""Berikut tiga manfaatnya:"", which the request ruled out."
+en-json-001,en,4,n/a,5,n/a,,claude-example,"Right values; asked for JSON only, sent a code fence around it."
+id-json-001,id,3,n/a,5,n/a,format_error,claude-example,"umur is the string ""34"", not an integer."
+en-summary-001,en,5,5,5,5,,claude-example,Two faithful sentences; mentions the growth.
+id-summary-001,id,5,5,5,5,,claude-example,Two faithful sentences; mentions the growth and the Sunday session.
+en-math-001,en,3,5,n/a,n/a,format_error,claude-example,"Right number, but wrapped in a sentence: ""number only"" was asked."
+id-citation-001,id,5,n/a,5,5,,claude-example,"Cites Pasal 2, ends with ""Semoga membantu."""
+en-explain-001,en,5,5,5,5,,claude-example,"Two paragraphs, menu analogy, no forbidden words."
+id-explain-001,id,2,5,5,2,language_mismatch,claude-example,Answers an Indonesian request in English.
