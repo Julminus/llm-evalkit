@@ -35,8 +35,9 @@ and is skipped, so a half-filled sheet can be compared as it stands; when
 that leaves rows the judge rated out of the failure-mode comparison,
 :func:`compare` warns (a blank row can't also mean "no mode applies"). The
 delimiter is read from the header, since a spreadsheet in an Indonesian
-locale saves CSV with ``;``. :func:`load_ratings` tells a judgments file
-from a sheet by its first character (``{``), not its name.
+locale saves CSV with ``;``. :func:`load_ratings` goes by the suffix
+(``.csv``/``.tsv`` sheets, ``.jsonl``/``.json`` judgments) and, for any other
+name, by whether the file starts with ``{``.
 """
 
 from __future__ import annotations
@@ -309,20 +310,29 @@ def load_judgments(path: Path, *, sample: int = 0) -> Ratings:
     return Ratings(str(path), ratings, skipped, note)
 
 
-def load_ratings(path: Path, *, sample: int = 0) -> Ratings:
-    """A judgments file if its first non-blank character is ``{``, else a labels sheet.
+def _listed(ids: Sequence[str], limit: int = 5) -> str:
+    return ", ".join(ids[:limit]) + (f" and {len(ids) - limit} more" if len(ids) > limit else "")
 
-    By content, not by suffix: a spreadsheet saves tab-separated text as
-    ``.txt``, and a judgments file can be renamed to anything.
+
+def load_ratings(path: Path, *, sample: int = 0) -> Ratings:
+    """A labels sheet or a judgments file: by suffix, else by content.
+
+    ``.csv`` and ``.tsv`` are sheets and ``.jsonl`` and ``.json`` are
+    judgments, so a broken file gets the error for what it was meant to be.
+    Any other name (a spreadsheet saves tab-separated text as ``.txt``) is a
+    judgments file if its first non-blank character is ``{``.
     """
-    try:
-        with path.open("rb") as f:
-            start = f.read(4096).lstrip(b"\xef\xbb\xbf \t\r\n")
-    except OSError as exc:
-        raise LabelsError(f"{path}: {exc}") from exc
-    if start.startswith(b"{"):
-        return load_judgments(path, sample=sample)
-    return load_labels(path)
+    suffix = path.suffix.lower()
+    if suffix in {".csv", ".tsv"}:
+        return load_labels(path)
+    if suffix not in {".jsonl", ".json"}:
+        try:
+            text = read_utf8(path)
+        except (OSError, NotUtf8Error) as exc:
+            raise LabelsError(f"{path}: {exc}") from exc
+        if not text.lstrip().startswith("{"):
+            return load_labels(path)
+    return load_judgments(path, sample=sample)
 
 
 # ---------------------------------------------------------------- comparison
@@ -488,14 +498,19 @@ def compare(
 
     notes = [f"{side.source}: {side.note}" for side in (judge, reference) if side.note]
     warnings: list[str] = []
-    unlabelled = [i for i in reference.skipped if i in judge.ratings]
-    if labelled and reference.kind == "labels" and unlabelled:
-        # A wholly blank row is "not labelled yet": it can't also mean "clean".
-        warnings.append(
-            f"failure modes are compared on {len(labelled)} cases; {len(unlabelled)} rows the "
-            "judge rated have nothing filled in, so its tags on them don't count. If those "
-            "rows are clean, write 'none' in their failure_modes."
-        )
+    for sheet, other in ((reference, judge), (judge, reference)):
+        # A wholly blank row is "not labelled yet": it can't also mean "clean",
+        # so tags the other side gave on such rows are left out. Say so.
+        if not labelled or sheet.kind != "labels":
+            continue
+        lost = [i for i in sheet.skipped if i in other.ratings and other.ratings[i].failure_modes]
+        if lost:
+            rows = "row" if len(lost) == 1 else "rows"
+            warnings.append(
+                f"{other.source} tagged failure modes on {len(lost)} {rows} that "
+                f"{sheet.source} leaves blank ({_listed(lost)}); those tags don't count. If "
+                "those rows are clean, write 'none' in their failure_modes."
+            )
     return AgreementReport(
         judge=judge.source,
         reference=reference.source,

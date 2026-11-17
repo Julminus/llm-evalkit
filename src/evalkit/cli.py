@@ -834,41 +834,46 @@ def _print_agreement(report: AgreementReport, *, verbose: bool) -> None:
     console.print(
         f"judge: [bold]{escape(report.judge)}[/]\nreference: [bold]{escape(report.reference)}[/]"
     )
-    console.print(f"{report.matched} cases rated by both")
-    table = Table(title="Scores: judge vs reference")
-    table.add_column("")
-    for name in ("n", "exact", "±1", "kappa", "quadratic kappa", "Spearman", "mean ref/judge"):
-        table.add_column(name, justify="right")
-    for dim, d in report.dimensions.items():
-        table.add_row(
-            _DIM_SHORT[dim],
-            str(d.n),
-            f"{d.exact / d.n:.0%}",
-            f"{d.within_1 / d.n:.0%}",
-            _num(d.kappa),
-            _with_ci(d.kappa_quadratic, d.kappa_quadratic_ci),
-            _with_ci(d.spearman, d.spearman_ci),
-            f"{_num(d.mean_reference)}/{_num(d.mean_judge)}",
+    case = "case" if report.matched == 1 else "cases"
+    console.print(f"{report.matched} {case} rated by both")
+    if not report.dimensions:
+        console.print("scores: not compared (no case has a dimension scored on both sides)")
+    else:
+        table = Table(title="Scores: judge vs reference")
+        table.add_column("")
+        for name in ("n", "exact", "±1", "kappa", "quadratic kappa", "Spearman", "mean ref/judge"):
+            table.add_column(name, justify="right")
+        for dim, d in report.dimensions.items():
+            table.add_row(
+                _DIM_SHORT[dim],
+                str(d.n),
+                f"{d.exact / d.n:.0%}",
+                f"{d.within_1 / d.n:.0%}",
+                _num(d.kappa),
+                _with_ci(d.kappa_quadratic, d.kappa_quadratic_ci),
+                _with_ci(d.spearman, d.spearman_ci),
+                f"{_num(d.mean_reference)}/{_num(d.mean_judge)}",
+            )
+        console.print(table)
+        legend = ", ".join(f"{s} = {d.value}" for d, s in _DIM_SHORT.items())
+        console.print(f"[dim]{legend}[/]")
+        intervals = (
+            f"[95% CI]: percentile bootstrap over {report.resamples} resamples of cases "
+            f"(seed {report.seed}); "
+            if report.resamples
+            else ""
         )
-    console.print(table)
-    legend = ", ".join(f"{s} = {d.value}" for d, s in _DIM_SHORT.items())
-    console.print(f"[dim]{legend}[/]")
-    intervals = (
-        f"[95% CI]: percentile bootstrap over {report.resamples} resamples of cases "
-        f"(seed {report.seed}); "
-        if report.resamples
-        else ""
-    )
-    console.print(
-        f"[dim]{intervals}'-' = undefined (a rater gave everything one score); "
-        "linear kappa is in --json[/]"
-    )
-    for lang, dims in report.by_language.items():
-        parts = [
-            f"{_DIM_SHORT[dim]} n {d.n}, exact {d.exact}, quadratic kappa {_num(d.kappa_quadratic)}"
-            for dim, d in dims.items()
-        ]
-        console.print(f"  {lang}: " + "; ".join(parts))
+        console.print(
+            f"[dim]{intervals}'-' = undefined (a rater gave everything one score); "
+            "linear kappa is in --json[/]"
+        )
+        for lang, dims in report.by_language.items():
+            parts = [
+                f"{_DIM_SHORT[dim]} n {d.n}, exact {d.exact}, "
+                f"quadratic kappa {_num(d.kappa_quadratic)}"
+                for dim, d in dims.items()
+            ]
+            console.print(f"  {lang}: " + "; ".join(parts))
     tagged = {
         m: a for m, a in report.failure_modes.items() if a.both or a.judge_only or a.reference_only
     }
@@ -998,7 +1003,9 @@ def agree(
         if set(judged.ratings) & set(reference.skipped) or set(reference.ratings) & set(
             judged.skipped
         ):
-            raise _exit_error("the cases both files have were skipped on one side (listed above)")
+            raise _exit_error(
+                "the cases both files have were skipped on one side (see the skipped lists)"
+            )
         raise _exit_error("no case is rated in both files: check that they are for the same suite")
     if not report.dimensions and not report.failure_modes:
         raise _exit_error("the cases both files have share no rated dimension or failure mode")

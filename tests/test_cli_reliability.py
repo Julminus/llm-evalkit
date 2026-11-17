@@ -540,13 +540,26 @@ class TestRoundThreeFindings:
     ) -> None:
         # Tag only the row with a mode, leave the rest untouched: the judge's
         # tags on the untouched rows can't count, and agree must say so.
+        # (The mock judge tags format_error on id-json-001, not on en-bullets-001.)
+        rows = {"id-bullets-001": "format_error", "id-json-001": "", "en-bullets-001": ""}
+        judged = mock_judgments(tmp_path, dirs)
+        result = invoke("agree", judged, self.sheet(tmp_path, rows), "--json")
+        assert result.exit_code == 0, result.output
+        [warning] = json.loads(result.output)["warnings"]
+        assert "tagged failure modes on 1 row that" in warning
+        assert "leaves blank (id-json-001); those tags don't count" in warning
+        # and the sheet as the first argument is checked the same way
+        swapped = invoke("agree", self.sheet(tmp_path, rows), judged, "--json")
+        assert len(json.loads(swapped.output)["warnings"]) == 1
+
+    def test_no_warning_for_blank_rows_the_judge_left_untagged(
+        self, dirs: list[str], tmp_path: Path
+    ) -> None:
         rows = {"id-bullets-001": "format_error", "en-bullets-001": ""}
         result = invoke("agree", mock_judgments(tmp_path, dirs), self.sheet(tmp_path, rows))
         assert result.exit_code == 0, result.output
-        assert "warning: failure modes are compared on 1 cases; 1 rows the judge rated" in (
-            result.output
-        )
-        assert "write 'none' in their failure_modes" in result.output
+        assert "warning:" not in result.output
+        assert "1 case rated by both" in result.output
 
     def test_no_warning_when_every_row_says_something(
         self, dirs: list[str], tmp_path: Path
@@ -566,11 +579,33 @@ class TestRoundThreeFindings:
         assert result.exit_code == 0, result.output
         assert "10 cases rated by both" in result.output
 
-    def test_a_judgments_file_with_any_name(self, dirs: list[str], tmp_path: Path) -> None:
-        renamed = tmp_path / "judgments.csv"
+    def test_a_judgments_file_with_another_name(self, dirs: list[str], tmp_path: Path) -> None:
+        renamed = tmp_path / "judgments.txt"
         renamed.write_bytes(mock_judgments(tmp_path, dirs).read_bytes())
         result = invoke("agree", renamed, LABELS, "--resamples", "0")
         assert result.exit_code == 0, result.output
+
+    def test_the_suffix_decides_when_there_is_one(self, dirs: list[str], tmp_path: Path) -> None:
+        # Round 4: a broken .jsonl got a CSV error, and a sheet whose first cell
+        # starts with { got a JSON one.
+        broken = tmp_path / "g.jsonl"
+        broken.write_text("warning: something\n", encoding="utf-8")
+        result = invoke("agree", broken, LABELS)
+        assert "not a judge record" in result.output
+        brace = tmp_path / "brace.csv"
+        brace.write_text("{id},instruction_following\na,4\n", encoding="utf-8")
+        result = invoke("agree", mock_judgments(tmp_path, dirs), brace)
+        assert "the header has no 'id' column" in result.output
+
+    def test_scores_not_compared_on_a_modes_only_sheet(
+        self, dirs: list[str], tmp_path: Path
+    ) -> None:
+        sheet = tmp_path / "modes.csv"
+        sheet.write_text("id,failure_modes\nid-json-001,format_error\n", encoding="utf-8")
+        result = invoke("agree", mock_judgments(tmp_path, dirs), sheet)
+        assert result.exit_code == 0, result.output
+        assert "scores: not compared" in result.output
+        assert "Scores: judge vs reference" not in result.output
 
     def test_a_sheet_with_only_a_header(self, dirs: list[str], tmp_path: Path) -> None:
         empty = tmp_path / "empty.csv"
