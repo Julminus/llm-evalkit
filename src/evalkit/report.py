@@ -659,8 +659,9 @@ def _modes(runs: Sequence[RunView]) -> list[Table]:
             "Failure modes",
             ["Failure mode", "Decided by", *(r.name for r in runs)],
             rows,
-            intro="Cases tagged with each mode. The checks decide the three checkable modes; "
-            "the judge decides the rest, so a run without a judge has only the checkable ones.",
+            intro="Cases tagged with each mode. The checks decide the three checkable modes "
+            "and the judge the rest; a check re-tagged with fails_as in the suite counts under "
+            "its new mode.",
         )
     ]
     judged = [r for r in runs if r.kind == "judgments"]

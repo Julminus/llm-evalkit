@@ -420,6 +420,17 @@ def test_runs_table_shows_model_and_judge_only_when_known(judged_run: Path) -> N
     )
 
 
+def test_a_check_retagged_with_fails_as_counts_under_its_new_mode(tmp_path: Path) -> None:
+    text = SMOKE_SUITE.read_text(encoding="utf-8").replace(
+        "{type: word_count, max: 40}", "{type: word_count, max: 3, fails_as: hallucination}", 1
+    )
+    (tmp_path / "s.yaml").write_text(text, encoding="utf-8")
+    suite = load_suite(tmp_path / "s.yaml")
+    md = render_markdown(build_report(suite, load_runs([SMOKE_RESPONSES], suite), now=NOW))
+    assert "| hallucination | judge | 1 |" in md
+    assert "a check re-tagged with fails_as in the suite counts under its new mode" in md
+
+
 def test_markdown_cells_are_escaped() -> None:
     runs = load_runs([SMOKE_RESPONSES], SUITE, ["a|b\nc<d>\\"])
     md = render_markdown(build_report(SUITE, runs, now=NOW))
