@@ -75,9 +75,11 @@ app = typer.Typer(
     add_completion=False,
 )
 # soft_wrap: long lines (error messages, paths) are not hard-wrapped at the
-# terminal width, so they stay greppable and copy-pasteable.
-console = Console(soft_wrap=True)
-err_console = Console(stderr=True, soft_wrap=True)
+# terminal width, so they stay greppable and copy-pasteable. emoji=False:
+# markup escaping doesn't cover emoji codes, so "ollama:m:latest" printed as
+# "ollamaⓂlatest".
+console = Console(soft_wrap=True, emoji=False)
+err_console = Console(stderr=True, soft_wrap=True, emoji=False)
 
 _STATUS_STYLE = {Status.PASS: "green", Status.FAIL: "red", Status.SKIP: "yellow"}
 

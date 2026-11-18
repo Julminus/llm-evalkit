@@ -46,6 +46,14 @@ def test_mock_run_reproduces_check_results(dirs: list[str], tmp_path: Path) -> N
     assert "pass rate 60% (en 80%, id 40%)" in check.output
 
 
+def test_model_names_print_as_written(dirs: list[str]) -> None:
+    # Rich reads ":smile:" as an emoji code; escaping markup doesn't stop that.
+    args = ["run", str(SMOKE_SUITE), "-p", "mock:smile:latest", "--mock-responses"]
+    result = runner.invoke(app, [*args, str(SMOKE_RESPONSES), *dirs])
+    assert result.exit_code == 0, result.output
+    assert "(mock:smile:latest)" in result.output
+
+
 def test_second_run_comes_from_cache(dirs: list[str]) -> None:
     mock_run(dirs)
     result = mock_run(dirs)
