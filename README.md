@@ -6,22 +6,69 @@ A lightweight, bilingual (English / Bahasa Indonesia) harness for evaluating ins
 ![Python 3.11 | 3.12 | 3.13](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-> **Status: early (4 of 6 planned stages).** What exists today: the test-suite format, the
+> **Status: early (5 of 6 planned stages).** What exists today: the test-suite format, the
 > deterministic checks, model providers with an async runner, a response cache and run logs, an
-> LLM judge that scores responses 1–5 against a rubric and tags failure modes, and tools that
+> LLM judge that scores responses 1–5 against a rubric and tags failure modes, tools that
 > measure how far to trust it (agreement with labels or another judge, self-consistency, position
-> bias). Stage 4 lacks one thing a program can't supply: human labels to compare the judge with.
-> HTML reports and the benchmark are the last two stages; see [What's next](#whats-next).
+> bias), and HTML/Markdown reports with run-to-run diffs. Stage 4 lacks one thing a program can't
+> supply: human labels to compare the judge with. The benchmark is the last stage; see
+> [What's next](#whats-next).
 
-![evalkit judge output: qwen2.5:14b judging the example responses](docs/img/judge-output.svg)
+![evalkit report: qwen2.5:7b vs llama3.1:8b on the everyday suite, judged by qwen2.5:14b](docs/img/report.png)
 
-<sub>Real output of `evalkit judge examples/suites/smoke.yaml examples/responses/smoke.jsonl -j
-ollama:qwen2.5:14b` on an RTX 5080. 10 hand-written responses, so it shows the output format, not a
-benchmark result. Note the last lines: the judge named `constraint_violation` on 8 responses, though
-no check found a constraint violation in any of them (4 pass every check). Those tags don't count
-(see below). The generation step looks like [this](docs/img/run-output.svg).</sub>
+<sub>The top of a real `evalkit report`: qwen2.5:7b and llama3.1:8b on the 40-case everyday suite,
+judged by qwen2.5:14b on an RTX 5080 (the whole report:
+[`report.md`](docs/results/report-s5/report.md); the HTML version adds every case with its
+response, failed checks and the judge's rationale). The suite only checks constraints its prompts
+state, so read it as a demonstration, not a benchmark. In the terminal, the judge looks like
+[this](docs/img/judge-output.svg) and the generation step like [this](docs/img/run-output.svg).</sub>
 
 ## Results
+
+**Regression diffs on real runs: the checks hold still, the judge doesn't.** The runner
+measurement below ran each model twice at temperature 0 with the same seed: once from a fresh
+model load and once on the already-warm server, and the second run reworded 12 of qwen2.5:7b's 40
+answers and 4 of llama3.1:8b's. That is a regression diff where nothing should count as a
+regression. I judged all 160 answers with qwen2.5:14b (prompt v1, temperature 0, seed 0, at most
+1024 tokens, one request at a time, fresh model load) through one response cache, as a CI run
+would, so an answer that didn't change replays its earlier judgment and only the reworded ones
+are judged again. Then `evalkit compare` (the library's `diff_runs`), fresh against warm.
+Script: `scripts/measure_report.py`; raw output with every judge record:
+[`docs/results/report-s5.json`](docs/results/report-s5.json) (`--summary` rebuilds the table from
+it).
+
+| Fresh run → warm run, same model, same settings | `qwen2.5:7b` | `llama3.1:8b` |
+|---|---|---|
+| Answers reworded | 12/40 | 4/40 |
+| Cases whose check verdict changed | **0** | **0** |
+| Cases whose judge verdict changed (a score or a failure mode) | **10** of the 12 | **2** of the 4 |
+| ... that `compare` calls worse / better / both | 4 / 8 / 2 | 2 / 2 / 2 |
+| ... score moves of 1 point / 2 or more | 22 / 1 | 2 / 2 |
+| Worse with `--min-change 2` | 1 (`en-11`: hallucination became partial_completion) | 2 |
+| Mean `instruction_following`, fresh → warm | 4.00 → 4.00 | 3.80 → 3.83 |
+| Judge replies on the fresh answers identical to the S3 run two days earlier | **40/40** | **40/40** |
+
+What this shows:
+
+- **Gate CI on the checks, not on the judge.** Rewording that a reader wouldn't call a change
+  flipped no check, but it changed the judge's verdict on 12 of the 16 reworded answers. A
+  `compare --strict` on judged runs would have failed this "regression" on 6 cases, while the mean
+  scores barely moved. Raising `--min-change` to 2 points removes the one-point jitter (24 of the
+  27 score moves), but 3 cases still fail, because the judge's failure-mode tags move too. So the
+  judge's per-case diffs are something to read, and `--strict` is a fit gate for check-only runs.
+- **The judged numbers reproduce.** Through the report path, all 80 judge replies on the fresh
+  answers were byte-identical to the S3 measurement made two days earlier with the same settings
+  and order from a fresh load, so the per-model means in the report are the S3 judgments, not a new
+  draw.
+- **The report puts the two models side by side** (the [screenshot](docs/img/report.png) at the
+  top, the [whole report](docs/results/report-s5/report.md)). The checks pass both almost equally
+  (87.5% vs 87.2%). The judge gives qwen2.5:7b more for instruction following (4.00 vs 3.80) and
+  less for faithfulness (4.65 vs 4.92), with 6 `hallucination` tags against 2. Five of qwen2.5:7b's
+  six and both of llama3.1:8b's are on Indonesian answers, and qwen2.5:7b's faithfulness mean is
+  4.35 in Indonesian against 4.95 in English. These are tags, not verified errors: of these 8, the
+  S3 audit below reads 4 as real. The judgments behind the report are the S3 ones, so the S3 and
+  S4 caveats apply: one small local judge from the same family as one of the models, noisy tags,
+  and no human labels yet. Building the 80-case report took 0.05 s.
 
 **The LLM judge on real responses.** I judged the 80 responses saved by the runner measurement
 below (`qwen2.5:7b` and `llama3.1:8b` on the 40-case everyday suite) with two local judges,
@@ -270,13 +317,16 @@ numbers. `uv run --with langdetect==1.0.9 python scripts/measure_langdetect.py` 
 rows of the table, including the baseline's wrong guesses.
 
 **Engineering.** 4 providers, 11 check types, an LLM judge with agreement, consistency and
-position-bias tools, 877 tests (3 of them opt-in live tests, 2 that run only where SciPy and
-scikit-learn are installed, 1 POSIX-only), 99.2% branch coverage, strict mypy. Every provider is tested offline against the request and response shapes of
-its API (the Anthropic one through the real SDK with a mock transport), and
+position-bias tools, HTML and Markdown reports, 921 tests (3 of them opt-in live tests, 2 that run
+only where SciPy and scikit-learn are installed, 1 POSIX-only), 99.25% branch coverage, strict
+mypy. Every provider is tested offline against the request and response shapes of its API (the
+Anthropic one through the real SDK with a mock transport), and
 `EVALKIT_LIVE_OLLAMA=1 uv run pytest -m live` runs the Ollama paths for real. CI runs the tests on
 Python 3.11, 3.12 and 3.13 (Linux) plus the whole pipeline with the mock provider and the mock
-judge, natively and in the Docker image; I also run them on Windows, where file locking and console
-encodings differ. `evalkit --help` starts in about 0.27 s (median of 10 runs on this PC).
+judge, report and compare included, natively and in the Docker image, and checks that a plain
+`pip install -e .` works; I also run them on Windows, where file locking and console encodings
+differ. `evalkit --help` starts in about 0.29 s (median of 15 runs on this PC; the same before and
+after the report commands, since Jinja2 loads only when a report is written).
 
 ## How it works
 
@@ -305,10 +355,15 @@ flowchart LR
     LB[("labels.csv<br/>evalkit labels")] -.-> AG
     JS -.->|"evalkit consistency<br/>(n samples per case)"| SC["ConsistencyReport<br/>score spread per case"]
     JM -.->|"evalkit pairwise:<br/>A first, then B first"| PW["PairRecord<br/>verdict or flip"]
+    L -.->|"load_run"| RV["RunView per run<br/>checks + judge, case by case"]
+    JS -.->|"load_run"| RV
+    RV -->|"diff_runs: worse / better<br/>per case vs the first run"| RT["report tables"]
+    RT -->|"evalkit report (Jinja2)"| RP["report.html + report.md"]
+    RT -->|"evalkit compare<br/>--strict for CI"| CO["console diff, exit code"]
 ```
 
 A suite is YAML. Each case has a prompt, the prompt's language, optional context and system
-prompt, a list of **constraints** (deterministic checks), a **rubric** for the future LLM judge, and
+prompt, a list of **constraints** (deterministic checks), a **rubric** for the LLM judge, and
 tags:
 
 ```yaml
@@ -453,6 +508,29 @@ Three ways to find out how far a judge can be trusted, each its own command:
 Each writes a run directory like `evalkit judge` (`pairs.jsonl` for pairwise), and `--json` prints
 everything.
 
+### Reports and diffs
+
+A run, for these two commands, is what `evalkit run` or `evalkit judge` wrote: the run directory or
+the `responses.jsonl` / `judgments.jsonl` in it (any responses JSONL works too).
+
+- **`evalkit report SUITE RUN... -o DIR`** writes `DIR/report.html` and `DIR/report.md`: each
+  run's pass rate overall and per language, the judge's mean per dimension overall and per language,
+  how often it gave each score, the failure modes with who decides each, the judge tags the checks
+  overrule, and what changed in each run against the first. The HTML version adds every case: the
+  prompt, each run's verdict, and behind a click the response, the failed checks and the judge's
+  rationale. Runs are named after the model in their manifest, else after the run or file; `--name`
+  (repeatable) overrides that.
+- **`evalkit compare SUITE BASE NEW`** prints the same diff on the console, case by case. A case is
+  **worse** when it fails its checks and didn't before, a judge score fell by at least
+  `--min-change` points (default 1), or a failure mode appeared; **better** is the reverse, and a
+  case can be both. Judge scores and the judge's failure modes are compared only where both runs
+  judged the case; against a run with no judge, only the checks are. `--strict` exits 1 if any case
+  is worse or NEW lacks a case BASE has, for CI; `--json` prints everything.
+
+For a judge run, the check verdicts come from its records, so they are the ones the judge saw. The
+responses it judged are read from the path in its manifest, if that file is still there and has
+the digest the manifest recorded; otherwise the report says so and leaves out the response text.
+
 ## Quickstart
 
 Needs [uv](https://docs.astral.sh/uv/). No API keys.
@@ -461,17 +539,21 @@ Needs [uv](https://docs.astral.sh/uv/). No API keys.
 git clone https://github.com/Julminus/llm-evalkit.git && cd llm-evalkit
 uv sync
 uv run evalkit run examples/suites/smoke.yaml -p mock --mock-responses examples/responses/smoke.jsonl
-uv run evalkit judge examples/suites/smoke.yaml examples/responses/smoke.jsonl -j mock --mock-judgments examples/judgments/smoke.jsonl
-uv run pytest
+uv run evalkit judge examples/suites/smoke.yaml examples/responses/smoke.jsonl -j mock --mock-judgments examples/judgments/smoke.jsonl --run-id quickstart
+uv run evalkit report examples/suites/smoke.yaml runs/quickstart examples/responses/smoke-b.jsonl
 ```
 
-The two mock commands need no model: the first replays hand-written responses, the second replays
-hand-written judge replies (two of them deliberately malformed, to show the local repair). With
-Ollama and the models pulled, the real thing is `uv run evalkit run examples/suites/everyday.yaml
--p ollama:qwen2.5:7b`, then `uv run evalkit judge examples/suites/everyday.yaml
-runs/<run_id>/responses.jsonl -j ollama:qwen2.5:14b`.
+The mock commands need no model: the first replays hand-written responses, the second replays
+hand-written judge replies (two of them deliberately malformed, to show the local repair), and the
+third writes `reports/report.html` and `reports/report.md` for the judged run next to a second set
+of answers, with what changed between them. (`--run-id` names the run directory; run the judge
+again and the new one is `quickstart-2`.) `uv run pytest` runs the tests. With Ollama and the models
+pulled, the real thing is `uv run evalkit run examples/suites/everyday.yaml -p ollama:qwen2.5:7b`,
+then `uv run evalkit judge examples/suites/everyday.yaml runs/<run_id>/responses.jsonl -j
+ollama:qwen2.5:14b`, and `evalkit report` or `evalkit compare` on the run directories.
 
-`make pairwise` and `make consistency` run the reliability tools on the mock judge, and
+`make pairwise` and `make consistency` run the reliability tools on the mock judge, `make report`
+and `make compare` the report tools, and
 `uv run evalkit agree runs/<judge run>/judgments.jsonl examples/labels/smoke.csv` compares a judge
 run with the example labels (made by Claude, as the `labeler` column says, to show the format).
 `make setup`, `make test`, `make run` and `make judge` (the mock commands above) are shortcuts;
@@ -481,7 +563,8 @@ output), `--strict` (exit code 1 if any case fails its checks; for `check`, also
 response or a response matches no case; for CI), `-c N` (requests in flight, default 4), `--case ID` (repeatable), `--no-cache`. To grade
 responses you already have: `uv run evalkit check SUITE responses.jsonl`. `uv run evalkit
 list-checks` lists the constraint types. To install the Anthropic SDK without the dev tools:
-`uv sync --no-dev --extra anthropic`. llm-evalkit is not on PyPI. With Docker:
+`uv sync --no-dev --extra anthropic`. llm-evalkit is not on PyPI; without uv, `pip install -e .`
+in a virtualenv installs it from the clone. With Docker:
 `docker build -t llm-evalkit . && docker run --rm -v "$PWD/examples:/work/examples" llm-evalkit run examples/suites/smoke.yaml -p mock --mock-responses examples/responses/smoke.jsonl --out /tmp/runs --cache-dir /tmp/cache`
 (to reach Ollama on the host from the container, add `--base-url http://host.docker.internal:11434`).
 
@@ -599,6 +682,19 @@ list-checks` lists the constraint types. To install the Anthropic SDK without th
   rate. `ends_with: "Selesai."` accepts `**Selesai.**`; each check has a strict switch for cases
   where the exact format is the point. Words are counted the way an Indonesian reader counts them
   ("anak-anak" is one word and "50.000" one number), which differs from IFEval's tokenizer.
+- **One set of tables, three outputs.** `build_report` computes every table once; the Markdown and
+  HTML templates print the same tables, and `evalkit compare` prints the same diff tables on the
+  console. A number can't differ between the formats, and the per-model means are the judge's own
+  `JudgeSummary`, so they match what `evalkit judge` printed.
+- **The HTML report treats model output as untrusted.** Responses, rationales and run names go
+  through Jinja2's autoescaping, so a response containing `<script>` shows as text (a test checks
+  it). The file has no scripts and loads nothing: inline CSS, collapsible `<details>` instead of
+  JavaScript, so it opens offline and can be attached to a CI run as it is.
+- **A diff case by case, not only of the means.** Two runs can have the same mean score while
+  half their cases moved. `compare` lists every case whose verdict changed and says which way,
+  and it compares like with like: judge scores only where both runs judged the case, the checks
+  everywhere. The measurement above is why `--strict` suits check-only runs better than judged
+  ones: rewording at temperature 0 changed no check but a dozen judge verdicts.
 
 **Known limits.** The cache keys on the model *name* and server: if you re-pull an Ollama tag and
 get new weights, delete `.evalkit-cache/`. `--concurrency` only speeds a run up if the server
@@ -640,6 +736,13 @@ sampling and can be replayed only from the cache. The label sheet marks text
 that starts with `=`, `+`, `-` or `@` with a leading `'` so a spreadsheet doesn't run it as a
 formula; that wasn't tried in Excel itself.
 
+**Known limits of the reports.** A judge run's manifest stores the path of the responses it judged
+as it was typed, so the report finds them only from the same working directory; elsewhere it says
+so and shows no response text (the scores and checks are still there). A run judged several times
+(`evalkit consistency`) is reported by its first sample. The HTML report holds every response, so it
+grows with the suite: 102 KB for the 80 answers above. A diff of judged runs inherits the judge's
+noise (see Results); the measured remedy is to gate on the checks and read the judge's changes.
+
 ## What's next
 
 1. **Human labels** (the rest of stage 4). The agreement tooling is done, but nobody has labelled
@@ -647,9 +750,8 @@ formula; that wasn't tried in Excel itself.
    with a person. `uv run evalkit labels examples/suites/everyday.yaml
    examples/responses/everyday-s2-qwen2.5-7b.jsonl -o labels.csv` makes a sheet;
    `evalkit judge` on the same file and `evalkit agree` then compare.
-2. **Reports:** HTML and Markdown reports, model-vs-model comparison, regression diffs between runs.
-3. **Benchmark:** a hand-written 40-item EN/ID suite of harder, multi-constraint tasks, run on local
-   models, with findings.
+2. **Benchmark:** a hand-written 40-item EN/ID suite of harder, multi-constraint tasks, run on local
+   models, with findings and their report.
 
 ## License
 
