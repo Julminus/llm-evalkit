@@ -364,6 +364,28 @@ def test_html_escapes_everything_from_runs(tmp_path: Path) -> None:
     assert "src=" not in html.replace("&lt;img src=x", "")
 
 
+def test_changed_cases_are_styled_by_direction() -> None:
+    base = run("b", case("en-math-001"), case("id-json-001"), case("en-json-001", "fail", (FE,)))
+    new = run(
+        "n", case("en-math-001", "skip"), case("id-json-001", "fail", (CV,)), case("en-json-001")
+    )
+    html = render_html(build_report(SUITE, [base, new], now=NOW))
+    # pass -> skip is neither worse nor better: no colour.
+    assert '<td><a href="#case-en-math-001">' in html
+    assert '<td class="worse"><a href="#case-id-json-001">' in html
+    assert '<td class="better"><a href="#case-en-json-001">' in html
+
+    def change(base: RunView, new: RunView) -> str:
+        md = render_markdown(build_report(SUITE, [base, new], now=NOW))
+        return next(line for line in md.splitlines() if line.startswith("| Checks passed |"))
+
+    assert change(base, new) == "| Checks passed | 66.7% (2/3) | 50.0% (1/2) | -1 case |"
+    assert change(new, base) == "| Checks passed | 50.0% (1/2) | 66.7% (2/3) | +1 case |"
+    assert change(base, base) == "| Checks passed | 66.7% (2/3) | 66.7% (2/3) | 0 |"
+    failing = run("f", case("a", "fail", (CV,)), case("b", "fail", (CV,)))
+    assert change(failing, run("p", case("a"), case("b"))).endswith("| +2 cases |")
+
+
 def test_html_report_shows_judge_details(judged_run: Path) -> None:
     runs = load_runs([judged_run, SMOKE_B], SUITE, ["judged", "b"])
     html = render_html(build_report(SUITE, runs, now=NOW))

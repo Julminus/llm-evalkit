@@ -658,6 +658,14 @@ def _signed(value: float) -> str:
     return f"{value:+.2f}" if value else "0"
 
 
+def _cases(n: int) -> str:
+    return f"{n:+d} case{'' if abs(n) == 1 else 's'}" if n else "0"
+
+
+_DIRECTION = {(True, False): "worse", (False, True): "better", (True, True): "mixed"}
+"""CSS class of a changed case by (worse, better); neither (pass -> skip) gets none."""
+
+
 def diff_tables(diff: RunDiff) -> list[Table]:
     (bp, bg), (np_, ng) = diff.pass_rates()
     rows = [
@@ -665,7 +673,7 @@ def diff_tables(diff: RunDiff) -> list[Table]:
             Cell("Checks passed"),
             Cell(_pct(bp, bg), "num"),
             Cell(_pct(np_, ng), "num"),
-            Cell(f"{np_ - bp:+d} cases" if np_ != bp else "0", "num"),
+            Cell(_cases(np_ - bp), "num"),
         ]
     ]
     for dim, (b, n, k) in diff.mean_scores().items():
@@ -716,16 +724,9 @@ def diff_tables(diff: RunDiff) -> list[Table]:
     )
     case_rows = []
     for c in diff.changes:
-        css = (
-            "worse"
-            if c.worse and not c.better
-            else "better"
-            if c.better and not c.worse
-            else "mixed"
-        )
         was, now = c.status
         row = [
-            Cell(c.id, css, anchor=c.id),
+            Cell(c.id, _DIRECTION.get((c.worse, c.better), ""), anchor=c.id),
             Cell(c.language),
             Cell(f"{was.value} → {now.value}" if was != now else now.value, now.value),
         ]
