@@ -11,12 +11,19 @@ there can be recomputed from them.
 | `judge-s3-prompt-v3.json` | `scripts/measure_judge.py` | The same with prompt v3 (reverted). |
 | `judge-s3-audit.json` | by hand | Claude's reading of the 8 `hallucination` tags `qwen2.5:14b` gave in `judge-s3-prompt-v1.json`; not yet checked by a person. |
 | `reliability-s4.json` | `scripts/measure_reliability.py` | Judge reliability on the same 80 responses, judges `qwen2.5:14b` and `llama3.1:8b`: `pairwise_*` (qwen2.5:7b vs llama3.1:8b in both orders, plus each model against itself as a control; every `PairRecord`) and `consistency_*` (5 samples per response at temperature 0.7; every `JudgeRecord`). Judge-vs-judge agreement is computed from `judge-s3-prompt-v1.json`. |
+| `report-s5.json` | `scripts/measure_report.py` | The report tools on real runs: `qwen2.5:14b` judging the 80 `responses.fresh` and the 80 `responses.warm` of `runner-s2.json` through one cache (a warm answer identical to its fresh one replays the fresh judgment), every `JudgeRecord`, and the fresh-vs-warm diffs on the checks and on the judged runs. |
+| `report-s5/` | `evalkit report` | The report of the two fresh judged runs, qwen2.5:7b vs llama3.1:8b: `report.md` and `report.html` (download it to open; GitHub shows HTML as source). |
 
 `uv run python scripts/measure_judge.py --summary FILE` prints a judge file's table, and
 `--regrade FILE` re-parses every saved reply with the current parser and checks that each
 judgment's outcome is unchanged. `uv run python scripts/measure_reliability.py --summary
 docs/results/reliability-s4.json` recomputes the reliability table from the saved records with
-the library's `PairwiseSummary`, `consistency` and `compare`.
+the library's `PairwiseSummary`, `consistency` and `compare`. `uv run python
+scripts/measure_report.py --summary docs/results/report-s5.json` rebuilds the fresh-vs-warm diffs
+from the saved records with `diff_runs`, checks them against the saved ones and prints the table.
+`report-s5/` was written by `uv run evalkit report examples/suites/everyday.yaml
+runs/s5/judged-qwen2.5-7b-fresh runs/s5/judged-llama3.1-8b-fresh --name qwen2.5:7b --name
+llama3.1:8b -o docs/results/report-s5` after the measurement, which leaves those run directories.
 
 ## The judge prompt versions
 

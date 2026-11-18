@@ -1,0 +1,1661 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Evaluation report: everyday</title>
+<style>
+  body { font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1f2328; margin: 0 auto; max-width: 1100px; padding: 24px; }
+  h1 { font-size: 24px; margin: 0 0 8px; }
+  h2 { font-size: 18px; margin: 32px 0 8px; border-bottom: 1px solid #d1d9e0; padding-bottom: 4px; }
+  h3 { font-size: 15px; margin: 20px 0 6px; }
+  .meta { color: #59636e; margin: 0; padding-left: 18px; }
+  .intro { color: #59636e; margin: 4px 0 8px; }
+  table { border-collapse: collapse; margin: 6px 0; }
+  th, td { border: 1px solid #d1d9e0; padding: 3px 8px; text-align: left; vertical-align: top; }
+  th { background: #f6f8fa; font-weight: 600; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pass { color: #1a7f37; }
+  .fail { color: #cf222e; }
+  .skip { color: #9a6700; }
+  td.worse { background: #ffebe9; }
+  td.better { background: #dafbe1; }
+  td.mixed { background: #fff8c5; }
+  ul.notes { color: #59636e; margin: 4px 0; }
+  .case { border-top: 1px solid #d1d9e0; padding-top: 4px; }
+  .lang { color: #59636e; font-weight: normal; }
+  .prompt { white-space: pre-wrap; margin: 4px 0; }
+  details { margin: 4px 0; }
+  summary { cursor: pointer; color: #0969da; }
+  pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #f6f8fa; padding: 8px; margin: 4px 0; }
+  a { color: #0969da; }
+</style>
+</head>
+<body>
+<h1>Evaluation report: everyday</h1>
+<ul class="meta">
+  <li>Suite everyday v1: 40 cases (20 en, 20 id), digest d7a367cb0df179bc.</li>
+  <li>Made with llm-evalkit 0.1.0.dev0 on 2026-11-18 18:28 UTC.</li>
+  <li>Changes are against the first run, qwen2.5:7b.</li>
+</ul>
+<h2>Runs</h2>
+<table>
+  <tr><th>Run</th><th>Judge</th><th>Source</th><th>Cases</th><th>Missing</th></tr>
+  <tr><td>qwen2.5:7b</td><td>ollama:qwen2.5:14b (prompt v1)</td><td>runs/s5/judged-qwen2.5-7b-fresh</td><td class="num">40</td><td class="num">0</td></tr>
+  <tr><td>llama3.1:8b</td><td>ollama:qwen2.5:14b (prompt v1)</td><td>runs/s5/judged-llama3.1-8b-fresh</td><td class="num">40</td><td class="num">0</td></tr>
+</table>
+<h2>Overview</h2>
+<p class="intro">Checks passed: cases that passed every deterministic check, of those graded (a case where no check applied is not graded). Judge scores are means on a 1-5 scale: IF = instruction_following, RQ = reasoning_quality, FA = faithfulness, HE = helpfulness.</p>
+<table>
+  <tr><th>Run</th><th>Checks passed</th><th>en</th><th>id</th><th>Judged</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th></tr>
+  <tr><td>qwen2.5:7b</td><td class="num">87.5% (35/40)</td><td class="num">90.0% (18/20)</td><td class="num">85.0% (17/20)</td><td class="num">40/40</td><td class="num">4.00</td><td class="num">4.72</td><td class="num">4.65</td><td class="num">4.25</td></tr>
+  <tr><td>llama3.1:8b</td><td class="num">87.2% (34/39)</td><td class="num">85.0% (17/20)</td><td class="num">89.5% (17/19)</td><td class="num">40/40</td><td class="num">3.80</td><td class="num">4.60</td><td class="num">4.92</td><td class="num">4.10</td></tr>
+</table>
+<h2>Judge scores by language</h2>
+<table>
+  <tr><th>Run</th><th>Language</th><th>Judged</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th></tr>
+  <tr><td>qwen2.5:7b</td><td>en</td><td class="num">20</td><td class="num">3.95</td><td class="num">4.95</td><td class="num">4.95</td><td class="num">4.40</td></tr>
+  <tr><td>qwen2.5:7b</td><td>id</td><td class="num">20</td><td class="num">4.05</td><td class="num">4.50</td><td class="num">4.35</td><td class="num">4.10</td></tr>
+  <tr><td>llama3.1:8b</td><td>en</td><td class="num">20</td><td class="num">3.75</td><td class="num">4.85</td><td class="num">5.00</td><td class="num">4.25</td></tr>
+  <tr><td>llama3.1:8b</td><td>id</td><td class="num">20</td><td class="num">3.85</td><td class="num">4.35</td><td class="num">4.85</td><td class="num">3.95</td></tr>
+</table>
+<h2>Score distribution</h2>
+<p class="intro">How many judged cases got each score.</p>
+<table>
+  <tr><th>Run</th><th>Dimension</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>Mean</th></tr>
+  <tr><td>qwen2.5:7b</td><td>instruction_following</td><td class="num">0</td><td class="num">0</td><td class="num">11</td><td class="num">18</td><td class="num">11</td><td class="num">4.00</td></tr>
+  <tr><td>qwen2.5:7b</td><td>reasoning_quality</td><td class="num">0</td><td class="num">0</td><td class="num">2</td><td class="num">7</td><td class="num">31</td><td class="num">4.72</td></tr>
+  <tr><td>qwen2.5:7b</td><td>faithfulness</td><td class="num">0</td><td class="num">1</td><td class="num">4</td><td class="num">3</td><td class="num">32</td><td class="num">4.65</td></tr>
+  <tr><td>qwen2.5:7b</td><td>helpfulness</td><td class="num">0</td><td class="num">0</td><td class="num">4</td><td class="num">22</td><td class="num">14</td><td class="num">4.25</td></tr>
+  <tr><td>llama3.1:8b</td><td>instruction_following</td><td class="num">0</td><td class="num">3</td><td class="num">12</td><td class="num">15</td><td class="num">10</td><td class="num">3.80</td></tr>
+  <tr><td>llama3.1:8b</td><td>reasoning_quality</td><td class="num">0</td><td class="num">0</td><td class="num">4</td><td class="num">8</td><td class="num">28</td><td class="num">4.60</td></tr>
+  <tr><td>llama3.1:8b</td><td>faithfulness</td><td class="num">0</td><td class="num">0</td><td class="num">1</td><td class="num">1</td><td class="num">38</td><td class="num">4.92</td></tr>
+  <tr><td>llama3.1:8b</td><td>helpfulness</td><td class="num">0</td><td class="num">0</td><td class="num">8</td><td class="num">20</td><td class="num">12</td><td class="num">4.10</td></tr>
+</table>
+<h2>Failure modes</h2>
+<p class="intro">Cases tagged with each mode. The checks decide the three checkable modes; the judge decides the rest, so a run without a judge has only the checkable ones.</p>
+<table>
+  <tr><th>Failure mode</th><th>Decided by</th><th>qwen2.5:7b</th><th>llama3.1:8b</th></tr>
+  <tr><td>constraint_violation</td><td>checks</td><td class="num">5</td><td class="num">5</td></tr>
+  <tr><td>intent_misread</td><td>judge</td><td class="num">0</td><td class="num">0</td></tr>
+  <tr><td>hallucination</td><td>judge</td><td class="num">6</td><td class="num">2</td></tr>
+  <tr><td>partial_completion</td><td>judge</td><td class="num">6</td><td class="num">6</td></tr>
+  <tr><td>format_error</td><td>checks</td><td class="num">0</td><td class="num">0</td></tr>
+  <tr><td>over_refusal</td><td>judge</td><td class="num">0</td><td class="num">0</td></tr>
+  <tr><td>language_mismatch</td><td>checks</td><td class="num">0</td><td class="num">0</td></tr>
+</table>
+<h3>Judge tags that don&#39;t count</h3>
+<p class="intro">Checkable modes the judge named on cases where no check raised them. Only the checks decide these modes, so the counts above leave these tags out.</p>
+<table>
+  <tr><th>Failure mode</th><th>qwen2.5:7b</th><th>llama3.1:8b</th></tr>
+  <tr><td>constraint_violation</td><td class="num">14</td><td class="num">17</td></tr>
+  <tr><td>format_error</td><td class="num">0</td><td class="num">0</td></tr>
+  <tr><td>language_mismatch</td><td class="num">0</td><td class="num">0</td></tr>
+</table>
+<h2>Changes: qwen2.5:7b → llama3.1:8b</h2>
+<p class="intro">40 cases in both runs: 23 worse, 20 better; the response text differs on 40.</p>
+<table>
+  <tr><th></th><th>qwen2.5:7b</th><th>llama3.1:8b</th><th>Change</th></tr>
+  <tr><td>Checks passed</td><td class="num">87.5% (35/40)</td><td class="num">87.2% (34/39)</td><td class="num">-1 case</td></tr>
+  <tr><td>instruction_following (mean of 40)</td><td class="num">4.00</td><td class="num">3.80</td><td class="num">-0.20</td></tr>
+  <tr><td>reasoning_quality (mean of 40)</td><td class="num">4.72</td><td class="num">4.60</td><td class="num">-0.12</td></tr>
+  <tr><td>faithfulness (mean of 40)</td><td class="num">4.65</td><td class="num">4.92</td><td class="num">+0.27</td></tr>
+  <tr><td>helpfulness (mean of 40)</td><td class="num">4.25</td><td class="num">4.10</td><td class="num">-0.15</td></tr>
+  <tr><td>constraint_violation (cases)</td><td class="num">5</td><td class="num">5</td><td class="num">0</td></tr>
+  <tr><td>hallucination (cases)</td><td class="num">6</td><td class="num">2</td><td class="num">-4</td></tr>
+  <tr><td>partial_completion (cases)</td><td class="num">6</td><td class="num">6</td><td class="num">0</td></tr>
+</table>
+<h3>Cases that changed</h3>
+<p class="intro">Worse: fails its checks now and didn&#39;t, a judge score fell, or a failure mode appeared.</p>
+<table>
+  <tr><th>Case</th><th>Language</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td class="better"><a href="#case-en-01">en-01</a></td><td>en</td><td class="pass">fail → pass</td><td class="num">3 → 4</td><td class="num"></td><td class="num"></td><td class="num">4 → 5</td><td>-constraint_violation -partial_completion</td></tr>
+  <tr><td class="mixed"><a href="#case-id-01">id-01</a></td><td>id</td><td class="pass">fail → pass</td><td class="num">3 → 4</td><td class="num">5 → 3</td><td class="num">5 → 3</td><td class="num">4 → 3</td><td>+hallucination -constraint_violation</td></tr>
+  <tr><td class="mixed"><a href="#case-en-02">en-02</a></td><td>en</td><td class="pass">pass</td><td class="num">4 → 5</td><td class="num">5 → 4</td><td class="num"></td><td class="num">5 → 4</td><td></td></tr>
+  <tr><td class="worse"><a href="#case-id-02">id-02</a></td><td>id</td><td class="pass">pass</td><td class="num">4 → 3</td><td class="num">5 → 4</td><td class="num"></td><td class="num">5 → 3</td><td></td></tr>
+  <tr><td class="worse"><a href="#case-en-03">en-03</a></td><td>en</td><td class="pass">pass</td><td class="num">4 → 3</td><td class="num"></td><td class="num"></td><td class="num">5 → 4</td><td></td></tr>
+  <tr><td class="better"><a href="#case-id-03">id-03</a></td><td>id</td><td class="pass">pass</td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num">4 → 5</td><td></td></tr>
+  <tr><td><a href="#case-id-04">id-04</a></td><td>id</td><td class="skip">pass → skip</td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td></td></tr>
+  <tr><td class="worse"><a href="#case-id-05">id-05</a></td><td>id</td><td class="pass">pass</td><td class="num">4 → 3</td><td class="num">5 → 3</td><td class="num"></td><td class="num">4 → 3</td><td></td></tr>
+  <tr><td class="worse"><a href="#case-id-06">id-06</a></td><td>id</td><td class="pass">pass</td><td class="num">5 → 3</td><td class="num"></td><td class="num"></td><td class="num">5 → 4</td><td></td></tr>
+  <tr><td class="mixed"><a href="#case-en-07">en-07</a></td><td>en</td><td class="pass">fail → pass</td><td class="num">3 → 2</td><td class="num"></td><td class="num"></td><td class="num">4 → 3</td><td>-constraint_violation</td></tr>
+  <tr><td class="mixed"><a href="#case-id-07">id-07</a></td><td>id</td><td class="pass">pass</td><td class="num">5 → 4</td><td class="num">4 → 5</td><td class="num">4 → 5</td><td class="num"></td><td></td></tr>
+  <tr><td class="better"><a href="#case-en-08">en-08</a></td><td>en</td><td class="pass">pass</td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num">4 → 5</td><td></td></tr>
+  <tr><td class="mixed"><a href="#case-en-09">en-09</a></td><td>en</td><td class="fail">pass → fail</td><td class="num">5 → 3</td><td class="num">4 → 5</td><td class="num"></td><td class="num"></td><td>+constraint_violation</td></tr>
+  <tr><td class="better"><a href="#case-id-09">id-09</a></td><td>id</td><td class="pass">fail → pass</td><td class="num">3 → 4</td><td class="num"></td><td class="num"></td><td class="num">4 → 5</td><td>-constraint_violation</td></tr>
+  <tr><td class="better"><a href="#case-en-10">en-10</a></td><td>en</td><td class="pass">pass</td><td class="num">4 → 5</td><td class="num"></td><td class="num"></td><td class="num"></td><td></td></tr>
+  <tr><td class="worse"><a href="#case-id-10">id-10</a></td><td>id</td><td class="pass">pass</td><td class="num">4 → 3</td><td class="num">5 → 3</td><td class="num">5 → 4</td><td class="num">4 → 3</td><td>+hallucination</td></tr>
+  <tr><td class="mixed"><a href="#case-en-11">en-11</a></td><td>en</td><td class="fail">pass → fail</td><td class="num">5 → 3</td><td class="num"></td><td class="num">4 → 5</td><td class="num">5 → 4</td><td>+constraint_violation -hallucination</td></tr>
+  <tr><td class="mixed"><a href="#case-id-11">id-11</a></td><td>id</td><td class="fail">pass → fail</td><td class="num">4 → 2</td><td class="num"></td><td class="num">3 → 5</td><td class="num">4 → 3</td><td>+constraint_violation +partial_completion -hallucination</td></tr>
+  <tr><td class="better"><a href="#case-id-12">id-12</a></td><td>id</td><td class="pass">pass</td><td class="num">4 → 5</td><td class="num">3 → 4</td><td class="num">4 → 5</td><td class="num"></td><td>-hallucination</td></tr>
+  <tr><td class="mixed"><a href="#case-en-13">en-13</a></td><td>en</td><td class="pass">pass</td><td class="num">4 → 5</td><td class="num">5 → 4</td><td class="num"></td><td class="num"></td><td>-partial_completion</td></tr>
+  <tr><td class="mixed"><a href="#case-id-13">id-13</a></td><td>id</td><td class="pass">pass</td><td class="num">5 → 4</td><td class="num">4 → 5</td><td class="num"></td><td class="num"></td><td></td></tr>
+  <tr><td class="worse"><a href="#case-en-14">en-14</a></td><td>en</td><td class="pass">pass</td><td class="num">3 → 2</td><td class="num"></td><td class="num"></td><td class="num">4 → 3</td><td></td></tr>
+  <tr><td class="worse"><a href="#case-id-14">id-14</a></td><td>id</td><td class="pass">pass</td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td>+partial_completion</td></tr>
+  <tr><td class="worse"><a href="#case-en-15">en-15</a></td><td>en</td><td class="pass">pass</td><td class="num"></td><td class="num">5 → 4</td><td class="num"></td><td class="num">5 → 4</td><td></td></tr>
+  <tr><td class="worse"><a href="#case-en-17">en-17</a></td><td>en</td><td class="fail">pass → fail</td><td class="num">4 → 3</td><td class="num"></td><td class="num"></td><td class="num"></td><td>+constraint_violation</td></tr>
+  <tr><td class="mixed"><a href="#case-id-17">id-17</a></td><td>id</td><td class="fail">pass → fail</td><td class="num">5 → 3</td><td class="num"></td><td class="num">3 → 5</td><td class="num">5 → 4</td><td>+constraint_violation -hallucination</td></tr>
+  <tr><td class="better"><a href="#case-en-18">en-18</a></td><td>en</td><td class="pass">pass</td><td class="num">3 → 4</td><td class="num"></td><td class="num"></td><td class="num">3 → 5</td><td>-partial_completion</td></tr>
+  <tr><td class="mixed"><a href="#case-id-18">id-18</a></td><td>id</td><td class="pass">pass</td><td class="num">3 → 4</td><td class="num">3 → 5</td><td class="num">3 → 5</td><td class="num">3 → 4</td><td>+partial_completion</td></tr>
+  <tr><td class="worse"><a href="#case-en-19">en-19</a></td><td>en</td><td class="pass">pass</td><td class="num">5 → 4</td><td class="num"></td><td class="num"></td><td class="num"></td><td></td></tr>
+  <tr><td class="mixed"><a href="#case-id-19">id-19</a></td><td>id</td><td class="pass">fail → pass</td><td class="num">3 → 5</td><td class="num">5 → 3</td><td class="num">3 → 5</td><td class="num">4 → 5</td><td>-constraint_violation -hallucination</td></tr>
+  <tr><td class="worse"><a href="#case-en-20">en-20</a></td><td>en</td><td class="pass">pass</td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num">5 → 4</td><td></td></tr>
+  <tr><td class="better"><a href="#case-id-20">id-20</a></td><td>id</td><td class="pass">pass</td><td class="num">4 → 5</td><td class="num">4 → 5</td><td class="num">2 → 5</td><td class="num">3 → 4</td><td>-hallucination</td></tr>
+</table>
+<h2>Cases</h2>
+<p class="intro">Every case of the suite, with each run's verdict. Open a run's line for its response, its failed checks and the judge's rationale.</p>
+<section class="case" id="case-en-01">
+<h3>en-01 <span class="lang">en</span></h3>
+<p class="prompt">Explain why the sky is blue in two sentences.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="fail">fail</td>
+    <td class="num">3</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td>constraint_violation, partial_completion</td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td></td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<ul>
+  <li class="fail">sentence_count: 1 sentences, expected exactly 2</li>
+</ul>
+<p><b>Judge:</b> The response provides a correct explanation for why the sky is blue but fails to meet the constraint of providing exactly two sentences. The explanation is concise and accurate, but it lacks the second sentence required by the instruction.</p>
+<pre>The sky appears blue because the Earth&#39;s atmosphere scatters short-wavelength light more than long-wavelength light, a phenomenon known as Rayleigh scattering, which makes blue the most visible color during the day.</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response correctly explains the phenomenon of Rayleigh scattering in two sentences, adhering to the length requirement. The explanation is clear and accurate, though it could be more concise to strictly follow the two-sentence format. The content is factual and does not introduce any unsupported claims.</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<pre>The sky appears blue because of a phenomenon called Rayleigh scattering, in which shorter (blue) wavelengths of light are scattered more than longer (red) wavelengths by the tiny molecules of gases in the Earth&#39;s atmosphere. As a result, the blue light is dispersed in all directions, reaching our eyes from every part of the sky and giving it its blue color.</pre>
+</details>
+</section>
+<section class="case" id="case-id-01">
+<h3>id-01 <span class="lang">id</span></h3>
+<p class="prompt">Jelaskan mengapa langit berwarna biru dalam dua kalimat.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="fail">fail</td>
+    <td class="num">3</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td>constraint_violation</td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">3</td>
+    <td class="num">3</td>
+    <td class="num">3</td>
+    <td>hallucination</td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<ul>
+  <li class="fail">sentence_count: 1 sentences, expected exactly 2</li>
+</ul>
+<p><b>Judge:</b> The response provides a correct explanation for why the sky is blue, but it fails to meet the constraint of providing exactly two sentences. The explanation is concise and accurate, but it lacks the second sentence as required.</p>
+<pre>Langit berwarna biru karena cahaya matahari dipantulkan oleh atmosfer Bumi dan molekul-molekul di atmosfer ini mempersilakan panjang gelombang cahaya biru lebih mudah untuk dipantulkan daripada warna lain.</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response correctly explains why the sky is blue in two sentences, adhering to the format and language requirements. However, the explanation is overly complex and includes some inaccuracies in the description of Rayleigh scattering.</p>
+<pre>Langit berwarna biru karena adanya fenomena atmosfer yang disebut Rayleigh scattering, di mana sinar matahari yang dipancarkan ke langit dipengaruhi oleh partikel-partikel gas di atmosfer. Partikel-partikel gas ini akan menyerap sinar matahari dengan panjang gelombang yang lebih pendek, sehingga sinar matahari yang dipancarkan ke langit memiliki panjang gelombang yang lebih panjang dan berwarna biru.</pre>
+</details>
+</section>
+<section class="case" id="case-en-02">
+<h3>en-02 <span class="lang">en</span></h3>
+<p class="prompt">Give one tip for staying focused while studying. One sentence.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td></td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td></td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response adheres to the instruction by providing a single sentence tip for staying focused while studying. It is clear, concise, and relevant. However, it does not explicitly state that it is a tip for staying focused while studying, which was part of the instruction. The reasoning is sound and the claim is factual.</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<pre>Create a dedicated, clutter-free study space to help maintain focus and productivity.</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response adheres to the instruction by providing a single sentence tip for staying focused while studying. The tip is practical and relevant, and the sentence count and language constraints are met. However, the tip is a bit generic and could be more specific or innovative.</p>
+<pre>Set a timer for a specific study session length, such as 25 minutes, and challenge yourself to stay focused on the task at hand without any distractions during that time.</pre>
+</details>
+</section>
+<section class="case" id="case-id-02">
+<h3>id-02 <span class="lang">id</span></h3>
+<p class="prompt">Berikan satu tips agar tetap fokus saat belajar. Satu kalimat saja.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td></td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">3</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">3</td>
+    <td></td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response provides a single sentence in Indonesian as requested, offering a tip on how to maintain focus while studying. It suggests setting study time with short breaks to maintain focus and mental freshness. However, the sentence is slightly longer than a single sentence, which is a minor deviation from the instruction.</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<pre>Atur waktu belajar dengan jeda singkat untuk menjaga fokus dan kefreshan otak.</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response provides a useful tip in Indonesian, adhering to the language requirement. However, it exceeds the one-sentence constraint by combining two tips into one sentence, making it less clear and concise. The reasoning is sound but could be more precise.</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<pre>Tetap fokus saat belajar dapat dilakukan dengan membuat jadwal belajar yang terstruktur dan membatasi penggunaan media sosial selama belajar.</pre>
+</details>
+</section>
+<section class="case" id="case-en-03">
+<h3>en-03 <span class="lang">en</span></h3>
+<p class="prompt">What is a database index? Answer in 2-3 sentences.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td></td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">3</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td></td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response accurately defines a database index and provides a clear analogy to explain its function. It meets the length requirement and is in English as requested. However, the explanation is slightly more detailed than the 2-3 sentence limit suggests, though it is still concise and useful.</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<pre>A database index is a data structure that improves the speed of data retrieval operations on a database table. By storing a copy of selected columns from the table, the database can quickly find the row or rows you&#39;re looking for, similar to how the alphabetization of words in a dictionary helps you find the definition more quickly.</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response provides a clear and accurate explanation of what a database index is, but it exceeds the requested length of 2-3 sentences. The content is correct and useful, but the brevity constraint is not met.</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<pre>A database index is a data structure that improves the speed of data retrieval by allowing the database to quickly locate specific data. It&#39;s essentially a map or a pointer that tells the database where to find specific data, allowing it to bypass the need to scan the entire database. By indexing specific columns, databases can efficiently retrieve data, making queries faster and more efficient.</pre>
+</details>
+</section>
+<section class="case" id="case-id-03">
+<h3>id-03 <span class="lang">id</span></h3>
+<p class="prompt">Apa itu indeks pada database? Jawab dalam 2-3 kalimat.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td></td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td></td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response adheres to the instruction by providing a concise definition of an index in a database within 2-3 sentences. The explanation is clear and accurate, and the response is entirely in Indonesian as required. However, the response could be slightly more helpful by providing a specific example or additional detail to enhance understanding.</p>
+<pre>Indeks pada database adalah struktur data yang membantu dalam mempercepat proses pencarian data. Mereka bekerja dengan cara yang mirip dengan indeks buku, memungkinkan database untuk menemukan dan mengakses informasi dengan lebih cepat.</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response accurately defines an index in a database and explains its purpose in two coherent sentences, adhering to the length requirement. The explanation is clear and factually correct, providing a useful answer to the question.</p>
+<pre>Indeks pada database adalah struktur data yang memungkinkan akses lebih cepat dan efisien pada data yang disimpan. Indeks biasanya berupa kumpulan nilai unik dari satu atau lebih kolom tabel yang dapat digunakan untuk mempercepat proses pencarian data.</pre>
+</details>
+</section>
+<section class="case" id="case-en-04">
+<h3>en-04 <span class="lang">en</span></h3>
+<p class="prompt">Write a short, friendly message reminding a colleague about tomorrow&#39;s meeting.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td></td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td></td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response adheres to the instruction by reminding the colleague about the meeting in a friendly manner. However, it includes placeholders for the colleague&#39;s name and the sender&#39;s name, which were not specified in the request. The content is clear and useful, but the placeholders slightly detract from the completeness.</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<pre>Hey [Colleague&#39;s Name],
+
+Hope you&#39;re having a great day! Just a friendly reminder that we have our meeting scheduled for tomorrow at 10 AM. Let&#39;s make sure to touch base on the project updates and any other items you&#39;d like to discuss.
+
+Looking forward to seeing you there!
+
+Best,
+[Your Name]</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response adheres to the instruction by providing a short, friendly message reminding a colleague about a meeting. However, it includes placeholders for the colleague&#39;s name and meeting time, which were not specified in the request. The message is clear and useful, but the placeholders indicate a minor deviation from the instruction.</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<pre>Here is a short, friendly message reminding a colleague about tomorrow&#39;s meeting:
+
+&#34;Hey [colleague&#39;s name], just a friendly reminder that we have our meeting tomorrow at [time]. Looking forward to catching up with you then! See you tomorrow.&#34;</pre>
+</details>
+</section>
+<section class="case" id="case-id-04">
+<h3>id-04 <span class="lang">id</span></h3>
+<p class="prompt">Tulis pesan singkat dan ramah untuk mengingatkan rekan kerja tentang rapat besok.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">3</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">3</td>
+    <td>partial_completion</td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="skip">skip</td>
+    <td class="num">3</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">3</td>
+    <td>partial_completion</td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response adheres to the instruction by writing a short and friendly reminder for a colleague about an upcoming meeting. However, it includes placeholders for the colleague&#39;s name, time, and location, which should be filled in for the message to be fully useful. The content is clear and appropriate, but the placeholders indicate that the task is not fully completed.</p>
+<pre>Halo [Nama Rekan Kerja],
+
+Saya ingin mengingatkan bahwa kita akan mengadakan rapat besok pada pukul [waktu] di [tempat rapat]. Saya yakin kita bisa mendapatkan banyak manfaat dari diskusi ini.
+
+Jika ada pertanyaan atau hal yang perlu disiapkan, jangan ragu untuk menghubungi saya.
+
+Terima kasih atas perhatiannya.
+
+Salam hangat,
+[Nama Anda]</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response is brief and to the point, but it lacks the warmth and detail requested in the instruction. It does not include a friendly tone or additional context about the meeting, which were part of the task. The response is in the correct language but does not fully meet the requirements.</p>
+<pre>Halo, besok ada rapat.</pre>
+</details>
+</section>
+<section class="case" id="case-en-05">
+<h3>en-05 <span class="lang">en</span></h3>
+<p class="prompt">List three healthy breakfast ideas.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td>partial_completion</td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td>partial_completion</td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response provides three healthy breakfast ideas as requested, with detailed descriptions that include nutritional benefits. It adheres to the English language requirement and does not exceed the scope of the task. However, it ends abruptly without completing the final sentence, which slightly reduces its helpfulness.</p>
+<pre>Certainly! Here are three healthy breakfast ideas that are both nutritious and delicious:
+
+1. **Greek Yogurt Parfait**: Layer Greek yogurt with fresh berries and a sprinkle of granola. This breakfast is high in protein from the yogurt and fiber from the berries and granola, making it satisfying and filling.
+
+2. **Avocado Toast with Poached Egg**: Toast whole-grain bread and top it with mashed avocado. Add a poached egg on top for a protein boost. You can also sprinkle some chili flakes or a dash of lemon juice for extra flavor. This breakfast is rich in healthy fats, fiber, and protein.
+
+3. **Oatmeal with Mixed Berries and Nuts**: Cook rolled oats with a bit of milk or water, then top with a mix of fresh berries and a handful of nuts. This breakfast is packed with fiber, antioxidants, and healthy fats, providing sustained energy throughout the morning.
+
+Each of these options is not only healthy but also easy to prepare, making</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response provides three healthy breakfast ideas as requested, with detailed descriptions and nutritional benefits. However, it ends abruptly with &#39;I hope&#39;, which is unnecessary and does not contribute to the task. The content is clear, useful, and in English, but the abrupt ending slightly detracts from its completeness.</p>
+<pre>Here are three healthy breakfast ideas:
+
+1. **Avocado Toast with Poached Eggs**: Toast whole grain bread, mash an avocado, and spread it on top. Poach an egg and place it on top of the avocado. Add a sprinkle of salt and pepper to taste. This breakfast is high in healthy fats, protein, and fiber.
+2. **Greek Yogurt Parfait with Berries and Granola**: Layer Greek yogurt, fresh berries (such as blueberries, strawberries, or raspberries), and a sprinkle of granola in a bowl. This breakfast is high in protein, calcium, and fiber.
+3. **Overnight Oats with Banana and Nuts**: Mix rolled oats, milk, and a mashed banana in a jar or container. Add a sprinkle of chopped nuts (such as almonds or walnuts) and a drizzle of honey (optional). Refrigerate overnight and enjoy in the morning. This breakfast is high in fiber, protein, and healthy fats.
+
+I hope</pre>
+</details>
+</section>
+<section class="case" id="case-id-05">
+<h3>id-05 <span class="lang">id</span></h3>
+<p class="prompt">Sebutkan tiga ide sarapan sehat.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td>partial_completion</td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">3</td>
+    <td class="num">3</td>
+    <td class="num">5</td>
+    <td class="num">3</td>
+    <td>partial_completion</td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response provides three healthy breakfast ideas as requested, and it is entirely in Indonesian. However, it only lists two ideas instead of the requested three, which is a minor deviation. The content is clear, useful, and factually correct.</p>
+<pre>Tentu, berikut adalah tiga ide sarapan sehat yang baik untuk Anda coba:
+
+1. **Smoothie Buah**: Campurkan berbagai buah segar seperti strawberry, bluberi, dan pisang dengan sedikit jus lemon dan air. Anda juga bisa menambahkan sayuran seperti kale atau brokoli untuk menambah nutrisi. Hal ini tidak hanya sehat, tetapi juga lezat dan mudah disiapkan.
+
+2. **Oatmeal dengan Buah dan Susu Rendah Lemak**: Oatmeal adalah pilihan sarapan yang baik karena kaya akan serat. Anda bisa menambahkan buah segar seperti apel, ceri, atau buah-buahan musiman lainnya, serta susu rendah lemak atau alternatifnya seperti almond milk atau oat milk. Tambahkan juga biji-bijian seperti chia atau flaxseed untuk menambah nutrisi.
+
+</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response provides three healthy breakfast ideas as requested, but the third idea is incomplete. The content is in Indonesian and generally follows the task, but the reasoning quality is slightly reduced due to the incomplete third idea and some repetition in the descriptions. The information provided is factual and useful, but the user would need to complete the third idea to have a fully useful response.</p>
+<pre>Berikut adalah tiga ide sarapan sehat:
+
+1.  Oatmeal dengan buah dan sayuran: Oatmeal adalah sumber karbohidrat yang baik dan dapat membantu menjaga keseimbangan gula darah. Anda dapat menambahkan buah dan sayuran untuk meningkatkan kandungan serat dan vitamin.
+2.  Telur dengan sayuran: Telur adalah sumber protein yang baik dan dapat membantu menjaga keseimbangan gula darah. Anda dapat menambahkan sayuran seperti wortel, buncis, dan brokoli untuk meningkatkan kandungan serat dan vitamin.
+3.  Roti gandum dengan keju dan sayuran: Roti gandum adalah sumber karbohidrat yang baik dan dapat membantu menjaga keseimbangan gula darah. Anda dapat menambahkan keju dan sayuran seperti tomat dan buncis untuk meningkatkan k</pre>
+</details>
+</section>
+<section class="case" id="case-en-06">
+<h3>en-06 <span class="lang">en</span></h3>
+<p class="prompt">In a few words, what is the capital of Japan?</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td></td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td></td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response correctly identifies Tokyo as the capital of Japan, adhering to the length and language constraints. It is factual, clear, and directly answers the question without any unnecessary information.</p>
+<pre>The capital of Japan is Tokyo.</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response is concise and correct, providing the capital of Japan as requested. It adheres to the length constraint and does not include unnecessary information. However, it lacks context or explanation, which might be expected in a more detailed response.</p>
+<pre>Tokyo.</pre>
+</details>
+</section>
+<section class="case" id="case-id-06">
+<h3>id-06 <span class="lang">id</span></h3>
+<p class="prompt">Dalam beberapa kata, apa ibu kota Jepang?</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td></td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">3</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td></td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response correctly identifies Tokyo as the capital of Japan, adhering to the request&#39;s language and brevity constraints. It is factual and directly answers the question without any unnecessary information. However, the automated checks indicate there is not enough text to determine language compliance, which is a minor concern.</p>
+<pre>Ibu kota Jepang adalah Tokyo.</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response is concise and correct, providing the requested information in the required language. However, it lacks the context of being a few words as requested, and it does not elaborate or provide additional information that might be helpful.</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<pre>Tokyo.</pre>
+</details>
+</section>
+<section class="case" id="case-en-07">
+<h3>en-07 <span class="lang">en</span></h3>
+<p class="prompt">Describe the taste of durian to someone who has never tried it, in two sentences.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="fail">fail</td>
+    <td class="num">3</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td>constraint_violation</td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">2</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">3</td>
+    <td></td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<ul>
+  <li class="fail">sentence_count: 1 sentences, expected exactly 2</li>
+</ul>
+<p><b>Judge:</b> The response provides a detailed description of the taste of durian, but it fails to meet the constraint of being exactly two sentences. The description is accurate and helpful, but the lack of a second sentence means it does not fully follow the instruction.</p>
+<pre>The durian has a distinctive, pungent odor that some describe as a mix of sweet cheese and garlic, and its taste is often described as a combination of caramel, cream, and a hint of almond, though it can be quite intense and not everyone finds it palatable.</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response provides a detailed description of durian&#39;s taste, but it exceeds the requested length of two sentences. The description is rich and informative, but it fails to adhere to the constraint of brevity.</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<pre>The taste of durian is often described as rich and savory, with notes of caramel, onion, and garlic, but also a hint of sweetness and a creamy texture that&#39;s both indulgent and overwhelming. Some people also detect a slightly bitter or umami flavor, which can be off-putting to those who aren&#39;t familiar with it, but is a key part of the fruit&#39;s distinctive and polarizing character.</pre>
+</details>
+</section>
+<section class="case" id="case-id-07">
+<h3>id-07 <span class="lang">id</span></h3>
+<p class="prompt">Gambarkan rasa durian kepada orang yang belum pernah mencobanya, dalam dua kalimat.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td></td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td></td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response accurately describes the taste and aroma of durian in two sentences as requested. It uses the correct language and adheres to the length constraint. However, the description of the aroma as a mix of rose and rotten is a common but somewhat exaggerated portrayal, and the taste description is subjective and may not be universally true. The response is helpful but could be more precise.</p>
+<pre>Durian memiliki aroma yang kuat dan unik, seringkali digambarkan sebagai campuran antara bunga mawar dan bau busuk, yang bisa sangat menarik perhatian namun juga mengejutkan bagi mereka yang belum pernah mencobanya. Rasa dan teksturnya yang unik, dengan paduan manis, asam, dan sedikit amis, membuatnya pengalaman makan yang tak terlupakan, baik itu disukai atau tidak.</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response adheres to the instruction by describing the taste of durian in two sentences in Indonesian. It captures the unique and distinct taste, the strong and sweet aroma, and the complex taste with a hint of sourness. However, it does not explicitly mention the texture as lembut (soft) in the second sentence, which might be a minor omission.</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<pre>Rasa durian adalah rasa yang unik dan khas, dengan aroma yang kuat dan manis. Ketika Anda memakan durian, Anda akan merasakan tekstur yang lembut dan manis, serta rasa yang kompleks dengan sedikit rasa asam.</pre>
+</details>
+</section>
+<section class="case" id="case-en-08">
+<h3>en-08 <span class="lang">en</span></h3>
+<p class="prompt">What does a data engineer do? Keep it brief.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td></td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td></td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response accurately describes the role of a data engineer and adheres to the brief format. However, it lacks a minor detail about the specific tools or technologies used by data engineers, which could have added more depth to the explanation.</p>
+<pre>A data engineer builds and maintains the data infrastructure, ensuring data pipelines, storage, and processing systems are reliable and scalable. They work on data ingestion, transformation, and loading, and often collaborate with data scientists and analysts to support data-driven initiatives.</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response accurately describes the role of a data engineer and adheres to the brief format requested. However, it does not explicitly state that the response is brief, which was a constraint in the request. The content is factual and useful, but the lack of a clear indication of brevity is a minor issue.</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<pre>A data engineer designs, builds, and maintains the infrastructure that collects, processes, and stores data for an organization. Their main responsibilities include:
+
+* Building and managing data pipelines
+* Designing and implementing data warehouses and data lakes
+* Ensuring data quality and integrity
+* Developing data processing and transformation scripts
+* Collaborating with data analysts and scientists to meet their data needs.</pre>
+</details>
+</section>
+<section class="case" id="case-id-08">
+<h3>id-08 <span class="lang">id</span></h3>
+<p class="prompt">Apa pekerjaan seorang data engineer? Jawab singkat.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td></td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td></td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response accurately describes the role of a data engineer in a concise manner, adhering to the requested language and format. However, it could be slightly more detailed to fully capture the essence of the job.</p>
+<pre>Pekerjaan seorang data engineer adalah merancang, mengembangkan, dan memelihara infrastruktur data yang mendukung pengumpulan, penyimpanan, dan analisis data besar.</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response accurately describes the role of a data engineer in a concise manner, adhering to the requested format and language. However, it lacks detail about specific tasks such as data integration, data warehousing, and data governance, which are crucial aspects of a data engineer&#39;s job.</p>
+<pre>Data engineer adalah orang yang bertanggung jawab untuk mengembangkan, mengelola, dan memelihara infrastruktur data perusahaan.</pre>
+</details>
+</section>
+<section class="case" id="case-en-09">
+<h3>en-09 <span class="lang">en</span></h3>
+<p class="prompt">Explain overfitting in machine learning to a beginner in three sentences.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td></td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="fail">fail</td>
+    <td class="num">3</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td>constraint_violation</td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response accurately explains overfitting in three sentences, adhering to the length requirement. However, it could be slightly more explicit about the consequences of overfitting for model performance on new data, which is implied but not directly stated.</p>
+<pre>Overfitting happens when a model learns the training data too well, including its noise and details, which makes it perform poorly on new, unseen data. Essentially, the model becomes too complex and starts to capture random errors in the training data. To avoid this, we use techniques like cross-validation and regularization to ensure the model generalizes well to new data.</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<ul>
+  <li class="fail">sentence_count: 4 sentences, expected exactly 3</li>
+</ul>
+<p><b>Judge:</b> The response provides a clear and accurate explanation of overfitting but violates the constraint of being exactly three sentences. The explanation is coherent and complete, but the fourth sentence is unnecessary and breaks the instruction.</p>
+<pre>Here&#39;s an explanation of overfitting in machine learning that&#39;s easy to understand:
+
+Overfitting happens when a machine learning model is too good at memorizing the training data, but not good at making predictions on new, unseen data. This is because the model has learned the noise and quirks of the training data, rather than the underlying patterns and relationships that are actually important. As a result, the model performs poorly on new data, and its accuracy is not representative of its true ability to generalize and make predictions in the real world.</pre>
+</details>
+</section>
+<section class="case" id="case-id-09">
+<h3>id-09 <span class="lang">id</span></h3>
+<p class="prompt">Jelaskan overfitting dalam machine learning kepada pemula dalam tiga kalimat.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="fail">fail</td>
+    <td class="num">3</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td>constraint_violation</td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td></td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<ul>
+  <li class="fail">sentence_count: 2 sentences, expected exactly 3</li>
+</ul>
+<p><b>Judge:</b> The response provides a clear explanation of overfitting in machine learning but fails to meet the constraint of providing exactly three sentences. The explanation is accurate and concise, but it lacks the third sentence required to fully address the request.</p>
+<pre>Overfitting terjadi ketika model machine learning terlalu sesuai dengan data pelatihan, sehingga ia mempelajari noise atau detail spesifik dalam data yang tidak relevan. Akibatnya, model tersebut tidak dapat membuat prediksi akurat pada data baru atau yang belum pernah dilihat sebelumnya.</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response accurately explains overfitting in machine learning in three sentences, as requested. It is coherent and clear, but it does not explicitly mention that it is aimed at beginners, which was part of the instruction. The explanation is factually correct and useful.</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<pre>Overfitting adalah fenomena di mana model machine learning terlalu kompleks dan terbiasa dengan data pelatihan sehingga tidak dapat memprediksi data baru dengan baik. Hal ini disebabkan karena model terlalu banyak mempelajari pola-pola kecil dalam data pelatihan, bukan pola-pola umum yang dapat diterapkan pada data baru. Akibatnya, model akan memiliki performa yang buruk ketika diterapkan pada data yang tidak pernah dilihat sebelumnya.</pre>
+</details>
+</section>
+<section class="case" id="case-en-10">
+<h3>en-10 <span class="lang">en</span></h3>
+<p class="prompt">Reply casually to a friend who asks if you want to get coffee later.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td></td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td></td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response is casual and affirmative, indicating willingness to meet for coffee and asking for a time, which aligns well with the request. It adheres to the language requirement and does not introduce any constraints or factual errors. However, it does not explicitly mention &#39;later&#39; in the context of the coffee meeting, which was implied in the request.</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<pre>Sure thing! Coffee sounds like a great idea. What time are you thinking?</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response is casual and acknowledges the invitation to get coffee, asking about the time. It meets the language requirement and does not introduce any constraints or factual errors. However, it does not explicitly state a preference for coffee, which was not a requirement but could have been a natural addition.</p>
+<pre>&#34;Yeah, that sounds good. What time were you thinking?&#34;</pre>
+</details>
+</section>
+<section class="case" id="case-id-10">
+<h3>id-10 <span class="lang">id</span></h3>
+<p class="prompt">Balas dengan bahasa santai ke teman yang ngajak ngopi nanti sore.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td></td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">3</td>
+    <td class="num">3</td>
+    <td class="num">4</td>
+    <td class="num">3</td>
+    <td>hallucination</td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response is in the correct language and follows the instruction to reply casually to an invitation to meet for coffee. It includes friendly and engaging content, expressing eagerness to meet and asking about coffee preparation, which is helpful and on-topic. However, it is slightly longer than necessary and includes some unnecessary details that could be trimmed.</p>
+<pre>Oke, gampang! Nanti sore aja, kita ngopi sambil ngobrolin apa aja. Udah lama banget nggak ketemu, jadi seneng banget bisa ngopi bareng. Apa kamu udah nyiapin beberapa macam kopi yang enak? Saya sih udah nungguin deh! 😄</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response uses a casual tone and acknowledges the invitation to meet for coffee, but it introduces a confusing element by suggesting that coffee might help with sleepiness, which is contrary to the usual purpose of coffee. The response is not entirely clear and helpful as it does not directly accept or decline the invitation.</p>
+<pre>&#34;Kok bisa sih? Saya sih lagi ngantuk nih. Tapi, ngopi aja sih bisa ngebantu ngantuknya hilang. Ayo, kita ngopi dulu, nanti kita bisa tidur dengan lebih nyenyak.&#34;</pre>
+</details>
+</section>
+<section class="case" id="case-en-11">
+<h3>en-11 <span class="lang">en</span></h3>
+<p class="prompt">Summarize the plot of Cinderella in two sentences.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td>hallucination</td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="fail">fail</td>
+    <td class="num">3</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td>constraint_violation</td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response provides a concise summary of Cinderella&#39;s plot in two sentences, adhering to the length requirement. However, it includes a minor inaccuracy: Cinderella&#39;s glass slipper fits her foot, not the prince&#39;s. The summary is clear and useful, but the factual error slightly diminishes its faithfulness.</p>
+<pre>Cinderella, a kind-hearted young woman, lives with her cruel stepmother and stepsisters after her father&#39;s death. She wishes to attend the royal ball but is rescued by a fairy godmother who helps her transform her rags into a beautiful gown, allowing her to meet the prince, though she must leave before midnight when her glass slipper fits the prince&#39;s foot, leading to her recognition and happily ever after.</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<ul>
+  <li class="fail">sentence_count: 3 sentences, expected exactly 2</li>
+</ul>
+<p><b>Judge:</b> The response provides a summary of Cinderella&#39;s plot in two sentences, but it actually contains three sentences, violating the constraint. The summary is accurate and useful, but the extra sentence is a minor deviation.</p>
+<pre>Here is a two-sentence summary of the plot of Cinderella:
+
+Cinderella, a young woman treated poorly by her stepmother and stepsisters, is forced to live a life of servitude in her own home. With the help of her fairy godmother, Cinderella attends the royal ball and captures the heart of the prince, but must leave before midnight, leaving behind a lost glass slipper that ultimately leads to their marriage.</pre>
+</details>
+</section>
+<section class="case" id="case-id-11">
+<h3>id-11 <span class="lang">id</span></h3>
+<p class="prompt">Ringkas cerita Cinderella dalam dua kalimat.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">4</td>
+    <td class="num">3</td>
+    <td class="num">4</td>
+    <td>hallucination</td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="fail">fail</td>
+    <td class="num">2</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">3</td>
+    <td>constraint_violation, partial_completion</td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response adheres to the instruction by summarizing Cinderella&#39;s story in two sentences. However, it introduces an element (putri salju) that is not part of the original story, which is a minor deviation from the factual context of Cinderella. The summary is clear and useful, but the inclusion of the putri salju slightly detracts from the faithfulness and reasoning quality.</p>
+<pre>Cinderella adalah putri yang hidup dalam keadaan miskin setelah ibu kandungnya meninggal dan ayahnya menikah kembali. Hidupnya berubah saat seorang putri salju membawanya ke pesta raja di mana dia bertemu dengan pangeran, tetapi pergi tanpa sepatu putihnya.</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<ul>
+  <li class="fail">sentence_count: 4 sentences, expected exactly 2</li>
+</ul>
+<p><b>Judge:</b> The response provides a summary of Cinderella&#39;s story but fails to adhere to the constraint of summarizing in exactly two sentences. The summary is coherent and captures the essence of the story, but it includes unnecessary details and a third sentence that was not requested.</p>
+<pre>Cerita Cinderella bermula dengan seorang gadis muda yang dipaksa tinggal bersama ibu tirinya. Ibu tirinya memaksa Cinderella bekerja keras dan tidak membiarkannya pergi ke pesta putri yang akan diadakan oleh putri yang cantik.
+
+Cinderella akhirnya bertemu dengan putra raja yang cantik dan mereka jatuh cinta. Mereka menikah dan hidup bahagia bersama.</pre>
+</details>
+</section>
+<section class="case" id="case-en-12">
+<h3>en-12 <span class="lang">en</span></h3>
+<p class="prompt">Why is regular exercise important? One short paragraph.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td></td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td></td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response adheres to the instruction by providing a single paragraph that explains the importance of regular exercise. It covers multiple health benefits and is coherent and factually correct. However, it could be slightly more concise to fully meet the &#39;short paragraph&#39; requirement.</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<pre>Regular exercise is crucial for maintaining overall health and well-being. It helps improve cardiovascular health, boost immune function, enhance mental health by reducing stress and anxiety, and promote better sleep. Additionally, exercise aids in weight management, strengthens muscles and bones, and can reduce the risk of chronic diseases such as diabetes, hypertension, and certain types of cancer. Regular physical activity is a cornerstone of a healthy lifestyle.</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response provides a comprehensive overview of the benefits of regular exercise, adhering to the format and language requirements. However, it slightly exceeds the requested length of a single paragraph, though the additional content is relevant and useful.</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<pre>Regular exercise is essential for maintaining overall health and well-being. It helps to reduce the risk of chronic diseases such as heart disease, diabetes, and certain types of cancer, while also improving mental health and reducing stress. Exercise also boosts energy levels, improves sleep quality, and supports weight management. Additionally, regular physical activity can improve cognitive function, increase strength and flexibility, and enhance overall quality of life.</pre>
+</details>
+</section>
+<section class="case" id="case-id-12">
+<h3>id-12 <span class="lang">id</span></h3>
+<p class="prompt">Mengapa olahraga teratur itu penting? Satu paragraf pendek.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">3</td>
+    <td class="num">4</td>
+    <td class="num">4</td>
+    <td>hallucination</td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td></td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response adheres to the instruction by providing a single paragraph in Indonesian about the importance of regular exercise. However, there are minor grammatical errors and a logical inconsistency in the explanation.</p>
+<pre>Olahraga teratur sangat penting karena dapat meningkatkan kesehatan fisik dan mental seseorang. Melalui aktivitas fisik secara rutin, tubuh dapat menjadi lebih kuat dan sehat, risiko penyakit jantung dan diabetes dapat dikurangi, serta mood seseorang menjadi lebih baik dan stres dapat terelimiinasi.</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response adheres to the instruction by providing a single paragraph in Indonesian explaining why regular exercise is important. It correctly lists several health benefits of regular exercise, but it could be more comprehensive by mentioning additional benefits such as mental health and disease prevention.</p>
+<pre>Olahraga teratur itu penting karena dapat meningkatkan kesehatan tubuh secara keseluruhan. Olahraga teratur dapat membantu meningkatkan kekuatan otot, meningkatkan keseimbangan dan koordinasi, serta meningkatkan kesehatan jantung dan pernapasan.</pre>
+</details>
+</section>
+<section class="case" id="case-en-13">
+<h3>en-13 <span class="lang">en</span></h3>
+<p class="prompt">How do I fix a &#39;permission denied&#39; error when running a script on Linux? Brief answer.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td>partial_completion</td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td></td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response provides a clear and concise set of steps to address a &#39;permission denied&#39; error in Linux, adhering to the brief format requested. However, it ends abruptly without completing the last point, which slightly reduces its completeness and usefulness.</p>
+<pre>To fix a &#39;permission denied&#39; error when running a script on Linux, you can:
+
+1. **Check File Permissions**: Ensure the script file has the necessary execute permissions. You can use `chmod` to add execute permissions:
+   ```bash
+   chmod +x scriptname.sh
+   ```
+
+2. **Run with Sudo**: If the script requires elevated privileges, use `sudo`:
+   ```bash
+   sudo ./scriptname.sh
+   ```
+
+3. **Change Ownership**: If the script is owned by another user, you might need to change ownership or run as that user:
+   ```bash
+   sudo chown yourusername:yourgroupname scriptname.sh
+   ```
+
+4. **Check Script Shebang**: Ensure the script starts with a correct shebang line (e.g., `#!/bin/bash`) pointing to the correct interpreter.
+
+5. **Run as Root**: If the script needs full root access, run it as the root user:
+   ```</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response provides a concise and accurate solution to the &#39;permission denied&#39; error, adhering to the brief format requested. However, it could be more helpful by including a brief explanation for each step, which would enhance user understanding.</p>
+<pre>To fix a &#39;permission denied&#39; error when running a script on Linux:
+
+1. **Change the script&#39;s permissions**: Run `chmod +x script_name.sh` to make the script executable.
+2. **Run the script with elevated privileges**: Use `sudo ./script_name.sh` to run the script with superuser privileges.
+3. **Change the script&#39;s ownership**: Run `chown user:group script_name.sh` to change the script&#39;s ownership to the desired user and group.</pre>
+</details>
+</section>
+<section class="case" id="case-id-13">
+<h3>id-13 <span class="lang">id</span></h3>
+<p class="prompt">Bagaimana cara mengatasi error &#39;permission denied&#39; saat menjalankan script di Linux? Jawab singkat.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td></td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td></td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response provides a clear and concise list of steps to address the &#39;permission denied&#39; error in Linux, adhering to the request for a short answer in Indonesian. However, it could be more helpful by explaining the purpose of each step and providing examples for clarity.</p>
+<pre>Cara mengatasi error &#39;permission denied&#39; di Linux:
+
+1. Gunakan perintah `chmod` untuk memberikan izin yang diperlukan.
+2. Jalankan script dengan menggunakan `sudo` jika memerlukan hak akses superuser.
+3. Pastikan Anda berada dalam direktori yang tepat sebelum menjalankan script.
+4. Cek apakah file script memiliki ekstensi yang benar (misalnya `.sh` untuk shell script).
+5. Pastikan Anda memiliki hak tulis pada file dan direktori yang terkait.</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response provides clear and concise instructions on how to resolve the &#39;permission denied&#39; error in Linux, adhering to the requested format and language. However, it slightly exceeds the &#39;singkat&#39; (short) requirement, as it includes more detailed examples than necessary for a brief answer.</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<pre>Untuk mengatasi error &#39;permission denied&#39; saat menjalankan script di Linux, Anda dapat melakukan beberapa hal berikut:
+
+1.  Jalankan terminal sebagai root dengan menggunakan perintah `sudo` sebelum menjalankan script.
+2.  Ubah hak akses file script dengan menggunakan perintah `chmod` untuk memberikan akses eksekusi.
+3.  Ubah hak akses direktori tempat script berada dengan menggunakan perintah `chmod` untuk memberikan akses eksekusi.
+
+Contoh perintah untuk mengubah hak akses file script:
+
+```bash
+chmod +x script.sh
+```
+
+Contoh perintah untuk menjalankan script dengan hak akses root:
+
+```bash
+sudo ./script.sh
+```</pre>
+</details>
+</section>
+<section class="case" id="case-en-14">
+<h3>en-14 <span class="lang">en</span></h3>
+<p class="prompt">Say thank you to a customer for their order in one sentence.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">3</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td></td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">2</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">3</td>
+    <td></td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response is helpful and follows the instruction to thank the customer, but it exceeds the constraint of being one sentence. The reasoning quality is not applicable as the task does not require reasoning. The faithfulness is high as it does not contain false information.</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<pre>Thank you so much for your order; we&#39;re excited to ship it out and can&#39;t wait for you to enjoy it!</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response is overly long and includes additional information beyond the single sentence requested. It does not strictly follow the instruction to provide a single sentence thank you message.</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<pre>&#34;Thank you for your order, we appreciate your business and look forward to serving you again in the future!&#34;</pre>
+</details>
+</section>
+<section class="case" id="case-id-14">
+<h3>id-14 <span class="lang">id</span></h3>
+<p class="prompt">Ucapkan terima kasih kepada pelanggan atas pesanannya dalam satu kalimat.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">3</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td></td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">3</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td>partial_completion</td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response is in Indonesian and expresses gratitude for the order, but it includes an additional phrase &#39;kami sangat senang dapat membantu&#39; which was not part of the original request. This phrase adds unnecessary information and slightly deviates from the task of simply expressing thanks.</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<pre>Terima kasih atas pesanan Anda, kami sangat senang dapat membantu!</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response is in Indonesian and follows the instruction to express gratitude for an order. However, it includes additional information about processing the order, which was not part of the original request. The response is helpful but slightly overstates the task.</p>
+<pre>Terima kasih atas pesanan Anda, kami akan segera memprosesnya.</pre>
+</details>
+</section>
+<section class="case" id="case-en-15">
+<h3>en-15 <span class="lang">en</span></h3>
+<p class="prompt">Is it better to rent or buy a house? Give a balanced answer in three sentences.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td></td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td></td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response adheres to the instruction by providing a balanced answer in three sentences. It covers the main factors to consider when deciding between renting and buying a house, and explains the pros and cons of each option. However, it does not explicitly state that the decision depends on individual circumstances, which was implied but not directly stated in the request.</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<pre>Deciding whether to rent or buy a house depends on various factors, including your financial situation, long-term goals, and local real estate market conditions. Generally, buying a home can be more cost-effective in the long run due to potential equity building and tax benefits, but it also requires a significant upfront investment and ongoing responsibilities such as maintenance and property taxes. Renting offers flexibility and lower initial costs, allowing you to allocate your budget elsewhere, but it does not build equity and the benefits of property appreciation do not accrue to you.</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response is concise and balanced, addressing both renting and buying a house in three sentences. It adheres to the format and language requirements but could be slightly more explicit about the factors influencing the decision.</p>
+<pre>Whether it&#39;s better to rent or buy a house depends on various factors, including your financial situation, lifestyle, and long-term plans. Renting can offer flexibility and lower upfront costs, but you may not build equity or have control over maintenance and repairs. On the other hand, buying a house can provide a sense of stability and ownership, but it often requires a significant down payment and ongoing expenses like mortgage payments, property taxes, and maintenance.</pre>
+</details>
+</section>
+<section class="case" id="case-id-15">
+<h3>id-15 <span class="lang">id</span></h3>
+<p class="prompt">Lebih baik menyewa atau membeli rumah? Berikan jawaban yang seimbang dalam tiga kalimat.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td></td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td></td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response adheres to the instruction by providing a balanced view in three sentences. It covers the main points of buying and renting houses, and suggests considering factors before making a decision. However, it could be more specific about the factors to consider, which would make it more helpful.</p>
+<pre>Keputusan antara menyewa atau membeli rumah tergantung pada situasi finansial dan kebutuhan jangka panjang Anda. Membeli rumah dapat memberikan kestabilan finansial dan potensi investasi jangka panjang, sementara menyewa memberikan fleksibilitas dan kebebasan tanpa tanggung jawab pemeliharaan yang besar. Oleh karena itu, pertimbangkan faktor-faktor seperti stabilitas pekerjaan, rencana hidup jangka panjang, dan kondisi pasar properti sebelum membuat keputusan.</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response adheres to the instruction by providing a balanced view in three sentences. It correctly identifies the main factors to consider when choosing between renting and buying a house, such as flexibility, cost, and ownership rights. However, it does not provide specific examples or numerical data, which might have enhanced the reasoning quality.</p>
+<pre>Menyewa atau membeli rumah tergantung pada kebutuhan dan prioritas masing-masing individu. Menyewa rumah lebih fleksibel dan tidak memerlukan biaya yang besar untuk pembelian, namun Anda tidak memiliki hak kepemilikan atas properti tersebut. Membeli rumah, di sisi lain, memberikan hak kepemilikan dan potensi nilai investasi yang lebih besar, namun memerlukan biaya pembelian yang besar dan biaya perawatan yang lebih tinggi.</pre>
+</details>
+</section>
+<section class="case" id="case-en-16">
+<h3>en-16 <span class="lang">en</span></h3>
+<p class="prompt">Explain what a GPU is in one sentence.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">3</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td></td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">3</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td></td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response provides a detailed explanation of what a GPU is, but it exceeds the requested length of one sentence. The content is accurate and informative, but it does not adhere to the constraint of being a single sentence.</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<pre>A GPU, or Graphics Processing Unit, is a specialized processor designed to handle the complex calculations required for rendering images, videos, and other graphical data, especially in gaming and graphics-intensive applications.</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response provides a detailed explanation of what a GPU is, but it exceeds the requested length of one sentence. The content is accurate and informative, but it does not adhere to the constraint of being a single sentence.</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<pre>A Graphics Processing Unit (GPU) is a specialized electronic circuit designed to quickly manipulate and alter memory to accelerate the creation of images on a display device, but it has also become a crucial component for general-purpose computing, particularly for tasks such as artificial intelligence, scientific simulations, and data analytics.</pre>
+</details>
+</section>
+<section class="case" id="case-id-16">
+<h3>id-16 <span class="lang">id</span></h3>
+<p class="prompt">Jelaskan apa itu GPU dalam satu kalimat.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td></td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td></td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response provides a clear and concise definition of GPU in one sentence, adhering to the language and length requirements. The definition is accurate and informative, though it could be slightly more concise to fully meet the one-sentence constraint.</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<pre>GPU adalah singkatan dari Graphics Processing Unit, yaitu komponen hardware yang dirancang untuk mempercepat rendering grafis dan pemrosesan paralel dalam perangkat komputer.</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response provides a clear and accurate definition of GPU in one sentence, as requested. It adheres to the language requirement and does not introduce any unsupported claims or errors. However, the sentence is slightly longer than necessary, which could be seen as a minor deviation from the task of providing a concise definition.</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<pre>GPU (Graphics Processing Unit) adalah komponen komputer yang berfungsi untuk memproses grafis dan melakukan operasi matematika yang kompleks dengan cepat dan efisien.</pre>
+</details>
+</section>
+<section class="case" id="case-en-17">
+<h3>en-17 <span class="lang">en</span></h3>
+<p class="prompt">Give a two-sentence weather report for a rainy day in Jakarta.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td></td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="fail">fail</td>
+    <td class="num">3</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td>constraint_violation</td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response adheres to the instruction by providing a two-sentence weather report for a rainy day in Jakarta. However, it includes an additional sentence about carrying an umbrella, which was not part of the original request. The information provided is generally accurate and useful, but the extra sentence slightly deviates from the task.</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<pre>Today in Jakarta, expect persistent rainfall with occasional heavy downpours, and temperatures ranging from 25°C to 30°C. The humidity remains high, so it&#39;s advisable to carry an umbrella throughout the day.</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<ul>
+  <li class="fail">sentence_count: 3 sentences, expected exactly 2</li>
+</ul>
+<p><b>Judge:</b> The response provides a detailed weather report for a rainy day in Jakarta, but it violates the constraint of being exactly two sentences. The content is accurate and useful, but the extra sentence detracts from the clarity and brevity required.</p>
+<pre>Here is a two-sentence weather report for a rainy day in Jakarta:
+
+&#34;Today in Jakarta, a low-pressure system is bringing heavy rain and thunderstorms to the city, with a high chance of flash flooding in low-lying areas. The rain is expected to continue throughout the day, with a maximum temperature of 26°C and a minimum of 22°C, making it a gloomy and wet day to stay indoors.&#34;</pre>
+</details>
+</section>
+<section class="case" id="case-id-17">
+<h3>id-17 <span class="lang">id</span></h3>
+<p class="prompt">Buat laporan cuaca dua kalimat untuk hari hujan di Jakarta.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">3</td>
+    <td class="num">5</td>
+    <td>hallucination</td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="fail">fail</td>
+    <td class="num">3</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td>constraint_violation</td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response adheres to the instruction by providing a two-sentence weather report for a rainy day in Jakarta. It includes relevant details such as road conditions, humidity index, and temperature, which are appropriate for the context. However, the response includes specific numbers and details that are not verifiable without a context, which slightly undermines its faithfulness.</p>
+<pre>Hari ini di Jakarta mendapat hujan yang cukup deras, menyebabkan jalanan menjadi licin dan tergenang air. Indeks kelembaban udara mencapai 90%, sementara suhu terasa sekitar 24°C.</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<ul>
+  <li class="fail">sentence_count: 3 sentences, expected exactly 2</li>
+</ul>
+<p><b>Judge:</b> The response provides a weather report for Jakarta but includes three sentences instead of the requested two. The content is otherwise accurate and relevant, but the extra sentence violates the instruction&#39;s constraint.</p>
+<pre>Berikut adalah laporan cuaca untuk hari hujan di Jakarta:
+
+Hari ini, Jakarta mengalami cuaca hujan dengan intensitas sedang. Suhu udara di pagi hari berkisar antara 22-25 derajat Celcius, sedangkan di siang hari mencapai 28-30 derajat Celcius.</pre>
+</details>
+</section>
+<section class="case" id="case-en-18">
+<h3>en-18 <span class="lang">en</span></h3>
+<p class="prompt">What should I pack for a three-day hiking trip? Short list.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">3</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">3</td>
+    <td>partial_completion</td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td></td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response provides a concise list of essential items for a three-day hiking trip, adhering to the request for a short list. However, it lacks a complete entry for food and water, which is a critical omission. The response is in English and follows the format of a list, but it does not fully complete the task as requested.</p>
+<pre>For a three-day hiking trip, it&#39;s important to pack light but ensure you have all the essentials. Here’s a short list to help you get started:
+
+1. **Clothing:**
+   - Quick-drying t-shirt
+   - Moisture-wicking base layer
+   - Insulating layer (fleece or jacket)
+   - Waterproof hiking pants or gaiters
+   - Hiking socks (2 pairs)
+   - Rain jacket or poncho
+   - Hat and gloves (if needed)
+   - Daypack or backpack
+
+2. **Footwear:**
+   - Hiking boots or shoes
+   - Socks for the boots
+
+3. **Sleeping:**
+   - Sleeping bag or blanket suitable for the expected temperature
+   - Sleeping pad or foam mat
+
+4. **Navigation:**
+   - Map of the area
+   - Compass
+   - GPS device or smartphone with offline maps
+
+5. **Food and Water:**
+   - High-energy</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response comprehensively lists essential items for a three-day hiking trip, adhering to the request for a short list. It is clear, concise, and relevant, providing a useful guide for the hiker. However, it slightly exceeds the &#39;short list&#39; constraint by including detailed categories and items that might be considered more than a brief summary.</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<pre>Here&#39;s a short list of essentials to pack for a three-day hiking trip:
+
+**Clothing:**
+
+* 2-3 hiking shirts
+* 2-3 pairs of hiking pants/shorts
+* 1-2 lightweight jackets or sweaters
+* Undergarments and socks
+* Hiking boots/shoes
+* Hat and gloves (depending on the weather)
+
+**Shelter and Sleeping Gear:**
+
+* Tent
+* Sleeping bag
+* Sleeping pad
+
+**Cooking and Hydration:**
+
+* Backpacking stove and fuel
+* Cooking pot and utensils
+* Plates, bowls, and cups
+* Water bottle or hydration bladder
+* Water purification tablets/filter (if needed)
+
+**First Aid and Personal:**
+
+* First aid kit
+* Sunscreen and insect repellent
+* Toiletries (toothbrush, toothpaste, etc.)
+* Map and compass (and/or GPS device)
+
+**Miscellaneous:**
+
+* Headlamp or flashlight
+* Extra batteries</pre>
+</details>
+</section>
+<section class="case" id="case-id-18">
+<h3>id-18 <span class="lang">id</span></h3>
+<p class="prompt">Apa saja yang perlu dibawa untuk mendaki gunung selama tiga hari? Daftar singkat.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">3</td>
+    <td class="num">3</td>
+    <td class="num">3</td>
+    <td class="num">3</td>
+    <td></td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td>partial_completion</td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response provides a list of items to bring for a three-day mountain hike, but it includes too many clothing items and some items that are not necessary for a hike, such as shampoo and conditioner. The response is in Indonesian and follows the format requested, but it does not meet the constraint of being a &#39;daftar singkat&#39; (short list).</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<pre>Berikut adalah daftar singkat perlengkapan yang perlu dibawa untuk mendaki gunung selama tiga hari:
+
+1. Pakaian:
+   - Jaket atau hoodie tebal
+   - Celana pendek dan panjang
+   - Sweater atau jaket ringan
+   - Celana pendek dan panjang
+   - Sarung tangan
+   - Celana panjang
+   - Jaket hujan
+   - Celana hujan
+   - Sock atau kaus kaki
+   - Sarung kaki
+
+2. Perlengkapan Pribadi:
+   - Dompet, kunci, dan barang penting lainnya
+   - Ponsel dan charger
+   - Kamera atau kamera seluler
+   - Saku kantong air
+   - Sabun mandi
+   - Shampoo
+   - Sabun cuci tangan
+   - Shampoo rambut
+</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response follows the instruction well by providing a concise list of items needed for a three-day mountain hike. However, it lacks a complete list of items under the &#39;Obat-obatan&#39; (medicines) section, which is a minor deviation. The content is factually correct and useful for someone planning a mountain hike. The reasoning quality is sound, but the list could be more complete.</p>
+<pre>Berikut adalah daftar singkat apa saja yang perlu dibawa untuk mendaki gunung selama tiga hari:
+
+1. Pakaian:
+ * Pakaian luar (jaket, celana, topi)
+ * Pakaian dalam (kaos, celana dalam)
+ * Sepatu gunung
+ * Sarung tangan
+ * Topi
+2. Perlengkapan:
+ * Tas ransel
+ * Baju basah
+ * Selimut
+ * Bantal
+ * Kamera
+ * Ponsel
+ * Charger
+ * Power bank
+3. Makanan dan minuman:
+ * Makanan ringan (roti, buah, snack)
+ * Makanan berat (nasi, sayuran, protein)
+ * Minuman (air, teh, kopi)
+ * Makanan kering (keripik, kacang)
+4. Obat-obatan:
+ * Obat sakit kepala
+ *</pre>
+</details>
+</section>
+<section class="case" id="case-en-19">
+<h3>en-19 <span class="lang">en</span></h3>
+<p class="prompt">Respond with one word: what color is a ripe banana?</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td></td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td></td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response correctly answers the question with the word &#39;Yellow&#39;, adhering to the instruction to respond with one word. It does not deviate from the task or add unnecessary information. However, there is no reasoning or explanation provided, which is not required by the task but noted for completeness.</p>
+<pre>Yellow</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response correctly answers the question with the word &#39;Yellow&#39;, adhering to the instruction to respond with one word. It is factually correct and directly addresses the query without any unnecessary information. However, the response does not explicitly state that it is responding to a request for the color of a ripe banana, which is a minor deviation from the instruction.</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<pre>Yellow.</pre>
+</details>
+</section>
+<section class="case" id="case-id-19">
+<h3>id-19 <span class="lang">id</span></h3>
+<p class="prompt">Jawab dengan satu kata: apa warna pisang yang matang?</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="fail">fail</td>
+    <td class="num">3</td>
+    <td class="num">5</td>
+    <td class="num">3</td>
+    <td class="num">4</td>
+    <td>constraint_violation, hallucination</td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">5</td>
+    <td class="num">3</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td></td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<ul>
+  <li class="fail">required_phrases: missing [&#39;kuning&#39;]</li>
+</ul>
+<p><b>Judge:</b> The response &#39;Kuningija&#39; is close to correct but contains a spelling error and an unnecessary suffix. It meets the length requirement but violates the constraint of using the exact word &#39;kuning&#39;. The response is clear and useful but not fully accurate.</p>
+<pre>Kuningija</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response follows the instruction precisely by answering in one word and in the correct language. The answer &#39;Kuning&#39; is factually correct for a ripe banana. However, there is no reasoning or explanation provided, which is not required by the task but limits the score for reasoning quality.</p>
+<pre>Kuning</pre>
+</details>
+</section>
+<section class="case" id="case-en-20">
+<h3>en-20 <span class="lang">en</span></h3>
+<p class="prompt">Tell me a fun fact about octopuses in one sentence.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td></td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td></td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response provides a fun fact about octopuses that is both accurate and interesting, adhering to the one-sentence format. However, it does not explicitly state that it is a &#39;fun fact&#39;, which was part of the instruction.</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<pre>Octopuses can change not only the color of their skin but also its texture to blend into their surroundings, which is pretty amazing!</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response provides a factual and interesting fun fact about octopuses, adhering to the one-sentence format and language requirements. However, the fact provided is more detailed than a typical fun fact and could be considered slightly beyond the scope of a &#39;fun fact&#39; in brevity and simplicity.</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<pre>Octopuses have been observed using tools, such as collecting and using shells to build shelters, and even using rocks to open shells and eat the contents.</pre>
+</details>
+</section>
+<section class="case" id="case-id-20">
+<h3>id-20 <span class="lang">id</span></h3>
+<p class="prompt">Ceritakan satu fakta menarik tentang gurita dalam satu kalimat.</p>
+<table>
+  <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
+  <tr><td>qwen2.5:7b</td>
+    <td class="pass">pass</td>
+    <td class="num">4</td>
+    <td class="num">4</td>
+    <td class="num">2</td>
+    <td class="num">3</td>
+    <td>hallucination</td>
+  </tr>
+  <tr><td>llama3.1:8b</td>
+    <td class="pass">pass</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
+    <td class="num">4</td>
+    <td></td>
+  </tr>
+</table>
+<details><summary>qwen2.5:7b</summary>
+<p><b>Judge:</b> The response provides a single sentence in Indonesian as requested, but it contains an error in the description of the gurita&#39;s size, which is not factually correct. The sentence is coherent and relevant to the task, but the factual accuracy is compromised.</p>
+<pre>Gurita memiliki lebih dari 2.500 spesies yang berbeda, dengan ukuran tubuh yang bisa mencapai lebih dari 12 meter jika ekornya terkuatensik.</pre>
+</details>
+<details><summary>llama3.1:8b</summary>
+<p><b>Judge:</b> The response adheres to the instruction by providing a single sentence in Indonesian about an interesting fact about octopuses. The sentence is factually correct and does not introduce any unsupported claims. However, the fact provided, while interesting, is not the most engaging or unique fact about octopuses, which slightly impacts its helpfulness.</p>
+<pre>Gurita memiliki kemampuan untuk mengeluarkan cairan yang dapat membantu mengelabui mangsanya.</pre>
+</details>
+</section>
+</body>
+</html>
