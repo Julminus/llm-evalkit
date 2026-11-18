@@ -8,7 +8,7 @@ RESPONSES_B ?= examples/responses/smoke-b.jsonl
 MODEL ?= qwen2.5:7b
 JUDGE ?= qwen2.5:14b
 
-.PHONY: help setup lint format typecheck test cov run run-ollama judge judge-ollama pairwise consistency docker clean
+.PHONY: help setup lint format typecheck test cov run run-ollama judge judge-ollama pairwise consistency report compare docker clean
 
 help:
 	@echo "setup       install deps + pre-commit hooks"
@@ -22,6 +22,8 @@ help:
 	@echo "judge-ollama  judge RESPONSES with a local Ollama judge (JUDGE=qwen2.5:14b)"
 	@echo "pairwise    compare RESPONSES with RESPONSES_B in both orders (mock judge)"
 	@echo "consistency judge each example response 3 times (mock judge)"
+	@echo "report      judge RESPONSES (mock judge) and report it next to RESPONSES_B in reports/"
+	@echo "compare     what changed from RESPONSES to RESPONSES_B, case by case"
 	@echo "docker      build the CLI image"
 
 setup:
@@ -61,6 +63,14 @@ pairwise:
 
 consistency:
 	uv run evalkit consistency $(SUITE) $(RESPONSES) -j mock --mock-judgments $(JUDGMENTS) -n 3
+
+report:
+	uv run python -c "import shutil; shutil.rmtree(\"reports/runs\", ignore_errors=True)"
+	uv run evalkit judge $(SUITE) $(RESPONSES) -j mock --mock-judgments $(JUDGMENTS) --out reports/runs --run-id judged
+	uv run evalkit report $(SUITE) reports/runs/judged $(RESPONSES_B) -o reports
+
+compare:
+	uv run evalkit compare $(SUITE) $(RESPONSES) $(RESPONSES_B)
 
 docker:
 	docker build -t llm-evalkit:dev .

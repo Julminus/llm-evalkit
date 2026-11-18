@@ -20,6 +20,7 @@ htmlcov/
 
 # Run outputs (logs, caches, reports land here from S2 on)
 runs/
+reports/
 .evalkit-cache/
 
 # graphify knowledge graph (local only)
