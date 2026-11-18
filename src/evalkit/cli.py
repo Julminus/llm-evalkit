@@ -1631,7 +1631,13 @@ def compare_runs(
         for note in view.notes:
             err_console.print(f"[yellow]note:[/] {escape(view.name)}: {escape(note)}")
     if not diff.shared:
-        raise _exit_error("the two runs have no case in common: check that they are for this suite")
+        empty = [view.name for view in (before, after) if not view.cases]
+        why = (
+            f"{' and '.join(empty)} has no response for any case"
+            if empty
+            else "check that they are for this suite"
+        )
+        raise _exit_error(f"the two runs have no case in common: {why}")
     if strict and (diff.worse or diff.lost):
         raise typer.Exit(1)
 

@@ -140,6 +140,17 @@ def test_compare_with_nothing_in_common(tmp_path: Path) -> None:
     assert "the two runs have no case in common" in result.output
 
 
+def test_compare_with_a_run_whose_generations_all_failed(tmp_path: Path) -> None:
+    (tmp_path / "failed").mkdir()
+    rows = [{"id": "en-math-001", "response": None, "error": "boom"}]
+    (tmp_path / "failed" / "responses.jsonl").write_text(
+        json.dumps(rows[0]) + "\n", encoding="utf-8"
+    )
+    result = invoke("compare", SMOKE_SUITE, SMOKE_RESPONSES, tmp_path / "failed")
+    assert result.exit_code == 1
+    assert "no case in common: failed has no response for any case" in result.output
+
+
 def test_a_run_of_another_suite_is_an_error(tmp_path: Path) -> None:
     other = tmp_path / "other.jsonl"
     other.write_text('{"id": "nope", "response": "x"}\n', encoding="utf-8")
