@@ -279,7 +279,7 @@ def summary(data: dict[str, Any]) -> None:
             **d[m]["judged"]["mean_scores"][dim.value]))  # fmt: skip
     hallucination = FailureMode.HALLUCINATION.value
     row("hallucination tags fresh -> warm", lambda m: "{base} -> {new}".format(
-        **d[m]["judged"]["failure_modes"][hallucination]))  # fmt: skip
+        **d[m]["judged"]["failure_modes"].get(hallucination, {"base": 0, "new": 0})))  # fmt: skip
     row("fresh replies identical to S3", lambda m: data["s3_identical_replies"][m])
     print(f"report of the fresh runs built in {data['report']['seconds']} s")
 
