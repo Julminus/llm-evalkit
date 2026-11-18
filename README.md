@@ -25,49 +25,62 @@ state, so read it as a demonstration, not a benchmark. In the terminal, the judg
 
 ## Results
 
-**Regression diffs on real runs: the checks hold still, the judge doesn't.** The runner
-measurement below ran each model twice at temperature 0 with the same seed: once from a fresh
-model load and once on the already-warm server, and the second run reworded 12 of qwen2.5:7b's 40
-answers and 4 of llama3.1:8b's. That is a regression diff where nothing should count as a
-regression. I judged all 160 answers with qwen2.5:14b (prompt v1, temperature 0, seed 0, at most
+**Regression diffs on real runs: what `compare` flags when nobody changed anything.** The
+runner measurement below ran each model twice at temperature 0 with the same seed: once from a
+fresh model load and once on the already-warm server. The second run changed 12 of qwen2.5:7b's
+40 answers and 4 of llama3.1:8b's. By difflib similarity the 16 split cleanly, with nothing
+between 0.51 and 0.75: 7 are near-identical rewordings (0.75 to 0.98: "[Your Name]" for "[Nama
+Anda]", an emoji added, a phrase with a typo replaced), and 9 say something different (0.17 to 0.51: qwen2.5:7b's
+Cinderella summary lost its factual error and its ending; its octopus fact became a different
+false one). I judged all 160 answers with qwen2.5:14b (prompt v1, temperature 0, seed 0, at most
 1024 tokens, one request at a time, fresh model load) through one response cache, as a CI run
-would, so an answer that didn't change replays its earlier judgment and only the reworded ones
-are judged again. Then `evalkit compare` (the library's `diff_runs`), fresh against warm.
-Script: `scripts/measure_report.py`; raw output with every judge record:
-[`docs/results/report-s5.json`](docs/results/report-s5.json) (`--summary` rebuilds the table from
-it).
+would, so an unchanged answer replays its earlier judgment and only the 16 changed ones are judged
+again. Then `evalkit compare` (the library's `diff_runs`), fresh against warm. Script:
+`scripts/measure_report.py`; raw output with every judge record:
+[`docs/results/report-s5.json`](docs/results/report-s5.json) (`--summary` rebuilds every row below
+from it).
 
 | Fresh run → warm run, same model, same settings | `qwen2.5:7b` | `llama3.1:8b` |
 |---|---|---|
-| Answers reworded | 12/40 | 4/40 |
+| Answers changed: near-identical rewording / different content | 7 / 5 | 0 / 4 |
 | Cases whose check verdict changed | **0** | **0** |
-| Cases whose judge verdict changed (a score or a failure mode) | **10** of the 12 | **2** of the 4 |
+| Cases whose judge verdict changed: near-identical / different content | **6 of 7** / 4 of 5 | - / 2 of 4 |
 | ... that `compare` calls worse / better / both | 4 / 8 / 2 | 2 / 2 / 2 |
 | ... score moves of 1 point / 2 or more | 22 / 1 | 2 / 2 |
-| Worse with `--min-change 2` | 1 (`en-11`: hallucination became partial_completion) | 2 |
-| Mean `instruction_following`, fresh → warm | 4.00 → 4.00 | 3.80 → 3.83 |
+| Worse with `--min-change 2` | 1 (`en-11`) | 2 (`id-07`, `id-10`) |
+| Mean `faithfulness`, fresh → warm; `hallucination` tags | 4.65 → 4.83; 6 → 3 | 4.92 → 4.95; 2 → 1 |
 | Judge replies on the fresh answers identical to the S3 run two days earlier | **40/40** | **40/40** |
 
 What this shows:
 
-- **Gate CI on the checks, not on the judge.** Rewording that a reader wouldn't call a change
-  flipped no check, but it changed the judge's verdict on 12 of the 16 reworded answers. A
-  `compare --strict` on judged runs would have failed this "regression" on 6 cases, while the mean
-  scores barely moved. Raising `--min-change` to 2 points removes the one-point jitter (24 of the
-  27 score moves), but 3 cases still fail, because the judge's failure-mode tags move too. So the
-  judge's per-case diffs are something to read, and `--strict` is a fit gate for check-only runs.
+- **On near-identical rewording the judge jitters by a point.** It changed its verdict on 6 of
+  the 7; all 10 of those score moves were one point, and `compare` called 2 of the cases worse
+  (`id-03`, `en-10`). With `--min-change 2` none of the 7 is worse.
+- **On changed content the judge moves for reasons, not always the right way.** By Claude's
+  reading: dropping the `hallucination` tag on `en-11` was right (the slipper error is gone), and
+  `partial_completion` fits the missing ending. But on `id-20` the new false claim ("more than 5000
+  water basins" that regulate body temperature) got faithfulness 5 and no tag, where the old false
+  claim had 2 and a tag. The three cases still worse with `--min-change 2` all changed content.
+- **The checks held still, and can't see content.** No check flipped on any of the 16, including
+  the 9 that say something different, because this suite checks only the constraints its prompts
+  state (lengths, counts, language). So `compare --strict` on check-only runs is a stable CI gate
+  (no false alarm here), but it guards the constraints, not the substance. On judged runs, use
+  `--min-change 2` and read the cases it flags.
+- **One model's re-run moved about as much as the gap between the two models.** Between qwen2.5:7b's
+  own two runs its faithfulness mean went from 4.65 to 4.83 and its `hallucination` tags from 6 to
+  3. The report below puts the models at 4.65 vs 4.92 and 6 vs 2. On 40 answers with one judge, a
+  difference that size between two models is not evidence of anything.
 - **The judged numbers reproduce.** Through the report path, all 80 judge replies on the fresh
   answers were byte-identical to the S3 measurement made two days earlier with the same settings
-  and order from a fresh load, so the per-model means in the report are the S3 judgments, not a new
-  draw.
+  and order from a fresh load, so the means in the report are the S3 judgments, not a new draw.
 - **The report puts the two models side by side** (the [screenshot](docs/img/report.png) at the
   top, the [whole report](docs/results/report-s5/report.md)). The checks pass both almost equally
   (87.5% vs 87.2%). The judge gives qwen2.5:7b more for instruction following (4.00 vs 3.80) and
-  less for faithfulness (4.65 vs 4.92), with 6 `hallucination` tags against 2. Five of qwen2.5:7b's
-  six and both of llama3.1:8b's are on Indonesian answers, and qwen2.5:7b's faithfulness mean is
-  4.35 in Indonesian against 4.95 in English. These are tags, not verified errors: of these 8, the
-  S3 audit below reads 4 as real. The judgments behind the report are the S3 ones, so the S3 and
-  S4 caveats apply: one small local judge from the same family as one of the models, noisy tags,
+  less for faithfulness (4.65 vs 4.92), with 6 `hallucination` tags against 2, a gap the bullet
+  above puts in proportion. Five of qwen2.5:7b's six and both of llama3.1:8b's are on Indonesian
+  answers, and qwen2.5:7b's faithfulness mean is 4.35 in Indonesian against 4.95 in English. These
+  are tags, not verified errors: of these 8, the S3 audit below reads 4 as real. The S3 and S4
+  caveats apply too: one small local judge from the same family as one of the models, noisy tags,
   and no human labels yet. Building the 80-case report took 0.05 s.
 
 **The LLM judge on real responses.** I judged the 80 responses saved by the runner measurement
@@ -266,8 +279,9 @@ What this shows:
   provider is tested offline only; see Known limits.)
 - **Temperature 0 and a fixed seed are not enough for reproducible output.** Two fresh loads agree
   on all 80 responses. But a second run on the already-warm server changed 12/40 qwen2.5:7b
-  responses and 4/40 llama3.1:8b responses. The changes are real rewording, not whitespace; in
-  one, an Indonesian message ended with "[Your Name]" instead of "[Nama Anda]". When I repeated the
+  responses and 4/40 llama3.1:8b responses. The changes are real, not whitespace: 7 are
+  near-identical rewordings (in one, an Indonesian message ended with "[Your Name]" instead of
+  "[Nama Anda]"), and 9 say something different (see the regression diffs above). When I repeated the
   warm run (three times for qwen2.5:7b, twice for llama3.1:8b), the same cases changed each time,
   which points to what the server processed since the model was loaded rather than to chance; only
   one warm run per model is saved in the results file. I have not isolated the mechanism inside the
@@ -323,8 +337,8 @@ mypy. Every provider is tested offline against the request and response shapes o
 Anthropic one through the real SDK with a mock transport), and
 `EVALKIT_LIVE_OLLAMA=1 uv run pytest -m live` runs the Ollama paths for real. CI runs the tests on
 Python 3.11, 3.12 and 3.13 (Linux) plus the whole pipeline with the mock provider and the mock
-judge, report and compare included, natively and in the Docker image, and checks that a plain
-`pip install -e .` works; I also run them on Windows, where file locking and console encodings
+judge, natively (report and compare included) and in the Docker image (report included), and
+checks that a plain `pip install -e .` works; I also run them on Windows, where file locking and console encodings
 differ. `evalkit --help` starts in about 0.29 s (median of 15 runs on this PC; the same before and
 after the report commands, since Jinja2 loads only when a report is written).
 
@@ -694,7 +708,8 @@ in a virtualenv installs it from the clone. With Docker:
   half their cases moved. `compare` lists every case whose verdict changed and says which way,
   and it compares like with like: judge scores only where both runs judged the case, the checks
   everywhere. The measurement above is why `--strict` suits check-only runs better than judged
-  ones: rewording at temperature 0 changed no check but a dozen judge verdicts.
+  ones: a temperature-0 re-run changed no check but 12 judge verdicts, 6 of them on near-identical
+  rewording.
 
 **Known limits.** The cache keys on the model *name* and server: if you re-pull an Ollama tag and
 get new weights, delete `.evalkit-cache/`. `--concurrency` only speeds a run up if the server
@@ -737,8 +752,8 @@ that starts with `=`, `+`, `-` or `@` with a leading `'` so a spreadsheet doesn'
 formula; that wasn't tried in Excel itself.
 
 **Known limits of the reports.** A judge run's manifest stores the path of the responses it judged
-as it was typed, so the report finds them only from the same working directory; elsewhere it says
-so and shows no response text (the scores and checks are still there). A run judged several times
+as it was typed, so a relative path works only from the same working directory; elsewhere the
+report says so and shows no response text (the scores and checks are still there). A run judged several times
 (`evalkit consistency`) is reported by its first sample. The HTML report holds every response, so it
 grows with the suite: 102 KB for the 80 answers above. A diff of judged runs inherits the judge's
 noise (see Results); the measured remedy is to gate on the checks and read the judge's changes.
