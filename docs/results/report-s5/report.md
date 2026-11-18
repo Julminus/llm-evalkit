@@ -1,7 +1,7 @@
 # Evaluation report: everyday
 
 - Suite everyday v1: 40 cases (20 en, 20 id), digest d7a367cb0df179bc.
-- Made with llm-evalkit 0.1.0.dev0 on 2026-11-18 18:28 UTC.
+- Made with llm-evalkit 0.1.0.dev0 on 2026-11-18 18:53 UTC.
 - Changes are against the first run, qwen2.5:7b.
 
 ## Runs
@@ -46,7 +46,7 @@ How many judged cases got each score.
 
 ## Failure modes
 
-Cases tagged with each mode. The checks decide the three checkable modes; the judge decides the rest, so a run without a judge has only the checkable ones.
+Cases tagged with each mode. The checks decide the three checkable modes and the judge the rest; a check re-tagged with fails_as in the suite counts under its new mode.
 
 | Failure mode | Decided by | qwen2.5:7b | llama3.1:8b |
 |---|---|---|---|

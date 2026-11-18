@@ -35,7 +35,7 @@
 <h1>Evaluation report: everyday</h1>
 <ul class="meta">
   <li>Suite everyday v1: 40 cases (20 en, 20 id), digest d7a367cb0df179bc.</li>
-  <li>Made with llm-evalkit 0.1.0.dev0 on 2026-11-18 18:28 UTC.</li>
+  <li>Made with llm-evalkit 0.1.0.dev0 on 2026-11-18 18:53 UTC.</li>
   <li>Changes are against the first run, qwen2.5:7b.</li>
 </ul>
 <h2>Runs</h2>
@@ -73,7 +73,7 @@
   <tr><td>llama3.1:8b</td><td>helpfulness</td><td class="num">0</td><td class="num">0</td><td class="num">8</td><td class="num">20</td><td class="num">12</td><td class="num">4.10</td></tr>
 </table>
 <h2>Failure modes</h2>
-<p class="intro">Cases tagged with each mode. The checks decide the three checkable modes; the judge decides the rest, so a run without a judge has only the checkable ones.</p>
+<p class="intro">Cases tagged with each mode. The checks decide the three checkable modes and the judge the rest; a check re-tagged with fails_as in the suite counts under its new mode.</p>
 <table>
   <tr><th>Failure mode</th><th>Decided by</th><th>qwen2.5:7b</th><th>llama3.1:8b</th></tr>
   <tr><td>constraint_violation</td><td>checks</td><td class="num">5</td><td class="num">5</td></tr>

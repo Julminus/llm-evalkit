@@ -331,7 +331,7 @@ numbers. `uv run --with langdetect==1.0.9 python scripts/measure_langdetect.py` 
 rows of the table, including the baseline's wrong guesses.
 
 **Engineering.** 4 providers, 11 check types, an LLM judge with agreement, consistency and
-position-bias tools, HTML and Markdown reports, 921 tests (3 of them opt-in live tests, 2 that run
+position-bias tools, HTML and Markdown reports, 931 tests (3 of them opt-in live tests, 2 that run
 only where SciPy and scikit-learn are installed, 1 POSIX-only), 99.25% branch coverage, strict
 mypy. Every provider is tested offline against the request and response shapes of its API (the
 Anthropic one through the real SDK with a mock transport), and
@@ -538,12 +538,16 @@ the `responses.jsonl` / `judgments.jsonl` in it (any responses JSONL works too).
   **worse** when it fails its checks and didn't before, a judge score fell by at least
   `--min-change` points (default 1), or a failure mode appeared; **better** is the reverse, and a
   case can be both. Judge scores and the judge's failure modes are compared only where both runs
-  judged the case; against a run with no judge, only the checks are. `--strict` exits 1 if any case
-  is worse or NEW lacks a case BASE has, for CI; `--json` prints everything.
+  judged the case; against a run with no judge, only the checks are. A judge error in one run is
+  listed, not counted as worse (`evalkit judge` already exits 1 on it). `--strict` exits 1 if any
+  case is worse or NEW lacks a case BASE has, for CI; `--json` prints everything, with any notes on
+  stderr.
 
 For a judge run, the check verdicts come from its records, so they are the ones the judge saw. The
 responses it judged are read from the path in its manifest, if that file is still there and has
 the digest the manifest recorded; otherwise the report says so and leaves out the response text.
+A run with no case of the suite (another suite's run, an empty file) is an error, and ids that
+match no case are named in a note.
 
 ## Quickstart
 
@@ -753,7 +757,10 @@ formula; that wasn't tried in Excel itself.
 
 **Known limits of the reports.** A judge run's manifest stores the path of the responses it judged
 as it was typed, so a relative path works only from the same working directory; elsewhere the
-report says so and shows no response text (the scores and checks are still there). A run judged several times
+report says so and shows no response text (the scores and checks are still there). A judge run
+made with another version of the suite keeps that version's check verdicts, the ones its judge
+saw: the report says so and leaves out the failed-check messages, and a diff against a run checked
+with the new version can show changes that come from the suite, not the model. A run judged several times
 (`evalkit consistency`) is reported by its first sample. The HTML report holds every response, so it
 grows with the suite: 102 KB for the 80 answers above. A diff of judged runs inherits the judge's
 noise (see Results); the measured remedy is to gate on the checks and read the judge's changes.
