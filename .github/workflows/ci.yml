@@ -27,6 +27,11 @@ jobs:
         run: uv run ruff format --check .
       - name: mypy
         run: uv run mypy
+      - name: pip install -e . (without uv)
+        run: |
+          uv venv /tmp/pip-env --seed
+          /tmp/pip-env/bin/pip install -e .
+          /tmp/pip-env/bin/evalkit report examples/suites/smoke.yaml examples/responses/smoke.jsonl -o /tmp/pip-report
 
   test:
     runs-on: ubuntu-latest
@@ -68,6 +73,16 @@ jobs:
           grep -q "flip rate: 1/10 = 0.100" pairwise.txt
           uv run evalkit consistency examples/suites/smoke.yaml examples/responses/smoke.jsonl -j mock --mock-judgments examples/judgments/smoke.jsonl -n 3 | tee consistency.txt
           grep -q "0 of 10 cases changed a score between samples" consistency.txt
+      - name: Report and compare test (no network)
+        run: |
+          uv run evalkit report examples/suites/smoke.yaml ci-runs/judged examples/responses/smoke-b.jsonl -o ci-report
+          grep -q "| smoke | 60.0% (6/10) | 80.0% (4/5) | 40.0% (2/5) | 10/10 | 4.10 |" ci-report/report.md
+          grep -q "<h2>Changes: smoke" ci-report/report.html
+          uv run evalkit compare examples/suites/smoke.yaml examples/responses/smoke.jsonl examples/responses/smoke-b.jsonl | tee compare.txt
+          grep -q "10 cases in both runs: 2 worse, 4 better" compare.txt
+          # --strict must fail on a regression and pass on two identical runs.
+          if uv run evalkit compare examples/suites/smoke.yaml examples/responses/smoke.jsonl examples/responses/smoke-b.jsonl --strict; then exit 1; fi
+          uv run evalkit compare examples/suites/smoke.yaml examples/responses/smoke.jsonl examples/responses/smoke.jsonl --strict
 
   docker:
     runs-on: ubuntu-latest
@@ -84,3 +99,6 @@ jobs:
           docker run --rm -v "$PWD/examples:/work/examples:ro" llm-evalkit:ci \
             judge examples/suites/smoke.yaml examples/responses/smoke.jsonl \
             -j mock --mock-judgments examples/judgments/smoke.jsonl --out /tmp/runs --cache-dir /tmp/cache
+          # The report templates must ship in the installed (non-editable) package.
+          docker run --rm -v "$PWD/examples:/work/examples:ro" llm-evalkit:ci \
+            report examples/suites/smoke.yaml examples/responses/smoke.jsonl examples/responses/smoke-b.jsonl -o /tmp/report
