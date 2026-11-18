@@ -100,11 +100,21 @@ def test_compare_strict_fails_on_a_lost_case(tmp_path: Path) -> None:
 
 
 def test_compare_with_nothing_in_common(tmp_path: Path) -> None:
-    other = tmp_path / "other.jsonl"
-    other.write_text('{"id": "nope", "response": "x"}\n', encoding="utf-8")
-    result = invoke("compare", SMOKE_SUITE, SMOKE_RESPONSES, other)
+    a, b = tmp_path / "a.jsonl", tmp_path / "b.jsonl"
+    a.write_text('{"id": "en-math-001", "response": "42"}\n', encoding="utf-8")
+    b.write_text('{"id": "id-json-001", "response": "{}"}\n', encoding="utf-8")
+    result = invoke("compare", SMOKE_SUITE, a, b)
     assert result.exit_code == 1
     assert "the two runs have no case in common" in result.output
+
+
+def test_a_run_of_another_suite_is_an_error(tmp_path: Path) -> None:
+    other = tmp_path / "other.jsonl"
+    other.write_text('{"id": "nope", "response": "x"}\n', encoding="utf-8")
+    for command in (["report", "-o", tmp_path / "out"], ["compare", SMOKE_RESPONSES]):
+        result = invoke(command[0], SMOKE_SUITE, *command[1:], other)
+        assert result.exit_code == 1
+        assert "no case of suite 'smoke' in it (it has nope)" in result.output
 
 
 def test_compare_prints_notes(tmp_path: Path) -> None:

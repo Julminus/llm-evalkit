@@ -183,7 +183,10 @@ def _log_file(path: Path) -> Path:
 
 
 def _is_judgments(path: Path) -> bool:
-    """A judge record has ``check_status``; a line of responses doesn't."""
+    """``judgments.jsonl`` by name, else by content: a judge record has
+    ``check_status``; a line of responses doesn't."""
+    if path.name == "judgments.jsonl":
+        return True
     try:
         text = read_utf8(path)
     except (OSError, NotUtf8Error) as exc:
@@ -237,7 +240,7 @@ def _judged_responses(
     path = Path(where)
     try:
         responses = load_responses(path)
-    except ResponsesError:
+    except (ResponsesError, ValueError):  # ValueError: a path no OS accepts ("a\0b")
         notes.append(f"the judged responses ({where}) can't be read from here")
         return path, {}
     if responses_digest(responses) != _get(manifest, "responses", "digest"):
@@ -291,13 +294,20 @@ def load_run(path: Path, suite: Suite, *, name: str | None = None) -> RunView:
         judge = None
         named_after = log
         model = _get(manifest, "provider", "spec")
+    unknown = sorted(ids - {c.id for c in suite.cases})
+    listed = ", ".join(unknown[:5]) + (f" and {len(unknown) - 5} more" if len(unknown) > 5 else "")
+    if not cases:
+        found_ids = f" (it has {listed})" if unknown else ""
+        raise RunError(f"{path}: no case of suite {suite.name!r} in it{found_ids}")
+    if unknown:
+        notes.append(f"{len(unknown)} id(s) match no case of the suite: {listed}")
     return RunView(
         name=name or model or default_name(named_after),
         source=path.as_posix(),
         kind=kind,
         cases=cases,
         missing=[c.id for c in suite.cases if c.id not in ids],
-        unknown=sorted(ids - {c.id for c in suite.cases}),
+        unknown=unknown,
         model=model,
         judge=judge,
         judge_prompt_version=_get(manifest, "judge_prompt_version"),
@@ -315,11 +325,14 @@ def load_runs(paths: Sequence[Path], suite: Suite, names: Sequence[str] = ()) ->
     runs = [
         load_run(p, suite, name=names[i] if i < len(names) else None) for i, p in enumerate(paths)
     ]
-    seen: Counter[str] = Counter()
+    taken: set[str] = set()
     for run in runs:
-        seen[run.name] += 1
-        if seen[run.name] > 1:
-            run.name = f"{run.name} ({seen[run.name]})"
+        name, n = run.name, 1
+        while name in taken:  # a loop: "x (2)" may itself be taken
+            n += 1
+            name = f"{run.name} ({n})"
+        run.name = name
+        taken.add(name)
     return runs
 
 
@@ -563,9 +576,6 @@ def _runs_table(runs: Sequence[RunView]) -> Table:
             row.append(Cell(f"{r.judge}{version}" if r.judge else "-"))
         rows.append([*row, Cell(r.source), _num(len(r.cases)), _num(len(r.missing))])
     notes = [f"{r.name}: {note}" for r in runs for note in r.notes]
-    notes += [
-        f"{r.name}: no case in the suite for {', '.join(r.unknown)}" for r in runs if r.unknown
-    ]
     header = ["Run", *["Model"] * show_model, *["Judge"] * show_judge, "Source", "Cases", "Missing"]
     return Table("Runs", header, rows, notes=notes)
 

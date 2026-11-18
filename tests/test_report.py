@@ -201,6 +201,37 @@ def test_missing_and_unknown_cases(tmp_path: Path) -> None:
     assert [c.id for c in view.cases] == ["en-math-001"]
     assert len(view.missing) == 9
     assert view.unknown == ["nope"]
+    assert view.notes == ["1 id(s) match no case of the suite: nope"]
+
+
+@pytest.mark.parametrize(
+    ("rows", "message"),
+    [
+        ([], "no case of suite 'smoke' in it$"),
+        ([{"id": f"x{i}", "response": "y"} for i in range(7)], r"\(it has x0, .*x4 and 2 more\)"),
+    ],
+)
+def test_a_run_with_no_case_of_the_suite_is_an_error(
+    tmp_path: Path, rows: list[dict[str, str]], message: str
+) -> None:
+    path = tmp_path / "other.jsonl"
+    path.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    with pytest.raises(RunError, match=message):
+        load_run(path, SUITE)
+
+
+def test_an_empty_judgments_file_is_a_judgments_file(tmp_path: Path) -> None:
+    (tmp_path / "judgments.jsonl").write_text("\n", encoding="utf-8")
+    with pytest.raises(RunError, match="no judge records"):
+        load_run(tmp_path, SUITE)
+
+
+def test_a_judged_path_no_os_accepts_is_a_note(judged_run: Path) -> None:
+    manifest = json.loads((judged_run / "manifest.json").read_text(encoding="utf-8"))
+    manifest["responses"]["path"] = "a\u0000b"
+    (judged_run / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    view = load_run(judged_run, SUITE)
+    assert "can't be read from here" in view.notes[0]
 
 
 @pytest.mark.parametrize(
@@ -233,6 +264,8 @@ def test_names_and_duplicates() -> None:
     assert [r.name for r in runs] == ["base", "smoke", "smoke-b"]
     runs = load_runs([SMOKE_RESPONSES, SMOKE_RESPONSES, SMOKE_RESPONSES], SUITE)
     assert [r.name for r in runs] == ["smoke", "smoke (2)", "smoke (3)"]
+    runs = load_runs([SMOKE_RESPONSES] * 3, SUITE, ["x", "x", "x (2)"])
+    assert [r.name for r in runs] == ["x", "x (2)", "x (2) (2)"]
     with pytest.raises(RunError, match="2 names for 1 runs"):
         load_runs([SMOKE_RESPONSES], SUITE, ["a", "b"])
 
