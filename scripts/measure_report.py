@@ -274,9 +274,10 @@ def summary(data: dict[str, Any]) -> None:
     v = views(suite, data["judged"])
     coarse = {m: diff_runs(v[m, "fresh"][1], v[m, "warm"][1], min_change=2) for m in MODELS}
     row("worse with --min-change 2", lambda m: ", ".join(c.id for c in coarse[m].worse))
-    for dim in Dimension:
+    for dim in Dimension:  # a dimension neither run scored on a shared case is not in the diff
         row(f"mean {dim.value} fresh -> warm", lambda m, dim=dim: "{base:.2f} -> {new:.2f}".format(
-            **d[m]["judged"]["mean_scores"][dim.value]))  # fmt: skip
+            **d[m]["judged"]["mean_scores"][dim.value]) if dim.value in d[m]["judged"][
+            "mean_scores"] else "-")  # fmt: skip
     hallucination = FailureMode.HALLUCINATION.value
     row("hallucination tags fresh -> warm", lambda m: "{base} -> {new}".format(
         **d[m]["judged"]["failure_modes"].get(hallucination, {"base": 0, "new": 0})))  # fmt: skip
