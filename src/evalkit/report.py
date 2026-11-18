@@ -529,26 +529,23 @@ def _num(n: int) -> Cell:
 
 
 def _runs_table(runs: Sequence[RunView]) -> Table:
-    rows = [
-        [
-            Cell(r.name),
-            Cell(r.model or "-"),
-            Cell(
-                f"{r.judge} (prompt v{r.judge_prompt_version})"
-                if r.judge_prompt_version
-                else r.judge or "-"
-            ),
-            Cell(r.source),
-            _num(len(r.cases)),
-            _num(len(r.missing)),
-        ]
-        for r in runs
-    ]
+    # A column only when some run fills it: plain JSONL files name no model.
+    show_model, show_judge = any(r.model for r in runs), any(r.judge for r in runs)
+    rows = []
+    for r in runs:
+        row = [Cell(r.name)]
+        if show_model:
+            row.append(Cell(r.model or "-"))
+        if show_judge:
+            version = f" (prompt v{r.judge_prompt_version})" if r.judge_prompt_version else ""
+            row.append(Cell(f"{r.judge}{version}" if r.judge else "-"))
+        rows.append([*row, Cell(r.source), _num(len(r.cases)), _num(len(r.missing))])
     notes = [f"{r.name}: {note}" for r in runs for note in r.notes]
     notes += [
         f"{r.name}: no case in the suite for {', '.join(r.unknown)}" for r in runs if r.unknown
     ]
-    return Table("Runs", ["Run", "Model", "Judge", "Source", "Cases", "Missing"], rows, notes=notes)
+    header = ["Run", *["Model"] * show_model, *["Judge"] * show_judge, "Source", "Cases", "Missing"]
+    return Table("Runs", header, rows, notes=notes)
 
 
 def _overview(runs: Sequence[RunView], languages: list[str]) -> Table:

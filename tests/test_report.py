@@ -344,6 +344,20 @@ def test_markdown_report_with_a_judge_run(judged_run: Path) -> None:
     assert "Changes" not in md
 
 
+def test_runs_table_shows_model_and_judge_only_when_known(judged_run: Path) -> None:
+    def header(*paths: Path) -> str:
+        md = render_markdown(build_report(SUITE, load_runs(list(paths), SUITE), now=NOW))
+        return md.split("## Runs\n\n")[1].split("\n")[0]
+
+    assert header(SMOKE_RESPONSES) == "| Run | Source | Cases | Missing |"
+    both = "| Run | Model | Judge | Source | Cases | Missing |"
+    assert header(judged_run, SMOKE_RESPONSES) == both
+    md = render_markdown(build_report(SUITE, load_runs([judged_run, SMOKE_B], SUITE), now=NOW))
+    assert "| smoke-b | - | - | examples/responses/smoke-b.jsonl" in md.replace(
+        str(ROOT.as_posix()) + "/", ""
+    )
+
+
 def test_markdown_cells_are_escaped() -> None:
     runs = load_runs([SMOKE_RESPONSES], SUITE, ["a|b\nc<d>\\"])
     md = render_markdown(build_report(SUITE, runs, now=NOW))
