@@ -128,8 +128,11 @@ class RunView:
     judge_prompt_version: str | None = None
     notes: list[str] = field(default_factory=list)
 
+    def __post_init__(self) -> None:
+        self._by_id = {c.id: c for c in self.cases}
+
     def get(self, case_id: str) -> CaseView | None:
-        return next((c for c in self.cases if c.id == case_id), None)
+        return self._by_id.get(case_id)
 
     def pass_rate(self, language: str | None = None) -> tuple[int, int]:
         """(cases that passed every check, cases graded); skipped cases aren't graded."""
