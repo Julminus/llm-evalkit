@@ -76,6 +76,7 @@ __all__ = [
     "load_judgments",
     "load_labels",
     "load_ratings",
+    "read_judgments",
     "write_label_sheet",
 ]
 
@@ -260,20 +261,15 @@ def load_labels(path: Path) -> Ratings:
     return Ratings(str(path), ratings, skipped, _unread_note(header, raw_header), kind="labels")
 
 
-def load_judgments(path: Path, *, sample: int = 0) -> Ratings:
-    """Read a ``judgments.jsonl`` from ``evalkit judge`` (or ``evalkit consistency``).
-
-    Judge errors are skipped (and listed). With several samples per case,
-    ``sample`` picks one; the note says how many there were.
-    """
+def read_judgments(path: Path) -> list[JudgeRecord]:
+    """Every record of a ``judgments.jsonl``, in file order; a repeated
+    (case, sample) or a file with no records is an error."""
     try:
         text = read_utf8(path)
     except (OSError, NotUtf8Error) as exc:
         raise LabelsError(f"{path}: {exc}") from exc
-    ratings: dict[str, Rating] = {}
-    skipped: list[str] = []
+    records: list[JudgeRecord] = []
     seen: set[tuple[str, int]] = set()
-    samples: set[int] = set()
     # Split on "\n" only: str.splitlines() also splits on U+2028 and friends,
     # which JSON writes raw inside strings (a judge's rationale can hold one).
     for n, line in enumerate(text.split("\n"), 1):
@@ -293,7 +289,25 @@ def load_judgments(path: Path, *, sample: int = 0) -> Ratings:
                 "compare one model's judgments at a time"
             )
         seen.add((record.id, record.sample))
-        samples.add(record.sample)
+        records.append(record)
+    if not records:
+        raise LabelsError(f"{path}: no judge records")
+    return records
+
+
+def load_judgments(path: Path, *, sample: int = 0) -> Ratings:
+    """Read a ``judgments.jsonl`` from ``evalkit judge`` (or ``evalkit consistency``).
+
+    Judge errors are skipped (and listed). With several samples per case,
+    ``sample`` picks one; the note says how many there were.
+    """
+    records = read_judgments(path)
+    samples = {r.sample for r in records}
+    if sample not in samples:
+        raise NoSuchSampleError(f"{path}: no sample {sample} (the file has {sorted(samples)})")
+    ratings: dict[str, Rating] = {}
+    skipped: list[str] = []
+    for record in records:
         if record.sample != sample:
             continue
         if not record.ok:
@@ -305,10 +319,6 @@ def load_judgments(path: Path, *, sample: int = 0) -> Ratings:
             failure_modes=frozenset(record.failure_modes),
             language=record.language,
         )
-    if not seen:
-        raise LabelsError(f"{path}: no judge records")
-    if sample not in samples:
-        raise NoSuchSampleError(f"{path}: no sample {sample} (the file has {sorted(samples)})")
     note = f"used sample {sample} of {len(samples)}" if len(samples) > 1 else None
     return Ratings(str(path), ratings, skipped, note)
 
