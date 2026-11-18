@@ -331,7 +331,7 @@ numbers. `uv run --with langdetect==1.0.9 python scripts/measure_langdetect.py` 
 rows of the table, including the baseline's wrong guesses.
 
 **Engineering.** 4 providers, 11 check types, an LLM judge with agreement, consistency and
-position-bias tools, HTML and Markdown reports, 932 tests (3 of them opt-in live tests, 2 that run
+position-bias tools, HTML and Markdown reports, 933 tests (3 of them opt-in live tests, 2 that run
 only where SciPy and scikit-learn are installed, 1 POSIX-only), 99.25% branch coverage, strict
 mypy. Every provider is tested offline against the request and response shapes of its API (the
 Anthropic one through the real SDK with a mock transport), and
@@ -546,9 +546,11 @@ the `responses.jsonl` / `judgments.jsonl` in it (any responses JSONL works too).
 For a judge run, the check verdicts come from its records, so they are the ones the judge saw. The
 responses it judged are read from the path in its manifest, if that file is still there and has
 the digest the manifest recorded; otherwise the report says so and leaves out the response text.
-A run whose ids are all outside the suite (another suite's run) is an error; a run with no
-responses at all (every generation failed) shows every case as missing; ids that match no case are
-named in a note. Whether a file holds judgments or responses goes by its first record.
+A run whose responses are all for ids outside the suite (another suite's run) is an error; a run
+log with no responses at all (every generation failed) shows every case as missing, and `compare`
+against it exits 1 saying so; ids that match no case are named in a note. Whether a file holds
+judgments or responses goes by its first record, and an empty `judgments.jsonl` (a judge run that
+judged nothing, which `evalkit judge` already failed) is an error.
 
 ## Quickstart
 
