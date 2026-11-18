@@ -168,6 +168,23 @@ def test_suite_digest_mismatch_is_noted(tmp_path: Path) -> None:
     assert view.notes == ["made with a different version of the suite (its digest differs)"]
 
 
+def test_judge_run_of_an_older_suite_keeps_its_own_verdicts(
+    judged_run: Path, tmp_path: Path
+) -> None:
+    text = SMOKE_SUITE.read_text(encoding="utf-8").replace("max: 40", "max: 3", 1)
+    assert text != SMOKE_SUITE.read_text(encoding="utf-8")
+    (tmp_path / "changed.yaml").write_text(text, encoding="utf-8")
+    view = load_run(judged_run, load_suite(tmp_path / "changed.yaml"))
+    assert view.pass_rate() == (6, 10)  # what the judge saw
+    assert all(c.failed_checks is None and c.response is not None for c in view.cases)
+    assert view.notes == [
+        "made with a different version of the suite (its digest differs)",
+        "its check verdicts are that version's, so their messages are left out",
+    ]
+    # With the suite it was made with, the messages are there.
+    assert any(c.failed_checks for c in load_run(judged_run, SUITE).cases)
+
+
 def test_unreadable_manifest_is_ignored(tmp_path: Path) -> None:
     shutil.copy(SMOKE_RESPONSES, tmp_path / "responses.jsonl")
     (tmp_path / "manifest.json").write_text("[1, 2", encoding="utf-8")

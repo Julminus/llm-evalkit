@@ -20,7 +20,7 @@ from __future__ import annotations
 import json
 from collections import Counter
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -254,7 +254,8 @@ def load_run(path: Path, suite: Suite, *, name: str | None = None) -> RunView:
     log = _log_file(path)
     manifest = _manifest(log.parent / "manifest.json")
     notes: list[str] = []
-    if _get(manifest, "suite", "digest") not in (None, suite_digest(suite)):
+    stale = _get(manifest, "suite", "digest") not in (None, suite_digest(suite))
+    if stale:
         notes.append("made with a different version of the suite (its digest differs)")
     if _is_judgments(log):
         try:
@@ -269,6 +270,10 @@ def load_run(path: Path, suite: Suite, *, name: str | None = None) -> RunView:
         if responses_path is not None and not responses:
             notes.append("so the HTML report has no response text or failed-check messages")
         cases = case_views(suite, responses, found)
+        if stale and responses:
+            # Its verdicts are the old suite's; this suite's messages could contradict them.
+            cases = [replace(c, failed_checks=None) for c in cases]
+            notes.append("its check verdicts are that version's, so their messages are left out")
         ids = set(found)
         kind: RunKind = "judgments"
         judge = _get(manifest, "judge", "spec") or records[0].judge
