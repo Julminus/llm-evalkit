@@ -130,6 +130,8 @@ class RunView:
     notes: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
+        # shortcut: indexed once, so `cases` must not change after creation (nothing here
+        # changes it); rebuild the index in get() if a caller ever needs to.
         self._by_id = {c.id: c for c in self.cases}
 
     def get(self, case_id: str) -> CaseView | None:
@@ -183,15 +185,15 @@ def _log_file(path: Path) -> Path:
 
 
 def _is_judgments(path: Path) -> bool:
-    """``judgments.jsonl`` by name, else by content: a judge record has
-    ``check_status``; a line of responses doesn't."""
-    if path.name == "judgments.jsonl":
-        return True
+    """By the first record: a judge record has ``check_status``, a line of
+    responses doesn't. An empty file goes by its name."""
     try:
         text = read_utf8(path)
     except (OSError, NotUtf8Error) as exc:
         raise RunError(f"{path}: {exc}") from exc
-    first = next((line for line in text.split("\n") if line.strip()), "")
+    first = next((line for line in text.split("\n") if line.strip()), None)
+    if first is None:
+        return path.name == "judgments.jsonl"
     try:
         obj = json.loads(first)
     except json.JSONDecodeError:
@@ -295,12 +297,15 @@ def load_run(path: Path, suite: Suite, *, name: str | None = None) -> RunView:
         named_after = log
         model = _get(manifest, "provider", "spec")
     unknown = sorted(ids - {c.id for c in suite.cases})
-    listed = ", ".join(unknown[:5]) + (f" and {len(unknown) - 5} more" if len(unknown) > 5 else "")
-    if not cases:
-        found_ids = f" (it has {listed})" if unknown else ""
-        raise RunError(f"{path}: no case of suite {suite.name!r} in it{found_ids}")
+    # Ids, none of them a case: another suite's run. No ids at all (an empty file,
+    # every generation failed) is a run with every case missing, and the report shows it.
+    if unknown and not cases:
+        more = f" and {len(unknown) - 5} more" if len(unknown) > 5 else ""
+        raise RunError(
+            f"{path}: no case of suite {suite.name!r} in it (it has {', '.join(unknown[:5])}{more})"
+        )
     if unknown:
-        notes.append(f"{len(unknown)} id(s) match no case of the suite: {listed}")
+        notes.append(f"{len(unknown)} id(s) match no case of the suite: {', '.join(unknown)}")
     return RunView(
         name=name or model or default_name(named_after),
         source=path.as_posix(),

@@ -204,20 +204,39 @@ def test_missing_and_unknown_cases(tmp_path: Path) -> None:
     assert view.notes == ["1 id(s) match no case of the suite: nope"]
 
 
-@pytest.mark.parametrize(
-    ("rows", "message"),
-    [
-        ([], "no case of suite 'smoke' in it$"),
-        ([{"id": f"x{i}", "response": "y"} for i in range(7)], r"\(it has x0, .*x4 and 2 more\)"),
-    ],
-)
-def test_a_run_with_no_case_of_the_suite_is_an_error(
-    tmp_path: Path, rows: list[dict[str, str]], message: str
-) -> None:
+def test_a_run_of_another_suite_is_an_error(tmp_path: Path) -> None:
     path = tmp_path / "other.jsonl"
+    rows = [{"id": f"x{i}", "response": "y"} for i in range(7)]
     path.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
-    with pytest.raises(RunError, match=message):
+    with pytest.raises(
+        RunError, match=r"no case of suite 'smoke' in it \(it has x0, .*x4 and 2 more\)"
+    ):
         load_run(path, SUITE)
+    # With one case of the suite it loads, and the note names every other id.
+    rows.append({"id": "en-math-001", "response": "42"})
+    path.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    assert load_run(path, SUITE).notes == [
+        "7 id(s) match no case of the suite: x0, x1, x2, x3, x4, x5, x6"
+    ]
+
+
+@pytest.mark.parametrize("name", ["responses.jsonl", "judgments.jsonl"])
+def test_runs_without_a_response_are_runs_with_every_case_missing(
+    tmp_path: Path, name: str
+) -> None:
+    # Every generation failed (the runner logs them as errors), or the file is empty.
+    failed = "".join(
+        json.dumps({"id": c.id, "response": None, "error": "boom"}) + "\n" for c in SUITE.cases
+    )
+    for content in (failed, ""):
+        (tmp_path / "responses.jsonl").write_text(content, encoding="utf-8")
+        view = load_run(tmp_path / "responses.jsonl", SUITE)
+        assert (view.cases, len(view.missing), view.pass_rate()) == ([], 10, (0, 0))
+    md = render_markdown(build_report(SUITE, [view], now=NOW))
+    assert "| responses.jsonl" not in md  # named after its directory
+    # A responses file that happens to be called judgments.jsonl is still responses.
+    (tmp_path / name).write_bytes(SMOKE_RESPONSES.read_bytes())
+    assert load_run(tmp_path / name, SUITE).kind == "responses"
 
 
 def test_an_empty_judgments_file_is_a_judgments_file(tmp_path: Path) -> None:
