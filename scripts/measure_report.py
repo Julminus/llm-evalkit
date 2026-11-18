@@ -37,6 +37,7 @@ import subprocess
 import sys
 import time
 from datetime import UTC, datetime
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
@@ -59,6 +60,7 @@ from evalkit.report import (
     render_markdown,
 )
 from evalkit.schema import Dimension, Suite, load_suite
+from evalkit.taxonomy import FailureMode
 
 SUITE = Path("examples/suites/everyday.yaml")
 S2_RESULTS = Path("docs/results/runner-s2.json")
@@ -183,6 +185,21 @@ def views(
     return out
 
 
+def near_identical() -> dict[str, set[str]]:
+    """Changed answers that kept most of their text. The 16 changed answers have
+    difflib ratios of 0.17-0.51 or 0.75-0.98, so any cut in between gives the same split."""
+    responses = s2_responses()
+    out = {}
+    for model in MODELS:
+        fresh, warm = responses[model, "fresh"], responses[model, "warm"]
+        out[model] = {
+            i
+            for i in fresh
+            if fresh[i] != warm[i] and SequenceMatcher(None, fresh[i], warm[i]).ratio() >= 0.75
+        }
+    return out
+
+
 def diff_summary(diff: RunDiff) -> dict[str, Any]:
     payload = diff.to_dict()
     payload["worse_and_better"] = [c.id for c in diff.changes if c.worse and c.better]
@@ -235,17 +252,34 @@ def summary(data: dict[str, Any]) -> None:
         "judge requests for the warm run",
         lambda m: data["judged"][f"{m}/warm"]["counts"]["requests"],
     )
-    row("judged: cases changed", lambda m: len(d[m]["judged"]["changes"]))
+    near = near_identical()
+    row("... near-identical / different content", lambda m: f"{len(near[m])} / "
+        f"{d[m]['checks']['text_changed'] - len(near[m])}")  # fmt: skip
+    judged_ids = {m: {c["id"] for c in d[m]["judged"]["changes"]} for m in MODELS}
+    row("judged: cases changed", lambda m: len(judged_ids[m]))
+    row("... of them near-identical", lambda m: len(judged_ids[m] & near[m]))
     row("... worse / better / both", lambda m: "{} / {} / {}".format(
         len(d[m]["judged"]["worse"]), len(d[m]["judged"]["better"]),
         len(d[m]["judged"]["worse_and_better"])))  # fmt: skip
-    row("... score changes (case x dimension)", lambda m: d[m]["judged"]["score_changes"])
+    row("... worse and near-identical", lambda m: ", ".join(
+        i for i in d[m]["judged"]["worse"] if i in near[m]))  # fmt: skip
+    moves = {m: [abs(n - b) for c in d[m]["judged"]["changes"] for b, n in c["scores"].values()]
+             for m in MODELS}  # fmt: skip
+    row("... score moves of 1 point / 2 or more", lambda m: f"{moves[m].count(1)} / "
+        f"{len(moves[m]) - moves[m].count(1)}")  # fmt: skip
+    near_moves = {m: [abs(n - b) for c in d[m]["judged"]["changes"] if c["id"] in near[m]
+                      for b, n in c["scores"].values()] for m in MODELS}  # fmt: skip
+    row("... of them on near-identical answers: 1 point / 2 or more", lambda m: (
+        f"{near_moves[m].count(1)} / {len(near_moves[m]) - near_moves[m].count(1)}"))  # fmt: skip
     v = views(suite, data["judged"])
     coarse = {m: diff_runs(v[m, "fresh"][1], v[m, "warm"][1], min_change=2) for m in MODELS}
     row("worse with --min-change 2", lambda m: ", ".join(c.id for c in coarse[m].worse))
     for dim in Dimension:
         row(f"mean {dim.value} fresh -> warm", lambda m, dim=dim: "{base:.2f} -> {new:.2f}".format(
             **d[m]["judged"]["mean_scores"][dim.value]))  # fmt: skip
+    hallucination = FailureMode.HALLUCINATION.value
+    row("hallucination tags fresh -> warm", lambda m: "{base} -> {new}".format(
+        **d[m]["judged"]["failure_modes"][hallucination]))  # fmt: skip
     row("fresh replies identical to S3", lambda m: data["s3_identical_replies"][m])
     print(f"report of the fresh runs built in {data['report']['seconds']} s")
 
