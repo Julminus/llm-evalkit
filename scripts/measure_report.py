@@ -44,16 +44,15 @@ import httpx
 
 from evalkit import __version__
 from evalkit.cache import ResponseCache
-from evalkit.evaluate import check_case
 from evalkit.files import write_text_atomic
 from evalkit.judge import JUDGE_PROMPT_VERSION, Judge, JudgeRecord, judge_suite
 from evalkit.prompts import Prompt
 from evalkit.providers import GenerationParams, OllamaProvider
 from evalkit.report import (
-    CaseView,
     RunDiff,
     RunView,
     build_report,
+    case_views,
     diff_runs,
     load_runs,
     render_html,
@@ -172,39 +171,13 @@ def views(
 ) -> dict[tuple[str, str], tuple[RunView, RunView]]:
     """(checks only, judged) per model and run, rebuilt from the S2 responses and the
     saved records, so --summary needs neither the runs directory nor a model."""
-    responses = s2_responses()
     out = {}
-    for (model, run), texts in responses.items():
-        checked = []
-        for case in suite.cases:
-            report = check_case(case, texts[case.id])
-            failed = tuple(f"{r.check}: {r.message}" for r in report.failures)
-            checked.append(
-                CaseView(
-                    case.id,
-                    case.language,
-                    report.status,
-                    tuple(report.failure_modes),
-                    failed,
-                    texts[case.id],
-                )
-            )
+    for (model, run), texts in s2_responses().items():
         records = [JudgeRecord.model_validate(r) for r in judged[f"{model}/{run}"]["records"]]
-        rated = [
-            CaseView(
-                r.id,
-                r.language,
-                r.check_status,
-                tuple(r.check_failure_modes),
-                None,
-                texts[r.id],
-                r,
-            )
-            for r in records
-        ]
+        rated = case_views(suite, texts, {r.id: r for r in records})
         name = f"{model} {run}"
         out[model, run] = (
-            RunView(name, "s2", "responses", checked),
+            RunView(name, "s2", "responses", case_views(suite, texts)),
             RunView(name, "s2", "judgments", rated),
         )
     return out

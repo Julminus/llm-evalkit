@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -32,7 +32,7 @@ from evalkit.evaluate import ResponsesError, check_case, load_responses
 from evalkit.files import NotUtf8Error, read_utf8
 from evalkit.judge.core import JudgeRecord, JudgeSummary, responses_digest
 from evalkit.runner import suite_digest
-from evalkit.schema import Dimension, EvalCase, Suite
+from evalkit.schema import Dimension, Suite
 from evalkit.taxonomy import CHECKABLE, FailureMode
 
 __all__ = [
@@ -43,6 +43,7 @@ __all__ = [
     "RunError",
     "RunView",
     "build_report",
+    "case_views",
     "default_name",
     "diff_runs",
     "diff_tables",
@@ -195,10 +196,35 @@ def _is_judgments(path: Path) -> bool:
     return isinstance(obj, dict) and "check_status" in obj
 
 
-def _failed(case: EvalCase, response: str | None) -> tuple[str, ...] | None:
-    if response is None:
-        return None
-    return tuple(f"{r.check}: {r.message}" for r in check_case(case, response).failures)
+def case_views(
+    suite: Suite,
+    responses: Mapping[str, str],
+    records: Mapping[str, JudgeRecord] | None = None,
+) -> list[CaseView]:
+    """One :class:`CaseView` per case of ``suite`` the run has, in suite order.
+
+    A responses run (no ``records``) has the cases with a response, checked
+    here. A judge run has the judged cases, with the check verdict from each
+    record, the one the judge saw; ``responses`` adds the text and the failed
+    checks' messages where it has them.
+    """
+    out = []
+    for case in suite.cases:
+        if case.id not in (responses if records is None else records):
+            continue
+        record = None if records is None else records[case.id]
+        response = responses.get(case.id)
+        report = None if response is None else check_case(case, response)
+        failed = (
+            None if report is None else tuple(f"{r.check}: {r.message}" for r in report.failures)
+        )
+        if record is not None:
+            status, modes = record.check_status, tuple(record.check_failure_modes)
+        else:
+            assert report is not None  # a responses run has every response
+            status, modes = report.status, tuple(report.failure_modes)
+        out.append(CaseView(case.id, case.language, status, modes, failed, response, record))
+    return out
 
 
 def _judged_responses(
@@ -230,7 +256,6 @@ def load_run(path: Path, suite: Suite, *, name: str | None = None) -> RunView:
     notes: list[str] = []
     if _get(manifest, "suite", "digest") not in (None, suite_digest(suite)):
         notes.append("made with a different version of the suite (its digest differs)")
-    cases: list[CaseView] = []
     if _is_judgments(log):
         try:
             records = read_judgments(log)
@@ -243,16 +268,7 @@ def load_run(path: Path, suite: Suite, *, name: str | None = None) -> RunView:
         responses_path, responses = _judged_responses(manifest, notes)
         if responses_path is not None and not responses:
             notes.append("so the HTML report has no response text or failed-check messages")
-        for case in suite.cases:
-            if (record := found.get(case.id)) is not None:
-                response = responses.get(case.id)
-                failed = _failed(case, response)
-                modes = tuple(record.check_failure_modes)
-                cases.append(
-                    CaseView(
-                        case.id, case.language, record.check_status, modes, failed, response, record
-                    )
-                )
+        cases = case_views(suite, responses, found)
         ids = set(found)
         kind: RunKind = "judgments"
         judge = _get(manifest, "judge", "spec") or records[0].judge
@@ -264,16 +280,7 @@ def load_run(path: Path, suite: Suite, *, name: str | None = None) -> RunView:
             responses = load_responses(log)
         except ResponsesError as exc:
             raise RunError(str(exc)) from exc
-        for case in suite.cases:
-            if case.id in responses:
-                report = check_case(case, responses[case.id])
-                failed = tuple(f"{r.check}: {r.message}" for r in report.failures)
-                modes = tuple(report.failure_modes)
-                cases.append(
-                    CaseView(
-                        case.id, case.language, report.status, modes, failed, responses[case.id]
-                    )
-                )
+        cases = case_views(suite, responses)
         ids = set(responses)
         kind = "responses"
         judge = None
