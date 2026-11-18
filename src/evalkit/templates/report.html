@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ report.title }}</title>
+<style>
+  body { font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1f2328; margin: 0 auto; max-width: 1100px; padding: 24px; }
+  h1 { font-size: 24px; margin: 0 0 8px; }
+  h2 { font-size: 18px; margin: 32px 0 8px; border-bottom: 1px solid #d1d9e0; padding-bottom: 4px; }
+  h3 { font-size: 15px; margin: 20px 0 6px; }
+  .meta { color: #59636e; margin: 0; padding-left: 18px; }
+  .intro { color: #59636e; margin: 4px 0 8px; }
+  table { border-collapse: collapse; margin: 6px 0; }
+  th, td { border: 1px solid #d1d9e0; padding: 3px 8px; text-align: left; vertical-align: top; }
+  th { background: #f6f8fa; font-weight: 600; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pass { color: #1a7f37; }
+  .fail { color: #cf222e; }
+  .skip { color: #9a6700; }
+  td.worse { background: #ffebe9; }
+  td.better { background: #dafbe1; }
+  td.mixed { background: #fff8c5; }
+  ul.notes { color: #59636e; margin: 4px 0; }
+  .case { border-top: 1px solid #d1d9e0; padding-top: 4px; }
+  .lang { color: #59636e; font-weight: normal; }
+  .prompt { white-space: pre-wrap; margin: 4px 0; }
+  details { margin: 4px 0; }
+  summary { cursor: pointer; color: #0969da; }
+  pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #f6f8fa; padding: 8px; margin: 4px 0; }
+  a { color: #0969da; }
+</style>
+</head>
+<body>
+<h1>{{ report.title }}</h1>
+<ul class="meta">
+{% for line in report.meta %}
+  <li>{{ line }}</li>
+{% endfor %}
+</ul>
+{% for table in report.tables %}
+<h{{ table.level }}>{{ table.heading }}</h{{ table.level }}>
+{% if table.intro %}
+<p class="intro">{{ table.intro }}</p>
+{% endif %}
+{% if table.rows %}
+<table>
+  <tr>{% for h in table.header %}<th>{{ h }}</th>{% endfor %}</tr>
+{% for row in table.rows %}
+  <tr>{% for cell in row %}<td{% if cell.css %} class="{{ cell.css }}"{% endif %}>{% if cell.anchor %}<a href="#case-{{ cell.anchor }}">{{ cell.text }}</a>{% else %}{{ cell.text }}{% endif %}</td>{% endfor %}</tr>
+{% endfor %}
+</table>
+{% endif %}
+{% if table.notes %}
+<ul class="notes">
+{% for note in table.notes %}
+  <li>{{ note }}</li>
+{% endfor %}
+</ul>
+{% endif %}
+{% endfor %}
+<h2>Cases</h2>
+<p class="intro">Every case of the suite, with each run's verdict. Open a run's line for its response, its failed checks and the judge's rationale.</p>
+{% for case in report.suite.cases %}
+<section class="case" id="case-{{ case.id }}">
+<h3>{{ case.id }} <span class="lang">{{ case.language }}</span></h3>
+<p class="prompt">{{ case.prompt }}</p>
+<table>
+  <tr><th>Run</th><th>Checks</th>{% for _, short in dims %}<th>{{ short }}</th>{% endfor %}<th>Failure modes</th></tr>
+{% for run in report.runs %}
+{% set c = run.get(case.id) %}
+  <tr><td>{{ run.name }}</td>
+{% if c is none %}
+    <td colspan="{{ dims|length + 2 }}">no response</td>
+{% else %}
+    <td class="{{ c.status.value }}">{{ c.status.value }}</td>
+{% for dim, _ in dims %}
+    <td class="num">{{ c.scores.get(dim, "-") }}</td>
+{% endfor %}
+    <td>{{ c.failure_modes|join(", ") }}{% if c.record is not none and c.record.error %} <span class="fail">no judgment</span>{% endif %}</td>
+{% endif %}
+  </tr>
+{% endfor %}
+</table>
+{% for run in report.runs %}
+{% set c = run.get(case.id) %}
+{% if c is not none and (c.response is not none or c.record is not none) %}
+<details><summary>{{ run.name }}</summary>
+{% if c.failed_checks %}
+<ul>
+{% for failed in c.failed_checks %}
+  <li class="fail">{{ failed }}</li>
+{% endfor %}
+</ul>
+{% endif %}
+{% if c.record is not none and c.record.rationale %}
+<p><b>Judge:</b> {{ c.record.rationale }}</p>
+{% endif %}
+{% if c.record is not none and c.record.error %}
+<p class="fail">No judgment: {{ c.record.error }}</p>
+{% endif %}
+{% if c.judge_only %}
+<p class="intro">The judge also named {{ c.judge_only|join(", ") }}, which no check found (not counted).</p>
+{% endif %}
+{% if c.response is not none %}
+<pre>{{ c.response }}</pre>
+{% endif %}
+</details>
+{% endif %}
+{% endfor %}
+</section>
+{% endfor %}
+</body>
+</html>

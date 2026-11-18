@@ -1,15 +1,16 @@
 """Command-line interface.
 
 ``evalkit validate | check | run | judge | consistency | pairwise | agree |
-labels | list-checks | taxonomy``.
+labels | report | compare | list-checks | taxonomy``.
 
-Exit codes: 0 = success; 1 = a suite/responses/labels file is invalid, a
-provider can't be set up, a case got no response (``run``) or no judgment
+Exit codes: 0 = success; 1 = a suite/responses/labels/run file is invalid,
+a provider can't be set up, a case got no response (``run``) or no judgment
 (``judge``, ``consistency``, ``pairwise``, which also fail if nothing matches
-a case), ``agree`` found no case rated in both files, or (with
-``--strict``) at least one case failed its checks or, for ``check``, had no
-response, or a response matched no case; 130 = interrupted. Typer itself
-uses 2 for bad usage.
+a case), ``agree`` found no case rated in both files, ``compare`` found no
+case in both runs, or (with ``--strict``) at least one case failed its
+checks or, for ``check``, had no response, or a response matched no case,
+or, for ``compare``, a case got worse or went missing; 130 = interrupted.
+Typer itself uses 2 for bad usage.
 """
 
 from __future__ import annotations
@@ -62,6 +63,19 @@ from evalkit.providers import (
     make_provider,
     parse_spec,
 )
+from evalkit.report import DIM_SHORT as _DIM_SHORT
+from evalkit.report import (
+    RunError,
+    RunView,
+    build_report,
+    default_name,
+    diff_runs,
+    diff_tables,
+    load_runs,
+    render_html,
+    render_markdown,
+)
+from evalkit.report import Table as ReportTable
 from evalkit.runner import RetryPolicy, RunRecord, RunResult, make_run_id, run_suite
 from evalkit.schema import Dimension, EvalCase, Suite, SuiteError, load_suite
 from evalkit.taxonomy import CHECKABLE, DESCRIPTIONS, FailureMode
@@ -544,14 +558,6 @@ def run(
         _print_run(result, provider)
     if result.errors or (strict and summary.counts[Status.FAIL]):
         raise typer.Exit(1)
-
-
-_DIM_SHORT = {
-    Dimension.INSTRUCTION_FOLLOWING: "IF",
-    Dimension.REASONING_QUALITY: "RQ",
-    Dimension.FAITHFULNESS: "FA",
-    Dimension.HELPFULNESS: "HE",
-}
 
 
 def _build_judge(
@@ -1262,11 +1268,6 @@ def _run_id(provider: Provider, kind: str) -> str:
     return f"{stamp}-{kind}-{slug}"
 
 
-def _default_name(path: Path) -> str:
-    """A run log is ``runs/<run_id>/responses.jsonl``: name it after the run."""
-    return path.parent.name if path.name == "responses.jsonl" else path.stem
-
-
 def _build_pairwise_judge(
     spec: str,
     *,
@@ -1420,7 +1421,7 @@ def pairwise(
     selected = _selected_or_exit(suite, suite_path, case)
     resp_a = _responses_or_exit(responses_a)
     resp_b = _responses_or_exit(responses_b)
-    names = (name_a or _default_name(responses_a), name_b or _default_name(responses_b))
+    names = (name_a or default_name(responses_a), name_b or default_name(responses_b))
     cut_at = max_response_chars or None
     provider = _build_pairwise_judge(
         judge_spec,
@@ -1488,6 +1489,141 @@ def pairwise(
     if not result.records:
         raise _exit_error("nothing to compare: no selected case has a response in both files")
     if any(not r.ok for r in result.records):
+        raise typer.Exit(1)
+
+
+RunPaths = Annotated[
+    list[Path],
+    typer.Argument(
+        exists=True,
+        help="Run directories from `evalkit run` or `evalkit judge`, or their responses.jsonl / "
+        "judgments.jsonl. The first is the baseline the others are compared with.",
+    ),
+]
+RunPath = Annotated[
+    Path,
+    typer.Argument(exists=True, help="A run directory, or its responses.jsonl / judgments.jsonl."),
+]
+RunNames = Annotated[
+    list[str] | None,
+    typer.Option(
+        "--name",
+        help="A name for each run, in order (repeatable). Default: the model, else the run name.",
+    ),
+]
+MinChange = Annotated[
+    int, typer.Option(min=1, help="Smallest change in a judge score that counts, in points.")
+]
+
+
+def _runs_or_exit(paths: list[Path], suite: Suite, names: list[str] | None) -> list[RunView]:
+    try:
+        return load_runs(paths, suite, names or [])
+    except RunError as exc:
+        raise _exit_error(str(exc)) from exc
+
+
+def _print_table(table: ReportTable) -> None:
+    """A report table on the console, styled like the HTML report."""
+    out = Table(title=escape(table.heading))
+    for i, name in enumerate(table.header):
+        numeric = bool(table.rows) and all(row[i].css == "num" for row in table.rows)
+        out.add_column(escape(name), justify="right" if numeric else "left")
+    for row in table.rows:
+        out.add_row(
+            *(
+                f"[{_CSS_STYLE[c.css]}]{escape(c.text)}[/]"
+                if c.css in _CSS_STYLE
+                else escape(c.text)
+                for c in row
+            )
+        )
+    if table.intro:
+        console.print(escape(table.intro))
+    if table.rows:
+        console.print(out)
+    for note in table.notes:
+        console.print(f"[dim]{escape(note)}[/]")
+
+
+_CSS_STYLE = {
+    "pass": "green",
+    "fail": "red",
+    "skip": "yellow",
+    "worse": "red",
+    "better": "green",
+    "mixed": "yellow",
+}
+
+
+@app.command()
+def report(
+    suite_path: SuitePath,
+    runs: RunPaths,
+    names: RunNames = None,
+    out: Annotated[
+        Path, typer.Option("--out", "-o", help="Directory for report.html and report.md.")
+    ] = Path("reports"),
+    min_change: MinChange = 1,
+) -> None:
+    """Write an HTML report and a Markdown summary of one or more runs.
+
+    Per-dimension judge scores, failure modes, a side-by-side view of the
+    runs, and what changed in each run against the first.
+    """
+    suite = _load_or_exit(suite_path)
+    views = _runs_or_exit(runs, suite, names)
+    built = build_report(suite, views, min_change=min_change)
+    html, md = out / "report.html", out / "report.md"
+    try:
+        out.mkdir(parents=True, exist_ok=True)
+        write_text_atomic(html, render_html(built))
+        write_text_atomic(md, render_markdown(built))
+    except OSError as exc:
+        raise _exit_error(f"cannot write the report to {out}: {exc}") from exc
+    _print_table(next(t for t in built.tables if t.heading == "Overview"))
+    for view in views:
+        for note in view.notes:
+            err_console.print(f"[yellow]note:[/] {escape(view.name)}: {escape(note)}")
+    console.print(f"wrote {escape(str(html))} and {escape(str(md))}")
+
+
+@app.command("compare")
+def compare_runs(
+    suite_path: SuitePath,
+    base: RunPath,
+    new: RunPath,
+    names: RunNames = None,
+    min_change: MinChange = 1,
+    as_json: AsJson = False,
+    strict: Annotated[
+        bool,
+        typer.Option(
+            "--strict", help="Exit with code 1 if a case got worse or NEW lacks a case BASE has."
+        ),
+    ] = False,
+) -> None:
+    """What changed from one run of a suite to another, case by case.
+
+    A case is worse when it fails its checks and didn't before, a judge score
+    fell, or a failure mode appeared; better is the reverse.
+    """
+    suite = _load_or_exit(suite_path)
+    before, after = _runs_or_exit([base, new], suite, names)
+    diff = diff_runs(before, after, min_change=min_change)
+    if as_json:
+        typer.echo(_dumps(diff.to_dict()))
+    else:
+        console.print(f"base: [bold]{escape(before.name)}[/] ({escape(str(base))})")
+        console.print(f"new:  [bold]{escape(after.name)}[/] ({escape(str(new))})")
+        for table in diff_tables(diff):
+            _print_table(table)
+        for view in (before, after):
+            for note in view.notes:
+                err_console.print(f"[yellow]note:[/] {escape(view.name)}: {escape(note)}")
+    if not diff.shared:
+        raise _exit_error("the two runs have no case in common: check that they are for this suite")
+    if strict and (diff.worse or diff.lost):
         raise typer.Exit(1)
 
 
