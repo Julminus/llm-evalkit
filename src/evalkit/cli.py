@@ -1524,26 +1524,34 @@ def _runs_or_exit(paths: list[Path], suite: Suite, names: list[str] | None) -> l
 
 
 def _print_table(table: ReportTable) -> None:
-    """A report table on the console, styled like the HTML report."""
-    out = Table(title=escape(table.heading))
-    for i, name in enumerate(table.header):
-        numeric = bool(table.rows) and all(row[i].css == "num" for row in table.rows)
-        out.add_column(escape(name), justify="right" if numeric else "left")
-    for row in table.rows:
-        out.add_row(
-            *(
-                f"[{_CSS_STYLE[c.css]}]{escape(c.text)}[/]"
-                if c.css in _CSS_STYLE
-                else escape(c.text)
-                for c in row
-            )
-        )
+    """A report table on the console, styled like the HTML report: heading,
+    intro, table, notes. Cells wrap rather than end in "…", so a narrow
+    terminal or a CI log loses nothing."""
+
+    def text(s: str) -> str:
+        # "→" becomes a → escape on a non-UTF-8 stream (see _never_crash_on_output).
+        return escape(s if _stdout_is_utf8() else s.replace("→", "->"))
+
+    console.print(f"[bold]{text(table.heading)}[/]")
     if table.intro:
-        console.print(escape(table.intro))
+        console.print(text(table.intro))
     if table.rows:
+        out = Table()
+        for i, name in enumerate(table.header):
+            numeric = all(row[i].css == "num" for row in table.rows)
+            out.add_column(text(name), justify="right" if numeric else "left", overflow="fold")
+        for row in table.rows:
+            out.add_row(
+                *(
+                    f"[{_CSS_STYLE[c.css]}]{text(c.text)}[/]"
+                    if c.css in _CSS_STYLE
+                    else text(c.text)
+                    for c in row
+                )
+            )
         console.print(out)
     for note in table.notes:
-        console.print(f"[dim]{escape(note)}[/]")
+        console.print(f"[dim]{text(note)}[/]")
 
 
 _CSS_STYLE = {
@@ -1618,9 +1626,10 @@ def compare_runs(
         console.print(f"new:  [bold]{escape(after.name)}[/] ({escape(str(new))})")
         for table in diff_tables(diff):
             _print_table(table)
-        for view in (before, after):
-            for note in view.notes:
-                err_console.print(f"[yellow]note:[/] {escape(view.name)}: {escape(note)}")
+    # On stderr in both modes: a changed suite explains a diff, so --json must not hide it.
+    for view in (before, after):
+        for note in view.notes:
+            err_console.print(f"[yellow]note:[/] {escape(view.name)}: {escape(note)}")
     if not diff.shared:
         raise _exit_error("the two runs have no case in common: check that they are for this suite")
     if strict and (diff.worse or diff.lost):

@@ -87,6 +87,38 @@ def test_compare_json() -> None:
     assert payload["pass_rate"] == {"base": [6, 10], "new": [8, 10]}
 
 
+def test_compare_prints_heading_then_intro_and_wraps_cells(monkeypatch) -> None:
+    out = invoke("compare", SMOKE_SUITE, SMOKE_RESPONSES, SMOKE_B).output
+    assert out.index("Changes: smoke → smoke-b") < out.index("10 cases in both runs")
+    assert out.index("Cases that changed") < out.index("Worse: fails its checks")
+    same = invoke("compare", SMOKE_SUITE, SMOKE_RESPONSES, SMOKE_RESPONSES).output
+    assert "Cases that changed\nNone.\n" in same
+    # Long names squeeze the columns; cells wrap instead of ending in "…".
+    long = [
+        "--name",
+        "a-rather-long-name-for-the-base-run",
+        "--name",
+        "and-another-for-the-new-one",
+    ]
+    assert "…" not in invoke("compare", SMOKE_SUITE, SMOKE_RESPONSES, SMOKE_B, *long).output
+    # A stream that can't hold "→" gets "->", not a → escape.
+    monkeypatch.setattr("evalkit.cli._stdout_is_utf8", lambda: False)
+    ascii_out = invoke("compare", SMOKE_SUITE, SMOKE_RESPONSES, SMOKE_B).output
+    assert "Changes: smoke -> smoke-b" in ascii_out
+    assert "pass -> fail" in ascii_out
+
+
+def test_compare_json_keeps_notes_on_stderr(tmp_path: Path) -> None:
+    (tmp_path / "run").mkdir()
+    (tmp_path / "run" / "responses.jsonl").write_bytes(SMOKE_B.read_bytes())
+    manifest = {"suite": {"digest": "0000"}}
+    (tmp_path / "run" / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    result = invoke("compare", SMOKE_SUITE, SMOKE_RESPONSES, tmp_path / "run", "--json")
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["shared"] == 10
+    assert "made with a different version of the suite" in result.stderr
+
+
 def test_compare_strict_fails_on_a_lost_case(tmp_path: Path) -> None:
     fewer = tmp_path / "fewer.jsonl"
     fewer.write_text(
