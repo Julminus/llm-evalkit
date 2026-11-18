@@ -402,9 +402,9 @@ class RunDiff:
 
     def mode_counts(self) -> dict[FailureMode, tuple[int, int]]:
         """Per failure mode either run counts on a shared case: (base, new)."""
-        pairs = self._pairs()
-        base = Counter(m for b, _ in pairs for m in b.failure_modes)
-        new = Counter(m for _, n in pairs for m in n.failure_modes)
+        compared = [_compared_modes(b, n) for b, n in self._pairs()]
+        base = Counter(m for b, _ in compared for m in b)
+        new = Counter(m for _, n in compared for m in n)
         return {m: (base[m], new[m]) for m in FailureMode if base[m] or new[m]}
 
     def to_dict(self) -> dict[str, Any]:
@@ -442,6 +442,14 @@ class RunDiff:
         }
 
 
+def _compared_modes(b: CaseView, n: CaseView) -> tuple[list[FailureMode], list[FailureMode]]:
+    """The modes a diff compares: every counted one where both runs judged the
+    case, else only the checks' (a judge tag on one side is no change)."""
+    if b.judged and n.judged:
+        return b.failure_modes, n.failure_modes
+    return list(b.check_modes), list(n.check_modes)
+
+
 def diff_runs(base: RunView, new: RunView, *, min_change: int = 1) -> RunDiff:
     """Case by case, what changed from ``base`` to ``new``.
 
@@ -464,8 +472,8 @@ def diff_runs(base: RunView, new: RunView, *, min_change: int = 1) -> RunDiff:
         assert n is not None
         if b.response is not None and n.response is not None:
             texts.append(b.response != n.response)
+        b_modes, n_modes = _compared_modes(b, n)
         if b.judged and n.judged:
-            b_modes, n_modes = b.failure_modes, n.failure_modes
             scores = {
                 d: (b.scores[d], n.scores[d])
                 for d in Dimension
@@ -474,7 +482,6 @@ def diff_runs(base: RunView, new: RunView, *, min_change: int = 1) -> RunDiff:
         else:
             if both_judged_runs and (b.judged or n.judged):
                 unjudged.append(case_id)
-            b_modes, n_modes = list(b.check_modes), list(n.check_modes)
             scores = {}
         added = tuple(m for m in n_modes if m not in b_modes)
         removed = tuple(m for m in b_modes if m not in n_modes)

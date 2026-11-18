@@ -286,6 +286,18 @@ def test_judge_run_against_a_responses_run_compares_the_checks() -> None:
     assert diff.mean_scores() == {}
 
 
+def test_mode_counts_follow_the_same_rule_as_the_cases() -> None:
+    judged = run("j", case("a", scores={IF: 4}, judge_modes=(HA,)), case("b", "fail", (FE,)))
+    plain = run("p", case("a"), case("b", "fail", (FE,)))
+    # One side has no judge: its hallucination tag is no change, in the table too.
+    assert diff_runs(plain, judged).mode_counts() == {FE: (1, 1)}
+    errored = run("e", case("a", error="bad reply"), case("b", "fail", (FE,), scores={IF: 2}))
+    assert diff_runs(judged, errored).mode_counts() == {FE: (1, 1)}
+    # Both judged: the judge's tag counts, as before.
+    both = run("b", case("a", scores={IF: 4}), case("b", "fail", (FE,), scores={IF: 2}))
+    assert diff_runs(both, judged).mode_counts() == {HA: (0, 1), FE: (1, 1)}
+
+
 def test_lost_gained_and_text() -> None:
     base = run("b", case("a", response="x"), case("b", response="y"), case("c", response="z"))
     new = run("n", case("a", response="x"), case("b", response="Y"), case("d", response="w"))
