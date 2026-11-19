@@ -148,9 +148,10 @@ def final_answer(text: str) -> str | None:
 def is_correct(case: EvalCase, answer: str | None) -> bool:
     """The right value appears on the Answer line: a number anywhere on it, separators
     ignored ("Rp 100.000 (96.000 / 0.96)" = 100000, "11.00 WIT" = 11:00), or the word.
-    shortcut: a hedged line ("07:00 or 11:00", "Thursday, not Monday") counts as right and
-    a decimal ("Rp 100.000,00") as wrong; the summary prints every answer next to its
-    reference so a misread shows. Pick a stricter rule if a model starts hedging."""
+    shortcut: a hedged line ("07:00 or 11:00", "Thursday, not Monday") or working that passes
+    through the right value ("15 + 5 = 20") counts as right, and a decimal ("Rp 100.000,00")
+    as wrong; the summary prints every answer next to its reference so a misread shows.
+    Pick a stricter rule if a model starts hedging or putting working on the Answer line."""
     reference = case.rubric.reference_answer if case.rubric else None
     if reference is None or answer is None:
         return False

@@ -48,9 +48,10 @@ since `benchmark-s6-before-review.json`. The file is from the fifth of five runs
    stopped counting a lone dash as a word, and `id-invoice-date`'s criteria now ask for the date
    format as the English ones do. The judge's replies changed on those 10 records and nothing
    else. Not kept.
-5. After the second review: the last-sentence check also accepts a sentence end inside bold,
-   quotes or an ellipsis, and one emoji or `>` before the sentence. The judge's replies changed on
-   the 4 product records and nothing else.
+5. After the second review: the last-sentence check also accepts a sentence end inside bold or
+   curly quotes, an ellipsis, and up to 4 symbols (an emoji, a `>`) before the sentence; its
+   remaining limits are written next to it in the suite. The judge's replies changed on the 4
+   product records and nothing else.
 
 Against the third run, 10 records have a different judge prompt and 9 a different reply (on
 `id-product` qwen2.5:7b's judge happened to answer the same). On 7 of the 10 the check passed or
