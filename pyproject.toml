@@ -1,6 +1,6 @@
 [project]
 name = "llm-evalkit"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "A bilingual (EN/ID) harness for evaluating instruction-following and reasoning quality in LLMs."
 readme = "README.md"
 license = "MIT"
