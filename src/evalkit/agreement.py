@@ -352,10 +352,12 @@ def _judged_texts(path: Path) -> tuple[dict[str, str], str | None]:
         where = meta["path"]
     except (OSError, NotUtf8Error, ValueError, LookupError, TypeError, RecursionError):
         return {}, None
+    if not isinstance(where, str):  # judge_suite() called without a responses path
+        return {}, None
     unused = "so the answer texts aren't compared"
     try:
         texts = load_responses(where)
-    except (OSError, ValueError, TypeError, RecursionError, ResponsesError):
+    except (OSError, ValueError, ResponsesError):
         return {}, f"the answers it judged ({where}) can't be read from here, {unused}"
     if responses_digest(texts) != meta.get("digest"):
         return {}, f"the answers it judged ({where}) changed after judging, {unused}"

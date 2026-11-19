@@ -506,6 +506,13 @@ class TestResponseTexts:
         assert load_labels(sheet).texts == answers
         assert self.warnings(self.judged(tmp_path, answers), sheet) == []
 
+    def test_a_run_judged_without_a_responses_path_is_quiet(self, tmp_path: Path) -> None:
+        # judge_suite(responses_path=None) writes "path": null (round-3 review).
+        judged = self.judged(tmp_path)
+        manifest = tmp_path / "run" / "manifest.json"
+        manifest.write_text(json.dumps({"responses": {"path": None, "digest": "x"}}), "utf-8")
+        assert (load_judgments(judged).texts, load_judgments(judged).note) == ({}, None)
+
     def test_a_hostile_manifest_is_no_texts(self, tmp_path: Path) -> None:
         judged = self.judged(tmp_path)
         (tmp_path / "run" / "manifest.json").write_text("[" * 100_000, encoding="utf-8")

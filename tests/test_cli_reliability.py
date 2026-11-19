@@ -522,6 +522,13 @@ class TestReviewFindings:
         result = invoke("agree", failed, LABELS)
         assert "every judgment failed" in result.output
         assert "judge: no judgment (judge error, skipped) (10):" in result.output
+        # a note about the answer texts is not a note about samples (round-3 review)
+        run = tmp_path / "run"
+        run.mkdir()
+        (run / "judgments.jsonl").write_bytes(failed.read_bytes())
+        (run / "manifest.json").write_text('{"responses": {"path": "gone.jsonl"}}', "utf-8")
+        result = invoke("agree", run / "judgments.jsonl", LABELS)
+        assert "every judgment failed" in result.output
 
 
 class TestRoundThreeFindings:

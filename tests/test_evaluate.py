@@ -152,6 +152,7 @@ class TestLoadResponses:
         ("line", "message"),
         [
             ("{not json", "invalid JSON"),
+            ("[" * 100_000, "nested too deeply"),  # RecursionError, not a traceback
             ('["a", "b"]', "string 'id'"),
             ('{"id": 1, "response": "x"}', "string 'id'"),
             ('{"id": "a"}', "string 'response'"),

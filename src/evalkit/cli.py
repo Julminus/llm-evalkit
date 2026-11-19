@@ -1006,8 +1006,9 @@ def agree(
             if side.kind == "labels":
                 what = "no row is labelled yet" if side.skipped else "the sheet has no rows"
             else:
+                several = "used sample" in (side.note or "")  # the note can also be about texts
                 what = (
-                    f"every judgment of sample {n} failed" if side.note else "every judgment failed"
+                    f"every judgment of sample {n} failed" if several else "every judgment failed"
                 )
             raise _exit_error(f"{path}: {what}")
         if set(judged.ratings) & set(reference.skipped) or set(reference.ratings) & set(
