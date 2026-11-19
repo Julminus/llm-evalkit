@@ -37,7 +37,7 @@ import httpx
 from measure_report import gpu_info, slug, unload_all
 
 from evalkit import __version__
-from evalkit.agreement import compare, load_judgments, load_labels
+from evalkit.agreement import Rating, Ratings, compare, load_labels
 from evalkit.cache import ResponseCache
 from evalkit.evaluate import check_case
 from evalkit.files import write_text_atomic
@@ -56,6 +56,8 @@ WORK = Path("runs/s6")  # caches only
 OUT = Path("docs/results/benchmark-s6")  # relative, so manifests and the report hold no local paths
 LABELS = Path("examples/human_labels.csv")
 LABELLED = "qwen2.5:7b"  # the model whose answers the sheet labels
+# The run before the post-review fixes to five cases' checks and criteria.
+BEFORE = Path("docs/results/benchmark-s6-before-review.json")
 GROUPS = ["multi-constraint", "ambiguous", "edge-case", "reasoning-trap"]
 LANGS = ["en", "id"]
 ANSWER_LINE = re.compile(r"^[ \t*_#>]*(?:answer|jawaban)[ \t*_]*:(.*)$", re.I | re.M)
@@ -144,17 +146,19 @@ def final_answer(text: str) -> str | None:
 
 
 def is_correct(case: EvalCase, answer: str | None) -> bool:
-    """A number or time must be the first number in the answer, separators ignored
-    ("Rp 100.000" = 100000, "11.00" = 11:00); a word must appear as a whole word.
-    shortcut: "Rp 100.000,00" reads as wrong; the summary prints every answer to catch that."""
+    """A number or time must be the last number on the line, separators ignored
+    ("Rp 100.000" = 100000, "09.00 WIB = 11.00 WIT" = 11:00); a word must be the first
+    word (after "hari").
+    shortcut: decimals ("Rp 100.000,00") read as wrong and "Monday or Tuesday" as Monday;
+    the summary prints every answer next to its reference so a misread shows."""
     reference = case.rubric.reference_answer if case.rubric else None
     if reference is None or answer is None:
         return False
     if any(ch.isdigit() for ch in reference):
-        first = re.search(r"\d[\d.,:]*", answer)
-        digits = re.sub(r"\D", "", reference)
-        return first is not None and re.sub(r"\D", "", first.group()) == digits
-    return re.search(rf"\b{re.escape(reference)}\b", answer, re.I) is not None
+        numbers = re.findall(r"\d[\d.,:]*", answer)
+        return bool(numbers) and re.sub(r"\D", "", numbers[-1]) == re.sub(r"\D", "", reference)
+    first = re.match(r"\W*(?:hari\s+)?(\w+)", answer, re.I)
+    return first is not None and first.group(1).lower() == reference.lower()
 
 
 def pct(n: int, d: int) -> str:
@@ -213,7 +217,9 @@ def summary(data: dict[str, Any]) -> None:
                 picked = [
                     r
                     for r in records
-                    if (group is None or group in r.tags) and (lang is None or r.language == lang)
+                    if r.ok
+                    and (group is None or group in r.tags)
+                    and (lang is None or r.language == lang)
                 ]
                 means = JudgeSummary(records=picked).mean_scores()
                 cells = [f"{v:.2f}" if v is not None else "-" for v in means.values()]
@@ -238,14 +244,32 @@ def summary(data: dict[str, Any]) -> None:
         g = data["generated"][model]
         print(f"  generation {model}: {g['counts']}, {g['wall_s']:.1f} s")
 
+    if BEFORE.exists():
+        print(f"\n## Against {BEFORE.as_posix()}: answers, and judge replies that changed")
+        before = json.loads(BEFORE.read_text(encoding="utf-8"))
+        for model in MODELS:
+            old, new = responses(before["generated"], model), responses(data["generated"], model)
+            print(f"  {model}: answers identical {sum(old[i] == new[i] for i in new)}/{len(new)}")
+            olds = {
+                r["id"]: JudgeRecord.model_validate(r) for r in before["judged"][model]["records"]
+            }
+            for b in (JudgeRecord.model_validate(r) for r in data["judged"][model]["records"]):
+                a = olds[b.id]
+                if a.replies != b.replies:
+                    print(
+                        f"    {b.id}: checks {a.check_status.value} -> {b.check_status.value}; "
+                        f"scores {list(a.scores.values())} -> {list(b.scores.values())}; "
+                        f"tags {sorted(m.value for m in a.judge_failure_modes)} -> "
+                        f"{sorted(m.value for m in b.judge_failure_modes)}"
+                    )
+
     if LABELS.exists():
         # The sheet labels one model's answers; the other model's judgments share its ids.
-        print(f"\n## Judge vs {LABELS} ({LABELLED}'s answers; labeler: see the sheet)")
-        judged, labels = (
-            load_judgments(judged_dir(LABELLED) / "judgments.jsonl"),
-            load_labels(LABELS),
-        )
+        print(f"\n## Judge vs {LABELS.as_posix()} ({LABELLED}'s answers; labeler: see the sheet)")
+        judged, labels = judged_ratings(data), load_labels(LABELS)
         report = compare(judged, labels)
+        for line in [*report.notes, *report.warnings]:
+            print(f"  note: {line}")
         if report.matched:
             print(f"  {report.matched} labelled cases")
             for lang, dims in report.by_language.items():
@@ -257,19 +281,39 @@ def summary(data: dict[str, Any]) -> None:
                     f"quadratic kappa {a.kappa_quadratic} {a.kappa_quadratic_ci}, "
                     f"means label {a.mean_reference} / judge {a.mean_judge}"
                 )
+            # The cases compare() counts modes on: both sides labelled failure modes.
+            both = [
+                i
+                for i in judged.ratings.keys() & labels.ratings.keys()
+                if judged.ratings[i].failure_modes is not None
+                and labels.ratings[i].failure_modes is not None
+            ]
             for mode, m in report.failure_modes.items():
                 if m.both or m.judge_only or m.reference_only:
-                    tagged = {
-                        side: [
-                            i for i, r in ratings.ratings.items() if mode in (r.failure_modes or ())
-                        ]
-                        for side, ratings in (("judge", judged), ("labels", labels))
-                    }
-                    print(
-                        f"    {mode.value} ({m.decided_by}): both {m.both}, judge only "
-                        f"{sorted(set(tagged['judge']) - set(tagged['labels']))}, labels only "
-                        f"{sorted(set(tagged['labels']) - set(tagged['judge']))}"
+                    j, lab = (
+                        {i for i in both if mode in (side.ratings[i].failure_modes or ())}
+                        for side in (judged, labels)
                     )
+                    print(
+                        f"    {mode.value} ({m.decided_by}): both {m.both}, "
+                        f"judge only {sorted(j - lab)}, labels only {sorted(lab - j)}"
+                    )
+
+
+def judged_ratings(data: dict[str, Any]) -> Ratings:
+    """The labelled model's judgments as `evalkit agree` reads a judgments file, taken
+    from the results file (not the judge run on disk), with the answers they rate."""
+    records = [JudgeRecord.model_validate(r) for r in data["judged"][LABELLED]["records"]]
+    ratings = {
+        r.id: Rating(
+            id=r.id, scores=r.scores, failure_modes=frozenset(r.failure_modes), language=r.language
+        )
+        for r in records
+        if r.ok
+    }
+    skipped = [r.id for r in records if not r.ok]
+    texts = responses(data["generated"], LABELLED)
+    return Ratings(f"{LABELLED} judgments", ratings, skipped, texts=texts)
 
 
 async def measure(host: str) -> dict[str, Any]:

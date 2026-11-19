@@ -6,6 +6,7 @@ the checks, the suite or the answer parser moves these numbers, this test says s
 re-run ``measure_benchmark.py --summary`` and update the README with it.
 """
 
+import json
 import sys
 from pathlib import Path
 
@@ -19,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SUITE = load_suite(ROOT / "examples" / "suites" / "benchmark.yaml")
 sys.path.insert(0, str(ROOT / "scripts"))  # the script imports its sibling measure_report
 try:
-    from measure_benchmark import final_answer, is_correct
+    from measure_benchmark import final_answer, is_correct, summary
 finally:
     sys.path.remove(str(ROOT / "scripts"))
 
@@ -69,3 +70,29 @@ def test_answer_parser() -> None:
     assert not is_correct(clock, "10.00")
     assert is_correct(day, "**Monday**")
     assert not is_correct(day, "Mondays")
+    # The working before the result (post-S6 review): the last number, the first word.
+    assert is_correct(clock, "09.00 WIB = 11.00 WIT")
+    assert is_correct(SUITE.case("en-mangoes"), "12 - 3 + 6 = 15")
+    assert not is_correct(day, "Thursday, not Monday")
+    assert is_correct(SUITE.case("id-weekday"), "hari Senin")
+
+
+def test_summary_prints_the_published_numbers(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data = json.loads((ROOT / "docs" / "results" / "benchmark-s6.json").read_text("utf-8"))
+    monkeypatch.chdir(ROOT)  # the script's paths are relative to the repository root
+    summary(data)
+    out = capsys.readouterr().out
+    for line in [
+        "| qwen2.5:7b | all | en | 20 | 3.85 | 4.62 | 4.57 | 4.07 |",
+        "| qwen2.5:7b | all | id | 20 | 3.60 | 4.38 | 4.71 | 4.07 |",
+        "| llama3.1:8b | all | en | 20 | 3.30 | 4.00 | 4.64 | 3.86 |",
+        "| llama3.1:8b | all | id | 20 | 2.95 | 3.23 | 4.29 | 2.86 |",
+        "instruction_following: n=40, exact 12, within one 33, quadratic kappa 0.355",
+        "reasoning_quality: n=26, exact 14, within one 22, quadratic kappa 0.724",
+        "hallucination (judge): both 7, judge only [], labels only",
+        "qwen2.5:7b: answers identical 40/40",
+    ]:
+        assert line in out
+    assert "note:" not in out  # the labels are about the labelled model's answers
