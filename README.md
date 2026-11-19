@@ -468,7 +468,7 @@ numbers. `uv run --with langdetect==1.0.9 python scripts/measure_langdetect.py` 
 rows of the table, including the baseline's wrong guesses.
 
 **Engineering.** 4 providers, 11 check types, an LLM judge with agreement, consistency and
-position-bias tools, HTML and Markdown reports, 961 tests (3 of them opt-in live tests, 2 that run
+position-bias tools, HTML and Markdown reports, 967 tests (3 of them opt-in live tests, 2 that run
 only where SciPy and scikit-learn are installed, 1 POSIX-only), 99.26% branch coverage, strict
 mypy. Every provider is tested offline against the request and response shapes of its API (the
 Anthropic one through the real SDK with a mock transport), and

@@ -38,9 +38,11 @@ cases:
       - {type: forbidden_phrases, phrases: [eco-friendly, eco friendly, ecofriendly]}
       # The last sentence is exactly this, not a sentence that ends with it. Before it:
       # the start, or . ! ? or … with closing quotes or markup, then optionally up to 4
-      # symbols (an emoji, a ">"). Limits, left as they are after two rounds of fixes:
-      # it fails the sentence on its own line after a line with no end punctuation, a
-      # full stop outside the bold, and an emoji after it; the judge sees those cases.
+      # symbols (an emoji, a ">"), then a space. Limits, left as they are after two rounds
+      # of fixes: it fails the sentence on its own line after a line with no end
+      # punctuation, a full stop outside the bold, the sentence in quotes, an emoji after
+      # it, an emoji of more than 4 code points or with no space before the sentence. The
+      # judge sees those cases.
       - type: regex
         pattern: '(?:\A|[.!?…]["''”’)\]*_]*\s+(?:[^\w\s]{1,4}\s+)?)[*_]*Free shipping across Java\.[*_]*\s*\Z'
         flags: [ignorecase]
