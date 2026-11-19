@@ -1,4 +1,5 @@
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -162,6 +163,15 @@ class TestLoadResponses:
     def test_bad_lines(self, tmp_path: Path, line: str, message: str) -> None:
         with pytest.raises(ResponsesError, match=message):
             load_responses(self._write(tmp_path, line))
+
+    def test_the_number_limit_named_is_the_one_in_force(self, tmp_path: Path) -> None:
+        old = sys.get_int_max_str_digits()
+        sys.set_int_max_str_digits(640)
+        try:
+            with pytest.raises(ResponsesError, match="more than 640 digits"):
+                load_responses(self._write(tmp_path, '{"id": "a", "n": ' + "9" * 1000 + "}"))
+        finally:
+            sys.set_int_max_str_digits(old)
 
     def test_duplicate_id(self, tmp_path: Path) -> None:
         row = json.dumps({"id": "a", "response": "x"})

@@ -259,7 +259,7 @@ def test_a_judged_path_no_os_accepts_is_a_note(judged_run: Path, where: str) -> 
 def test_a_judged_path_the_os_refuses_to_look_at_is_a_note(
     judged_run: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # Path.is_file() raises PermissionError on 3.11/3.12 for e.g. a Windows system file.
+    # Path.is_file() raises PermissionError on 3.11-3.13 for e.g. a Windows system file.
     real_is_file = Path.is_file
 
     def denied(self: Path) -> bool:
@@ -270,6 +270,17 @@ def test_a_judged_path_the_os_refuses_to_look_at_is_a_note(
     monkeypatch.setattr(Path, "is_file", denied)
     view = load_run(judged_run, SUITE)
     assert "can't be read from here" in view.notes[0]
+
+
+def test_a_run_directory_you_cannot_list_is_an_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def denied(self: Path) -> bool:
+        raise PermissionError(13, "Access is denied")
+
+    monkeypatch.setattr(Path, "is_file", denied)
+    with pytest.raises(RunError, match="Access is denied"):
+        load_run(tmp_path, SUITE)
 
 
 def test_a_manifest_with_a_huge_number_is_ignored(tmp_path: Path) -> None:

@@ -186,6 +186,21 @@ class TestLabels:
         assert forced.exit_code == 0, forced.output
         assert len(out.read_text(encoding="utf-8-sig").splitlines()) == 2
 
+    def test_an_out_path_the_os_refuses_to_look_at(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        out = tmp_path / "labels.csv"
+
+        def denied(self: Path) -> bool:
+            if self == out:
+                raise PermissionError(13, "Access is denied")
+            return True
+
+        monkeypatch.setattr(Path, "exists", denied)
+        result = invoke("labels", SUITE, RESPONSES, "-o", out)
+        assert result.exit_code == 1
+        assert "could not write" in result.output
+
     def test_no_responses_for_the_selected_cases(self, tmp_path: Path) -> None:
         empty = tmp_path / "r.jsonl"
         empty.write_text('{"id": "other", "response": "x"}\n', encoding="utf-8")

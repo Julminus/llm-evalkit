@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Mapping
 from pathlib import Path
@@ -95,7 +96,8 @@ def load_responses(path: str | Path) -> dict[str, str]:
         except RecursionError as exc:
             raise ResponsesError(f"{path}:{n}: invalid JSON (nested too deeply)") from exc
         except ValueError as exc:  # json.loads' only other ValueError: Python's int-size limit
-            raise ResponsesError(f"{path}:{n}: a number has more than 4,300 digits") from exc
+            limit = sys.get_int_max_str_digits()
+            raise ResponsesError(f"{path}:{n}: a number has more than {limit:,} digits") from exc
         if isinstance(obj, dict):  # ids too: a lone surrogate can't be written out
             obj = {k: scrub_surrogates(v) if isinstance(v, str) else v for k, v in obj.items()}
         if not isinstance(obj, dict) or not isinstance(obj.get("id"), str):

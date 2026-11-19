@@ -1036,7 +1036,11 @@ def labels(
     suite = _load_or_exit(suite_path)
     selected = _selected_or_exit(suite, suite_path, case)
     responses = _responses_or_exit(responses_path)
-    if out.exists() and not force:
+    try:
+        exists = out.exists()
+    except OSError as exc:  # e.g. a protected system file
+        raise _exit_error(f"could not write {out}: {exc}") from exc
+    if exists and not force:
         # It may hold hours of labelling.
         raise _exit_error(f"{out} exists; pass --force to overwrite it")
     # Everything the judge sees: faithfulness can't be labelled without the context.

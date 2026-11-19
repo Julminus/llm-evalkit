@@ -176,11 +176,14 @@ def _get(data: Any, *keys: str) -> str | None:
 
 
 def _log_file(path: Path) -> Path:
-    if not path.is_dir():
-        return path
-    for name in ("judgments.jsonl", "responses.jsonl"):
-        if (path / name).is_file():
-            return path / name
+    try:  # is_dir()/is_file() raise PermissionError on a directory you can't list
+        if not path.is_dir():
+            return path
+        for name in ("judgments.jsonl", "responses.jsonl"):
+            if (path / name).is_file():
+                return path / name
+    except OSError as exc:
+        raise RunError(f"{path}: {exc}") from exc
     raise RunError(f"{path}: no judgments.jsonl or responses.jsonl in this directory")
 
 
@@ -244,7 +247,7 @@ def _judged_responses(
         if not path.is_file():  # a device name ("CON") would wait for console input
             raise ResponsesError(where)
         responses = load_responses(path)
-    # OSError: is_file() itself on 3.11/3.12 (access denied); ValueError: a path no OS
+    # OSError: is_file() itself on 3.11-3.13 (access denied); ValueError: a path no OS
     # accepts ("a\0b").
     except (OSError, ResponsesError, ValueError):
         notes.append(f"the judged responses ({where}) can't be read from here")
