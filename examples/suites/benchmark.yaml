@@ -1,5 +1,6 @@
-# The benchmark: 20 hand-written tasks, each asked in English and in Indonesian
-# (40 cases), in four groups of five:
+# The benchmark: 20 tasks written for this suite (by Claude, the AI assistant used to
+# build the project), each asked in English and in Indonesian (40 cases), in four
+# groups of five:
 #
 #   multi-constraint  several stated constraints at once (length, phrases, format)
 #   ambiguous         the request has more than one reasonable reading

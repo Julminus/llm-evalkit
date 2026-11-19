@@ -10,13 +10,13 @@ A lightweight, bilingual (English / Bahasa Indonesia) harness for evaluating ins
 > model providers with an async runner, a response cache and run logs, an LLM judge that scores
 > responses 1–5 against a rubric and tags failure modes, tools that measure how far to trust it
 > (agreement with labels or another judge, self-consistency, position bias), HTML/Markdown reports
-> with run-to-run diffs, and a hand-written 40-case EN/ID benchmark run on two local models. What
+> with run-to-run diffs, and a 40-case EN/ID benchmark run on two local models. What
 > a program can't supply is still missing: labels made by a person. The example labels are an AI
 > assistant's; see [What's next](#whats-next).
 
 ![evalkit report: qwen2.5:7b vs llama3.1:8b on the 40-case benchmark, judged by qwen2.5:14b](docs/img/benchmark-report.png)
 
-<sub>The top of the benchmark's `evalkit report`: qwen2.5:7b and llama3.1:8b on 40 hand-written
+<sub>The top of the benchmark's `evalkit report`: qwen2.5:7b and llama3.1:8b on the 40
 EN/ID cases, judged by qwen2.5:14b on an RTX 5080 (the whole report:
 [`report.md`](docs/results/benchmark-s6/report.md); the HTML version adds every case with its
 response, failed checks and the judge's rationale). In the terminal, the judge looks like
@@ -24,30 +24,31 @@ response, failed checks and the judge's rationale). In the terminal, the judge l
 
 ## Results
 
-**The benchmark: 40 hand-written cases, two local models.**
+**The benchmark: 40 cases, two local models.**
 [`examples/suites/benchmark.yaml`](examples/suites/benchmark.yaml) has 20 tasks, each asked in
 English and in Indonesian, in four groups of five: multi-constraint instructions, ambiguous
 requests, edge cases (missing input, a false premise, two constraints that clash, a request that
 only sounds harmful, an instruction hidden in the text to summarise) and reasoning traps that end
-with an `Answer:` line. I wrote them for this suite, modelled on the tasks evaluators see, not taken
-from public benchmarks. The Indonesian version is the same task as an Indonesian user would write
-it (decimal commas, "09.00 WIB", Bapak/Ibu). The checks test only what a prompt states; what
-can't be counted is written down as criteria for the judge, and each trap carries its right
-answer, so trap accuracy needs no judge. qwen2.5:7b and llama3.1:8b answered from a fresh model
-load (temperature 0, seed 0, at most 1024 tokens, one request at a time), and qwen2.5:14b judged
-the answers (prompt v1, the same settings), through Ollama 0.40.16 on an RTX 5080. Script:
-`scripts/measure_benchmark.py`; raw output with every answer and judge reply:
-[`docs/results/benchmark-s6.json`](docs/results/benchmark-s6.json) (`--summary` rebuilds every
-number below from it).
+with an `Answer:` line. Claude (the AI assistant used to build this project) wrote them for this
+suite, modelled on the tasks evaluators see, not taken from public benchmarks. The Indonesian
+version is the same task as an Indonesian user would write it (decimal commas, "09.00 WIB",
+Bapak/Ibu). The checks test only what a prompt states; what can't be counted is written down as
+criteria for the judge, and each trap carries its right answer, so trap accuracy needs no judge.
+qwen2.5:7b and llama3.1:8b answered from a fresh model load (temperature 0, seed 0, at most 1024
+tokens, one request at a time), and qwen2.5:14b judged the answers (prompt v1, the same
+settings), through Ollama 0.40.16 on an RTX 5080. Script: `scripts/measure_benchmark.py`; raw
+output with every answer and judge reply:
+[`docs/results/benchmark-s6.json`](docs/results/benchmark-s6.json) (`--summary` rebuilds the
+counts and means in the tables below from it).
 
 | | qwen2.5:7b EN | qwen2.5:7b ID | llama3.1:8b EN | llama3.1:8b ID |
 |---|---|---|---|---|
 | Cases passing every check (a case no check could judge is left out) | 18/19 | 18/20 | 17/20 | 14/18 |
 | Reasoning traps: right answer on the `Answer:` line | **4/5** | **2/5** | 2/5 (3/5 by reading) | 2/5 |
-| Judge mean, `instruction_following` | 3.85 | 3.65 | 3.35 | 3.05 |
-| Judge mean, `reasoning_quality` | 4.62 | 4.38 | 4.00 | **3.31** |
+| Judge mean, `instruction_following` | 3.85 | 3.60 | 3.30 | 2.95 |
+| Judge mean, `reasoning_quality` | 4.62 | 4.38 | 4.00 | **3.23** |
 | Judge mean, `faithfulness` | 4.57 | 4.71 | 4.64 | 4.29 |
-| Judge mean, `helpfulness` | 4.07 | 4.07 | 3.86 | **3.00** |
+| Judge mean, `helpfulness` | 4.07 | 4.07 | 3.86 | **2.86** |
 
 llama3.1:8b's third right trap answer is `en-price-change`: it ended with "The final answer is:
 $\boxed{100000}$" instead of the `Answer:` line, so the check fails it as a format error and the
@@ -69,78 +70,96 @@ models, two languages):
 
 What this shows:
 
-- **Both models are weakest where the request is underspecified, not where it is long.** On the
-  multi-constraint tasks the checks pass 9 of 10 cases for qwen2.5:7b and 7 of 10 for
-  llama3.1:8b. On the ambiguous ones, 6 of 20 answers noticed the ambiguity; the rest answered one
-  reading with confidence. The judge's lowest `instruction_following` means are on that group
-  (qwen2.5:7b 3.30, llama3.1:8b 2.60).
-- **Indonesian cost llama3.1:8b on every judged dimension, and both models on the traps.** The
+- **Both models are weakest where the request is underspecified, not where it has many stated
+  constraints.** On the multi-constraint tasks the checks pass 9 of 10 cases for qwen2.5:7b and 7
+  of 10 for llama3.1:8b (one of llama3.1:8b's 7, the English table, leaves out the required
+  sentence after it, which no check covers). On the ambiguous ones, 6 of 20 answers noticed the
+  ambiguity; most of the rest answered one reading with confidence. The judge's lowest
+  `instruction_following` means are on that group (qwen2.5:7b 3.20, llama3.1:8b 2.50).
+- **Indonesian cost llama3.1:8b on every judged dimension, and qwen2.5:7b on the traps.** The
   judge's means for llama3.1:8b fall from English to Indonesian on all four dimensions
-  (`reasoning_quality` 4.00 → 3.31, `helpfulness` 3.86 → 3.00); qwen2.5:7b's move less
-  (`instruction_following` 3.85 → 3.65, `faithfulness` up). On the five traps, qwen2.5:7b was
+  (`reasoning_quality` 4.00 → 3.23, `helpfulness` 3.86 → 2.86); qwen2.5:7b's move less
+  (`instruction_following` 3.85 → 3.60, `faithfulness` up). On the five traps, qwen2.5:7b was
   right 4 times in English and 2 times in Indonesian on the same problems, and both models got the
-  weekday right in English and wrong in Indonesian. That is a direction, not a result: with five
-  problems per language, 4/5 against 2/5 is well within chance (Fisher's exact test, p ≈ 0.52).
+  weekday right in English and wrong in Indonesian. That is a direction, not a result: only two
+  problems flipped, and an exact paired test (McNemar) on them gives p = 0.5.
 - **Local facts are where both models make things up, in both languages.** Every answer to the
   Yogyakarta task named at least one wrong or invented attraction, every mode-by-mode answer about
   Jakarta–Bandung had a false transport detail, and every correction of the World Cup premise
   added a false claim about Indonesia's football history. A bilingual suite needs cases like
   these; the generic reasoning traps don't find them.
-- **No over-refusal, but the injected instruction worked half the time, in a different language
-  for each model.** One language's result says nothing about the other's.
-- **The checks and the judge each caught what the other couldn't.** 9 of the 10 check failures are
-  real; the tenth is the language check's first false alarm on real output: an Indonesian sentence
-  quoting the English words "can" and "able to" (qwen2.5:7b, `id-bisa`) was read as mixed. No
-  check covers the sentence after the tea-and-coffee table; the judge noticed that llama3.1:8b left
-  it out in English and recommended coffee to someone who can't sleep in Indonesian.
-- **The numbers reproduce.** Three runs, each from a fresh load, gave byte-identical answers
-  (80/80 every time), and the last two gave byte-identical judge replies (80/80). Between the
-  first run, a pilot, and the second, I corrected the criteria of two tasks: one said the
-  Yogyakarta constraints can't both be met, but "5 words plus a separate list" meets both; one
-  hinted that only caffeine mattered in the table. The judge's replies changed on 7 of the 8
-  records whose judge prompt that touched, and on nothing else.
+- **No over-refusal, and the injected instruction worked half the time, in a different language
+  for each model.** Here, one language's result didn't predict the other's.
+- **The checks and the judge each caught what the other couldn't.** 10 of the 80 cases fail a
+  check, and 9 of them really break a stated constraint (llama3.1:8b's English product
+  description breaks two). The tenth is the language check's first false alarm on real output: an
+  Indonesian sentence quoting the English words "can" and "able to" (qwen2.5:7b, `id-bisa`) was
+  read as mixed. No check covers the sentence after the tea-and-coffee table; the judge noticed
+  that llama3.1:8b left it out in English and recommended coffee to someone who can't sleep in
+  Indonesian.
+- **The answers reproduce; the judge's verdicts move with its prompt.** Four runs, each from a
+  fresh load, gave byte-identical answers (80/80 every time), and two runs with the same judge
+  prompts gave byte-identical judge replies. Between runs, some tasks were corrected: after a
+  pilot, two tasks' criteria (the Yogyakarta one said its constraints can't both be met, but "5
+  words plus a separate list" meets both; the table one hinted that only caffeine mattered); after
+  a review of this section, three tasks' checks or criteria (the product description's
+  last-sentence check, the tip-length check, and the Indonesian invoice-date criteria, which
+  accepted a bare "April" that the English criteria call a miss). Each time the judge's replies
+  changed only on the records whose judge prompt changed (7, then 10). But on 7 of those 10 the
+  only change was the wording of a check that passed or failed exactly as before, and the judge's
+  verdict still moved on 5 (a score on 4, a tag on 4): qwen2.5:7b's English tip list went from 4,
+  for a "13-word" tip (the longest has 7 words), to 5, and its product description from 5 to 4.
+  The run before the review's fixes is
+  [`benchmark-s6-before-review.json`](docs/results/benchmark-s6-before-review.json), and
+  `--summary` prints what changed; the pilot's file wasn't kept.
 
 **The judge against labels.** To show the agreement tooling end to end, Claude labelled
 qwen2.5:7b's 40 answers in [`examples/human_labels.csv`](examples/human_labels.csv), the sheet
 `evalkit labels` writes, with a note on every row. These are an AI assistant's labels, not a
 person's: the file is a template for a native speaker to re-label, and these numbers will change
-when one does. One rubric choice matters below: I scored `instruction_following` on the task and
-its constraints, and left correctness to `reasoning_quality` and `faithfulness`; the judge lowers
-`instruction_following` for a wrong answer as well.
+when one does. One rubric choice matters below: the labels score `instruction_following` on the
+task and its constraints, and leave correctness to `reasoning_quality` and `faithfulness`; the
+judge lowers `instruction_following` for a wrong answer as well.
 
 | qwen2.5:14b vs Claude's labels, qwen2.5:7b's 40 answers | IF | RQ | FA | HE |
 |---|---|---|---|---|
 | Answers scored on the dimension | 40 | 26 | 28 | 28 |
-| Same score / within one point | 14 / 34 | 13 / 22 | 15 / 23 | 12 / 26 |
-| Quadratic kappa [95% CI] | 0.40 [0.13, 0.61] | **0.71** [0.34, 0.87] | 0.51 [0.20, 0.72] | 0.46 [0.20, 0.67] |
-| ... English / Indonesian answers (20 / 13 / 14 / 14 each) | 0.51 / **0.26** | 0.64 / 0.75 | 0.50 / 0.51 | 0.61 / **0.32** |
-| Mean, labels / judge | 4.45 / 3.75 | 3.92 / 4.50 | 4.14 / 4.64 | 3.79 / 4.07 |
+| Same score / within one point | 12 / 33 | 14 / 22 | 15 / 23 | 14 / 26 |
+| Quadratic kappa [95% CI] | 0.35 [0.12, 0.56] | **0.72** [0.35, 0.87] | 0.51 [0.20, 0.72] | 0.46 [0.18, 0.69] |
+| ... English / Indonesian answers (20 / 13 / 14 / 14 each) | 0.42 / **0.28** | 0.64 / 0.77 | 0.50 / 0.51 | 0.61 / **0.27** |
+| Mean, labels / judge | 4.50 / 3.73 | 3.96 / 4.50 | 4.14 / 4.64 | 3.79 / 4.07 |
 
 `uv run evalkit agree docs/results/benchmark-s6/judged-qwen2.5-7b/judgments.jsonl
 examples/human_labels.csv` prints this table from a fresh clone, with no model.
 
-- **The judge's `hallucination` tags are precise, and it misses what needs world knowledge.**
-  All 7 of its tags are on answers I tagged too, but it missed 4 of my 11: Indonesia's World Cup
-  history (in both languages), the KRL Commuter Line to Bandung, and a bottle described as keeping
-  drinks hot or cold that the prompt never said was insulated. Four of the 7 it caught are wrong
-  trap answers, where the criteria hand it the right answer.
-- **It is more lenient on faithfulness and harsher on instruction following than I was**
-  (4.64 vs 4.14, and 3.75 vs 4.45). Part of the second gap is the rubric choice above: on the four
-  wrong trap answers that followed the format, I gave 5 and the judge 3.
-- **It agrees less on the Indonesian answers** for `instruction_following` (0.26 vs 0.51) and
-  `helpfulness` (0.32 vs 0.61). One example: qwen2.5:7b's reply to the empty summary request was
+- **Its `hallucination` tags land on the right answers, not always for the right reason, and it
+  misses most errors that need world knowledge.** All 7 of its tags are on answers the labels tag
+  too, and 4 of the 7 are wrong trap answers, where the criteria give it the right answer.
+  qwen2.5:7b's answers hold 6 errors that need world knowledge; the judge tagged 3 and named the
+  actual error in 2 (Sari Roti, Museum Angkut). On the third, `id-jakarta-bandung`, its rationale
+  blames the plane option rather than "Bandara Juanda di Bandung", and on `en-five-words` it also
+  calls Candi Sewu, a real temple next to Prambanan, not an attraction. It missed Indonesia's
+  World Cup history in both languages and the KRL Commuter Line to Bandung, plus a bottle
+  described as keeping drinks hot or cold that the prompt never said was insulated.
+- **It is more lenient on faithfulness and harsher on instruction following than the labels**
+  (4.64 vs 4.14, and 3.73 vs 4.50). Part of the second gap is the rubric choice above: on the four
+  wrong trap answers that followed the format, the labels give 5 and the judge 3.
+- **It agrees less on the Indonesian answers** for `instruction_following` (0.28 vs 0.42) and
+  `helpfulness` (0.27 vs 0.61). One example: qwen2.5:7b's reply to the empty summary request was
   right in both languages, and the judge gave the English one 5 for instruction following and the
   Indonesian one 3, with a `partial_completion` tag.
-- **Its rationales sometimes describe a different answer.** It docked a tip list for a "13-word"
-  tip (the longest has 7 words), and praised the Indonesian invoice-date answer because it
-  "correctly explains that the date format MM/DD/YYYY would mean March", which the answer never
-  says. `partial_completion` is its noisiest tag here: 13 against my 5, 4 in common.
+- **Its rationales sometimes describe a different answer.** It docked qwen2.5:7b's product
+  description for "not explicitly mentioning the capacity of the bottle in the first two
+  sentences" (the first sentence says 600 ml), and tagged llama3.1:8b's tip list
+  `partial_completion` because it "does not include an introduction or conclusion", which the
+  prompt ruled out. `partial_completion` is its noisiest tag here: 14 against the labels' 6, 4 in
+  common.
 
-Limits: 20 tasks I wrote, five per group, so most differences above are single cases; one
-temperature-0 answer per model and case; one small local judge from the same family as one of the
-models; and labels from an AI assistant on one model's answers. The per-task reading above is
-also Claude's, and every case's answer and judgment is in the
-[HTML report](docs/results/benchmark-s6/report.html) to check it against.
+Limits: 20 tasks, five per group, so most differences above are single cases; one temperature-0
+answer per model and case; one small local judge from the same family as one of the models; tasks,
+labels and the per-task reading above all by an AI assistant, the labels on one model's answers.
+Every case's answer and judgment is in the [HTML report](docs/results/benchmark-s6/report.html)
+to check them against.
 
 **Regression diffs on real runs: what `compare` flags when nobody changed anything.** The
 runner measurement below ran each model twice at temperature 0 with the same seed: once from a
@@ -448,7 +467,7 @@ numbers. `uv run --with langdetect==1.0.9 python scripts/measure_langdetect.py` 
 rows of the table, including the baseline's wrong guesses.
 
 **Engineering.** 4 providers, 11 check types, an LLM judge with agreement, consistency and
-position-bias tools, HTML and Markdown reports, 938 tests (3 of them opt-in live tests, 2 that run
+position-bias tools, HTML and Markdown reports, 947 tests (3 of them opt-in live tests, 2 that run
 only where SciPy and scikit-learn are installed, 1 POSIX-only), 99.25% branch coverage, strict
 mypy. Every provider is tested offline against the request and response shapes of its API (the
 Anthropic one through the real SDK with a mock transport), and
@@ -623,7 +642,11 @@ Three ways to find out how far a judge can be trusted, each its own command:
   read too (`.csv` and `.tsv` are sheets, `.jsonl` and `.json` judgments; any other name is a
   judgments file if it starts with `{`). A row with more
   non-empty cells than the header is an error, and columns evalkit doesn't know are listed in a
-  note, so a misspelt label column shows up instead of vanishing.
+  note, so a misspelt label column shows up instead of vanishing. Rows are matched by case id,
+  and every model's answers to a suite share the ids, so a sheet for one model's answers lines up
+  with another model's judgments. Where both files say which answer they rate (the sheet's
+  `response` column; for a judge run, the answers its manifest points to, if unchanged), `agree`
+  warns when the texts differ, ignoring spacing.
 - **Against itself: `evalkit consistency SUITE RESPONSES -j JUDGE -n 5`.** Judges each response n
   times at temperature 0.7, sample i with seed i, and reports per dimension how many cases got the
   same score every time, the mean standard deviation and range, and which judge tags come and go
@@ -692,11 +715,12 @@ ollama:qwen2.5:14b`, and `evalkit report` or `evalkit compare` on the run direct
 
 The benchmark's saved runs work without a model too: `uv run evalkit report
 examples/suites/benchmark.yaml docs/results/benchmark-s6/judged-qwen2.5-7b
-docs/results/benchmark-s6/judged-llama3.1-8b` rebuilds its report (run it from the repository
-root, where the judge runs' relative paths to the answers resolve), `uv run evalkit check
+docs/results/benchmark-s6/judged-llama3.1-8b --name qwen2.5:7b --name llama3.1:8b` rebuilds its
+report in `reports/` (run it from the repository root, where the judge runs' relative paths to the
+answers resolve), `uv run evalkit check
 examples/suites/benchmark.yaml examples/responses/benchmark-llama3.1-8b.jsonl` re-grades one
 model's answers, and `uv run python scripts/measure_benchmark.py --summary
-docs/results/benchmark-s6.json` prints every benchmark number above.
+docs/results/benchmark-s6.json` prints the benchmark's tables.
 
 `make pairwise` and `make consistency` run the reliability tools on the mock judge, `make report`
 and `make compare` the report tools, and
@@ -897,19 +921,22 @@ noise (see Results); the measured remedy is to gate on the checks and read the j
 ## What's next
 
 1. **Labels from a person.** The judge has been compared with another judge, with itself and with
-   an AI assistant's labels, not yet with a person. The quickest step is to re-label
-   [`examples/human_labels.csv`](examples/human_labels.csv) (overwrite the scores, the failure
-   modes and the `labeler` column) and re-run `evalkit agree` on it as above; the README's
-   judge-vs-labels table then changes. `uv run evalkit labels examples/suites/benchmark.yaml
-   examples/responses/benchmark-llama3.1-8b.jsonl -o labels.csv` makes the sheet for the other
-   model.
+   an AI assistant's labels, not yet with a person. The next step is a native speaker labelling
+   qwen2.5:7b's 40 answers without looking at the example labels first:
+   `uv run evalkit labels examples/suites/benchmark.yaml
+   examples/responses/benchmark-qwen2.5-7b.jsonl -o my-labels.csv` makes an empty sheet, and
+   `evalkit agree` then compares it with the judge, and with `examples/human_labels.csv`, which
+   shows where the AI assistant's labels can't be trusted. A person's sheet then replaces the
+   example one and the judge-vs-labels table above.
 2. **More of the benchmark where it found something.** Five tasks per group is enough to see a
    pattern, not to measure one: more ambiguous requests and more local-knowledge questions (places,
-   transport, history), where both models failed most, and twice as many traps per language
-   before calling the English/Indonesian gap a result.
-3. **A judge that knows more.** The local judge missed the errors that need world knowledge. A
-   hosted judge (`-j anthropic:...`, a few cents for 80 judgments) on the same saved answers,
-   compared with the same labels, would show how much of that is the judge's size.
+   transport, history), where both models failed most, and at least 20 traps per language
+   before calling the English/Indonesian gap a result (at today's rates, even twice as many would
+   not be significant).
+3. **A judge that knows more.** The local judge named only 2 of the 6 errors in qwen2.5:7b's
+   answers that need world knowledge. A hosted judge on the same saved answers, compared with the
+   same labels, would show how much of that is the judge's size. It costs money: with
+   `-j anthropic:claude-opus-5-5`, roughly a dollar for these 80 judgments at their token counts.
 4. **A third model family**, so a qwen judge isn't grading one qwen model against one other.
 
 ## License

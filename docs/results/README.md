@@ -14,6 +14,7 @@ there can be recomputed from them.
 | `report-s5.json` | `scripts/measure_report.py` | The report tools on real runs: `qwen2.5:14b` judging the 80 `responses.fresh` and the 80 `responses.warm` of `runner-s2.json` through one cache (a warm answer identical to its fresh one replays the fresh judgment), every `JudgeRecord`, and the fresh-vs-warm diffs on the checks and on the judged runs. |
 | `report-s5/` | `evalkit report` | The report of the two fresh judged runs, qwen2.5:7b vs llama3.1:8b: `report.md` and `report.html` (download it to open; GitHub shows HTML as source). |
 | `benchmark-s6.json` | `scripts/measure_benchmark.py` | The benchmark (`examples/suites/benchmark.yaml`): qwen2.5:7b's and llama3.1:8b's answers with every `RunRecord` (tokens, latency, finish reason), and qwen2.5:7b's and llama3.1:8b's judgments by `qwen2.5:14b`, every `JudgeRecord` with its replies. |
+| `benchmark-s6-before-review.json` | `scripts/measure_benchmark.py` | The same measurement before the post-review fixes to five cases' checks and criteria (see below): identical answers, and judge replies that differ on the 10 records whose judge prompt changed. |
 | `benchmark-s6/` | `scripts/measure_benchmark.py` | The two judge runs as `evalkit judge` writes them (`judged-*/judgments.jsonl` + `manifest.json`, which points at `examples/responses/benchmark-*.jsonl`) and their `report.md` / `report.html`. The pre-commit whitespace hook trimmed trailing spaces at the ends of a few answer lines in `report.html`; nothing else differs from what the tool wrote. |
 
 `uv run python scripts/measure_judge.py --summary FILE` prints a judge file's table, and
@@ -30,13 +31,22 @@ llama3.1:8b -o docs/results/report-s5` after the measurement, which leaves those
 `uv run python scripts/measure_benchmark.py --summary docs/results/benchmark-s6.json` prints the
 benchmark's tables from the saved records: checks by group and language, the reasoning-trap
 answers against the suite's reference answers, the judge's means, failure modes, and the judge
-against `examples/human_labels.csv` (Claude's labels of qwen2.5:7b's answers). The file is from
-the third of three runs on 2026-11-20 (local time; the file records UTC). The first was a pilot:
-after reading its answers, two tasks' judge criteria were corrected before the suite was
-committed. `*-five-words` said the two constraints can't both be met, which is wrong if the 6
-attractions come as a separate list; `*-tea-table` said "(caffeine is the one that matters
-here)", which the judge read as a rule against other rows. That changed the judge's replies on 7
-records and nothing else. All three runs gave byte-identical answers, and the last two byte-identical judge replies.
+against `examples/human_labels.csv` (Claude's labels of qwen2.5:7b's answers), with what changed
+since `benchmark-s6-before-review.json`. The file is from the fourth of four runs on 2026-11-20
+(local time; the files record UTC), all with byte-identical answers:
+
+1. A pilot. After reading its answers, two tasks' judge criteria were corrected before the suite
+   was committed: `*-five-words` said the two constraints can't both be met, which is wrong if the
+   6 attractions come as a separate list; `*-tea-table` said "(caffeine is the one that matters
+   here)", which the judge read as a rule against other rows. The judge's replies changed on those
+   7 records and nothing else. The pilot's file wasn't kept.
+2. and 3. The same prompts, byte-identical judge replies; the third is
+   `benchmark-s6-before-review.json` (run again only to rewrite the manifests with `/` paths).
+4. After a review: `*-product` gets a check that the last sentence is exactly the required one
+   (`ends_with` passed "..., with Free shipping across Java."), the tip-length regex stops counting
+   a lone dash as a word, and `id-invoice-date`'s criteria ask for the date format as the English
+   ones do. The judge's replies changed on those 10 records and nothing else; on 7 of them the
+   check passed or failed as before, and the verdict still moved on 5.
 
 ## The judge prompt versions
 
