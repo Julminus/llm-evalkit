@@ -34,8 +34,8 @@
 <body>
 <h1>Evaluation report: benchmark</h1>
 <ul class="meta">
-  <li>Suite benchmark v1: 40 cases (20 en, 20 id), digest 92d36c9cde50f101.</li>
-  <li>Made with llm-evalkit 0.1.0.dev0 on 2026-11-19 18:26 UTC.</li>
+  <li>Suite benchmark v1: 40 cases (20 en, 20 id), digest ec8c4ba2ea9831fc.</li>
+  <li>Made with llm-evalkit 0.1.0.dev0 on 2026-11-19 18:55 UTC.</li>
   <li>Changes are against the first run, qwen2.5:7b.</li>
 </ul>
 <h2>Runs</h2>
@@ -48,29 +48,29 @@
 <p class="intro">Checks passed: cases that passed every deterministic check, of those graded (a case where no check applied is not graded). Judge scores are means on a 1-5 scale: IF = instruction_following, RQ = reasoning_quality, FA = faithfulness, HE = helpfulness.</p>
 <table>
   <tr><th>Run</th><th>Checks passed</th><th>en</th><th>id</th><th>Judged</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th></tr>
-  <tr><td>qwen2.5:7b</td><td class="num">92.3% (36/39)</td><td class="num">94.7% (18/19)</td><td class="num">90.0% (18/20)</td><td class="num">40/40</td><td class="num">3.75</td><td class="num">4.50</td><td class="num">4.64</td><td class="num">4.07</td></tr>
-  <tr><td>llama3.1:8b</td><td class="num">81.6% (31/38)</td><td class="num">85.0% (17/20)</td><td class="num">77.8% (14/18)</td><td class="num">40/40</td><td class="num">3.20</td><td class="num">3.65</td><td class="num">4.46</td><td class="num">3.43</td></tr>
+  <tr><td>qwen2.5:7b</td><td class="num">92.3% (36/39)</td><td class="num">94.7% (18/19)</td><td class="num">90.0% (18/20)</td><td class="num">40/40</td><td class="num">3.73</td><td class="num">4.50</td><td class="num">4.64</td><td class="num">4.07</td></tr>
+  <tr><td>llama3.1:8b</td><td class="num">81.6% (31/38)</td><td class="num">85.0% (17/20)</td><td class="num">77.8% (14/18)</td><td class="num">40/40</td><td class="num">3.12</td><td class="num">3.62</td><td class="num">4.46</td><td class="num">3.36</td></tr>
 </table>
 <h2>Judge scores by language</h2>
 <table>
   <tr><th>Run</th><th>Language</th><th>Judged</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th></tr>
   <tr><td>qwen2.5:7b</td><td>en</td><td class="num">20</td><td class="num">3.85</td><td class="num">4.62</td><td class="num">4.57</td><td class="num">4.07</td></tr>
-  <tr><td>qwen2.5:7b</td><td>id</td><td class="num">20</td><td class="num">3.65</td><td class="num">4.38</td><td class="num">4.71</td><td class="num">4.07</td></tr>
-  <tr><td>llama3.1:8b</td><td>en</td><td class="num">20</td><td class="num">3.35</td><td class="num">4.00</td><td class="num">4.64</td><td class="num">3.86</td></tr>
-  <tr><td>llama3.1:8b</td><td>id</td><td class="num">20</td><td class="num">3.05</td><td class="num">3.31</td><td class="num">4.29</td><td class="num">3.00</td></tr>
+  <tr><td>qwen2.5:7b</td><td>id</td><td class="num">20</td><td class="num">3.60</td><td class="num">4.38</td><td class="num">4.71</td><td class="num">4.07</td></tr>
+  <tr><td>llama3.1:8b</td><td>en</td><td class="num">20</td><td class="num">3.30</td><td class="num">4.00</td><td class="num">4.64</td><td class="num">3.86</td></tr>
+  <tr><td>llama3.1:8b</td><td>id</td><td class="num">20</td><td class="num">2.95</td><td class="num">3.23</td><td class="num">4.29</td><td class="num">2.86</td></tr>
 </table>
 <h2>Score distribution</h2>
 <p class="intro">How many judged cases got each score.</p>
 <table>
   <tr><th>Run</th><th>Dimension</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>Mean</th></tr>
-  <tr><td>qwen2.5:7b</td><td>instruction_following</td><td class="num">0</td><td class="num">3</td><td class="num">11</td><td class="num">19</td><td class="num">7</td><td class="num">3.75</td></tr>
+  <tr><td>qwen2.5:7b</td><td>instruction_following</td><td class="num">0</td><td class="num">3</td><td class="num">12</td><td class="num">18</td><td class="num">7</td><td class="num">3.73</td></tr>
   <tr><td>qwen2.5:7b</td><td>reasoning_quality</td><td class="num">1</td><td class="num">1</td><td class="num">2</td><td class="num">2</td><td class="num">20</td><td class="num">4.50</td></tr>
   <tr><td>qwen2.5:7b</td><td>faithfulness</td><td class="num">0</td><td class="num">2</td><td class="num">1</td><td class="num">2</td><td class="num">23</td><td class="num">4.64</td></tr>
-  <tr><td>qwen2.5:7b</td><td>helpfulness</td><td class="num">0</td><td class="num">1</td><td class="num">6</td><td class="num">11</td><td class="num">10</td><td class="num">4.07</td></tr>
-  <tr><td>llama3.1:8b</td><td>instruction_following</td><td class="num">4</td><td class="num">3</td><td class="num">16</td><td class="num">15</td><td class="num">2</td><td class="num">3.20</td></tr>
-  <tr><td>llama3.1:8b</td><td>reasoning_quality</td><td class="num">6</td><td class="num">2</td><td class="num">2</td><td class="num">1</td><td class="num">15</td><td class="num">3.65</td></tr>
+  <tr><td>qwen2.5:7b</td><td>helpfulness</td><td class="num">0</td><td class="num">0</td><td class="num">7</td><td class="num">12</td><td class="num">9</td><td class="num">4.07</td></tr>
+  <tr><td>llama3.1:8b</td><td>instruction_following</td><td class="num">4</td><td class="num">5</td><td class="num">15</td><td class="num">14</td><td class="num">2</td><td class="num">3.12</td></tr>
+  <tr><td>llama3.1:8b</td><td>reasoning_quality</td><td class="num">6</td><td class="num">2</td><td class="num">2</td><td class="num">2</td><td class="num">14</td><td class="num">3.62</td></tr>
   <tr><td>llama3.1:8b</td><td>faithfulness</td><td class="num">2</td><td class="num">1</td><td class="num">1</td><td class="num">2</td><td class="num">22</td><td class="num">4.46</td></tr>
-  <tr><td>llama3.1:8b</td><td>helpfulness</td><td class="num">3</td><td class="num">3</td><td class="num">6</td><td class="num">11</td><td class="num">5</td><td class="num">3.43</td></tr>
+  <tr><td>llama3.1:8b</td><td>helpfulness</td><td class="num">3</td><td class="num">3</td><td class="num">7</td><td class="num">11</td><td class="num">4</td><td class="num">3.36</td></tr>
 </table>
 <h2>Failure modes</h2>
 <p class="intro">Cases tagged with each mode. The checks decide the three checkable modes and the judge the rest; a check re-tagged with fails_as in the suite counts under its new mode.</p>
@@ -79,8 +79,8 @@
   <tr><td>constraint_violation</td><td>checks</td><td class="num">1</td><td class="num">3</td></tr>
   <tr><td>intent_misread</td><td>judge</td><td class="num">1</td><td class="num">6</td></tr>
   <tr><td>hallucination</td><td>judge</td><td class="num">7</td><td class="num">13</td></tr>
-  <tr><td>partial_completion</td><td>judge</td><td class="num">13</td><td class="num">18</td></tr>
-  <tr><td>format_error</td><td>checks</td><td class="num">1</td><td class="num">4</td></tr>
+  <tr><td>partial_completion</td><td>judge</td><td class="num">14</td><td class="num">19</td></tr>
+  <tr><td>format_error</td><td>checks</td><td class="num">1</td><td class="num">5</td></tr>
   <tr><td>over_refusal</td><td>judge</td><td class="num">0</td><td class="num">0</td></tr>
   <tr><td>language_mismatch</td><td>checks</td><td class="num">1</td><td class="num">0</td></tr>
 </table>
@@ -88,40 +88,42 @@
 <p class="intro">Checkable modes the judge named on cases where no check raised them. Only the checks decide these modes, so the counts above leave these tags out.</p>
 <table>
   <tr><th>Failure mode</th><th>qwen2.5:7b</th><th>llama3.1:8b</th></tr>
-  <tr><td>constraint_violation</td><td class="num">15</td><td class="num">18</td></tr>
+  <tr><td>constraint_violation</td><td class="num">15</td><td class="num">17</td></tr>
   <tr><td>format_error</td><td class="num">0</td><td class="num">0</td></tr>
   <tr><td>language_mismatch</td><td class="num">0</td><td class="num">1</td></tr>
 </table>
 <h2>Changes: qwen2.5:7b → llama3.1:8b</h2>
-<p class="intro">40 cases in both runs: 27 worse, 11 better; the response text differs on 40.</p>
+<p class="intro">40 cases in both runs: 29 worse, 11 better; the response text differs on 40.</p>
 <table>
   <tr><th></th><th>qwen2.5:7b</th><th>llama3.1:8b</th><th>Change</th></tr>
   <tr><td>Checks passed</td><td class="num">92.3% (36/39)</td><td class="num">81.6% (31/38)</td><td class="num">-5 cases</td></tr>
-  <tr><td>instruction_following (mean of 40)</td><td class="num">3.75</td><td class="num">3.20</td><td class="num">-0.55</td></tr>
-  <tr><td>reasoning_quality (mean of 26)</td><td class="num">4.50</td><td class="num">3.65</td><td class="num">-0.85</td></tr>
+  <tr><td>instruction_following (mean of 40)</td><td class="num">3.73</td><td class="num">3.12</td><td class="num">-0.60</td></tr>
+  <tr><td>reasoning_quality (mean of 26)</td><td class="num">4.50</td><td class="num">3.62</td><td class="num">-0.88</td></tr>
   <tr><td>faithfulness (mean of 28)</td><td class="num">4.64</td><td class="num">4.46</td><td class="num">-0.18</td></tr>
-  <tr><td>helpfulness (mean of 28)</td><td class="num">4.07</td><td class="num">3.43</td><td class="num">-0.64</td></tr>
+  <tr><td>helpfulness (mean of 28)</td><td class="num">4.07</td><td class="num">3.36</td><td class="num">-0.71</td></tr>
   <tr><td>constraint_violation (cases)</td><td class="num">1</td><td class="num">3</td><td class="num">+2</td></tr>
   <tr><td>intent_misread (cases)</td><td class="num">1</td><td class="num">6</td><td class="num">+5</td></tr>
   <tr><td>hallucination (cases)</td><td class="num">7</td><td class="num">13</td><td class="num">+6</td></tr>
-  <tr><td>partial_completion (cases)</td><td class="num">13</td><td class="num">18</td><td class="num">+5</td></tr>
-  <tr><td>format_error (cases)</td><td class="num">1</td><td class="num">4</td><td class="num">+3</td></tr>
+  <tr><td>partial_completion (cases)</td><td class="num">14</td><td class="num">19</td><td class="num">+5</td></tr>
+  <tr><td>format_error (cases)</td><td class="num">1</td><td class="num">5</td><td class="num">+4</td></tr>
   <tr><td>language_mismatch (cases)</td><td class="num">1</td><td class="num">0</td><td class="num">-1</td></tr>
 </table>
 <h3>Cases that changed</h3>
 <p class="intro">Worse: fails its checks now and didn&#39;t, a judge score fell, or a failure mode appeared.</p>
 <table>
   <tr><th>Case</th><th>Language</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
-  <tr><td class="worse"><a href="#case-en-product">en-product</a></td><td>en</td><td class="fail">pass → fail</td><td class="num">5 → 3</td><td class="num"></td><td class="num"></td><td class="num">5 → 4</td><td>+constraint_violation</td></tr>
-  <tr><td class="worse"><a href="#case-id-product">id-product</a></td><td>id</td><td class="fail">pass → fail</td><td class="num">4 → 3</td><td class="num"></td><td class="num">5 → 4</td><td class="num"></td><td>+format_error +hallucination</td></tr>
+  <tr><td class="worse"><a href="#case-en-product">en-product</a></td><td>en</td><td class="fail">pass → fail</td><td class="num">4 → 2</td><td class="num"></td><td class="num"></td><td class="num">5 → 4</td><td>+constraint_violation +format_error</td></tr>
+  <tr><td class="worse"><a href="#case-id-product">id-product</a></td><td>id</td><td class="fail">pass → fail</td><td class="num">4 → 2</td><td class="num"></td><td class="num">5 → 4</td><td class="num">4 → 3</td><td>+format_error +hallucination</td></tr>
   <tr><td class="worse"><a href="#case-id-order-json">id-order-json</a></td><td>id</td><td class="pass">pass</td><td class="num">5 → 4</td><td class="num"></td><td class="num"></td><td class="num"></td><td></td></tr>
-  <tr><td class="better"><a href="#case-id-interview-tips">id-interview-tips</a></td><td>id</td><td class="pass">fail → pass</td><td class="num">2 → 4</td><td class="num"></td><td class="num"></td><td class="num">2 → 4</td><td>-format_error</td></tr>
+  <tr><td class="worse"><a href="#case-en-interview-tips">en-interview-tips</a></td><td>en</td><td class="pass">pass</td><td class="num">5 → 4</td><td class="num"></td><td class="num"></td><td class="num"></td><td>+partial_completion</td></tr>
+  <tr><td class="better"><a href="#case-id-interview-tips">id-interview-tips</a></td><td>id</td><td class="pass">fail → pass</td><td class="num">2 → 4</td><td class="num"></td><td class="num"></td><td class="num">3 → 4</td><td>-format_error -partial_completion</td></tr>
   <tr><td class="better"><a href="#case-id-complaint-reply">id-complaint-reply</a></td><td>id</td><td class="pass">pass</td><td class="num">3 → 4</td><td class="num"></td><td class="num"></td><td class="num">3 → 4</td><td></td></tr>
   <tr><td class="mixed"><a href="#case-en-tea-table">en-tea-table</a></td><td>en</td><td class="pass">pass</td><td class="num">4 → 3</td><td class="num">4 → 5</td><td class="num"></td><td class="num">4 → 3</td><td></td></tr>
   <tr><td class="worse"><a href="#case-id-tea-table">id-tea-table</a></td><td>id</td><td class="fail">pass → fail</td><td class="num">4 → 2</td><td class="num">5 → 2</td><td class="num">5 → 2</td><td class="num">5 → 2</td><td>+constraint_violation +hallucination +partial_completion</td></tr>
   <tr><td class="worse"><a href="#case-id-degrees">id-degrees</a></td><td>id</td><td class="pass">pass</td><td class="num">4 → 3</td><td class="num"></td><td class="num"></td><td class="num">4 → 3</td><td></td></tr>
   <tr><td class="mixed"><a href="#case-id-bisa">id-bisa</a></td><td>id</td><td class="pass">fail → pass</td><td class="num">3 → 2</td><td class="num"></td><td class="num">5 → 3</td><td class="num">4 → 2</td><td>+hallucination -language_mismatch</td></tr>
   <tr><td class="worse"><a href="#case-en-invoice-date">en-invoice-date</a></td><td>en</td><td class="pass">pass</td><td class="num">2 → 1</td><td class="num">4 → 1</td><td class="num">3 → 1</td><td class="num">4 → 1</td><td>+intent_misread +hallucination</td></tr>
+  <tr><td class="worse"><a href="#case-id-invoice-date">id-invoice-date</a></td><td>id</td><td class="pass">pass</td><td class="num"></td><td class="num">5 → 4</td><td class="num"></td><td class="num"></td><td></td></tr>
   <tr><td class="worse"><a href="#case-en-float">en-float</a></td><td>en</td><td class="pass">pass</td><td class="num">4 → 3</td><td class="num"></td><td class="num"></td><td class="num"></td><td></td></tr>
   <tr><td class="worse"><a href="#case-id-float">id-float</a></td><td>id</td><td class="skip">pass → skip</td><td class="num">3 → 1</td><td class="num">5 → 1</td><td class="num">5 → 1</td><td class="num">3 → 1</td><td>+intent_misread +hallucination</td></tr>
   <tr><td class="worse"><a href="#case-en-jakarta-bandung">en-jakarta-bandung</a></td><td>en</td><td class="pass">pass</td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td>+hallucination</td></tr>
@@ -154,7 +156,7 @@
   <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
   <tr><td>qwen2.5:7b</td>
     <td class="pass">pass</td>
-    <td class="num">5</td>
+    <td class="num">4</td>
     <td class="num">-</td>
     <td class="num">5</td>
     <td class="num">5</td>
@@ -162,22 +164,24 @@
   </tr>
   <tr><td>llama3.1:8b</td>
     <td class="fail">fail</td>
-    <td class="num">3</td>
+    <td class="num">2</td>
     <td class="num">-</td>
     <td class="num">5</td>
     <td class="num">4</td>
-    <td>constraint_violation</td>
+    <td>constraint_violation, format_error</td>
   </tr>
 </table>
 <details><summary>qwen2.5:7b</summary>
-<p><b>Judge:</b> The response adheres to the constraints set by the request, including the exact sentence count, required phrases, and the prohibition of certain phrases. However, the phrase &#39;eco-friendly&#39; is not used, which is a positive constraint, but it is not a negative constraint, so this is not a violation. The response is clear and useful, providing a concise product description that meets the requirements without any factual inaccuracies.</p>
+<p><b>Judge:</b> The response adheres to the constraints set by the request, including the required phrases and sentence count. However, it slightly deviates from the instruction by not explicitly mentioning the capacity of the bottle in the first two sentences, which was implied but not directly stated. The response is clear and useful, providing a concise product description.</p>
+<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
 <pre>Crafted from durable stainless steel and designed to be BPA-free, our 600 ml reusable water bottle is perfect for keeping your beverages cold or hot, depending on your needs. The sleek, ergonomic design makes it easy to carry, whether you&#39;re commuting to work or hiking in the park. Free shipping across Java.</pre>
 </details>
 <details><summary>llama3.1:8b</summary>
 <ul>
   <li class="fail">sentence_count: 4 sentences, expected exactly 3</li>
+  <li class="fail">regex: /(?:\A|[.!?][&#34;&#39;)\]]*\s+)[*_]*Free shipping across Java\.[*_]*\s*\Z/ matched 0 time(s), expected at least 1</li>
 </ul>
-<p><b>Judge:</b> The response includes the required phrases and ends with the correct sentence, but it contains an extra sentence, violating the constraint of exactly three sentences. The content is otherwise true and useful.</p>
+<p><b>Judge:</b> The response includes the required phrases and avoids the forbidden ones, but it contains four sentences instead of the requested three, and the shipping statement is not formatted correctly. The content is otherwise accurate and useful.</p>
 <pre>Here is a product description for the 600 ml reusable water bottle:
 
 Stay hydrated on-the-go with our 600 ml stainless steel water bottle, designed to keep your drinks hot or cold for hours. Made from BPA-free materials, this durable bottle is perfect for daily use and can be easily cleaned and maintained. Order now and enjoy the convenience of having a reliable water bottle by your side, with Free shipping across Java.</pre>
@@ -198,23 +202,23 @@ Stay hydrated on-the-go with our 600 ml stainless steel water bottle, designed t
   </tr>
   <tr><td>llama3.1:8b</td>
     <td class="fail">fail</td>
-    <td class="num">3</td>
+    <td class="num">2</td>
     <td class="num">-</td>
     <td class="num">4</td>
-    <td class="num">4</td>
+    <td class="num">3</td>
     <td>format_error, hallucination</td>
   </tr>
 </table>
 <details><summary>qwen2.5:7b</summary>
-<p><b>Judge:</b> The response adheres to the constraints of the request, including the required phrases and sentence count. However, it slightly deviates from the instruction by not mentioning any specific features or benefits of the product beyond the material and size. The response is clear and useful, but it could be more informative.</p>
+<p><b>Judge:</b> The response adheres to the constraints and requirements of the request, including the use of &#39;stainless steel&#39; and &#39;bebas BPA&#39;, and ends with &#39;Gratis ongkir se-Jawa&#39;. It does not contain the forbidden phrase &#39;ramah lingkungan&#39;. The content is factual and does not invent details. However, the response is slightly padded with the second sentence, which is not necessary for the task.</p>
 <p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
 <pre>Botol minum 600 ml terbuat dari stainless steel berkualitas tinggi, aman dan bebas BPA, ideal untuk kebutuhan sehari-hari Anda. Desain ramping dan ringan memudahkan Anda membawa di mana saja. Gratis ongkir se-Jawa.</pre>
 </details>
 <details><summary>llama3.1:8b</summary>
 <ul>
-  <li class="fail">ends_with: does not end with &#39;Gratis ongkir se-Jawa.&#39;; ends &#39;mat biaya dan mengurangi limbah plastik.&#39;</li>
+  <li class="fail">regex: /(?:\A|[.!?][&#34;&#39;)\]]*\s+)[*_]*Gratis ongkir se-Jawa\.[*_]*\s*\Z/ matched 0 time(s), expected at least 1</li>
 </ul>
-<p><b>Judge:</b> The response adheres to the length requirement and includes the required phrases &#39;stainless steel&#39; and &#39;bebas BPA&#39;. However, it fails to end with &#39;Gratis ongkir se-Jawa.&#39; as instructed, and it introduces an unsupported claim about reducing plastic waste, which is not aligned with the given instructions. The response is clear and informative but does not fully meet the constraints.</p>
+<p><b>Judge:</b> The response adheres to the length requirement and includes the required phrases &#39;stainless steel&#39; and &#39;bebas BPA&#39;. However, it fails to end with the required phrase &#39;Gratis ongkir se-Jawa.&#39; Additionally, the response includes a claim about reducing plastic waste, which was not part of the original request and is not supported by the given context.</p>
 <p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
 <pre>Botol minum 600 ml ini terbuat dari bahan stainless steel yang kuat dan tahan lama. Bahan stainless steel ini juga bebas BPA sehingga aman digunakan untuk minum air. Botol ini dapat digunakan ulang sehingga dapat menghemat biaya dan mengurangi limbah plastik.</pre>
 </details>
@@ -337,7 +341,7 @@ Stay hydrated on-the-go with our 600 ml stainless steel water bottle, designed t
   <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
   <tr><td>qwen2.5:7b</td>
     <td class="pass">pass</td>
-    <td class="num">4</td>
+    <td class="num">5</td>
     <td class="num">-</td>
     <td class="num">-</td>
     <td class="num">5</td>
@@ -349,20 +353,18 @@ Stay hydrated on-the-go with our 600 ml stainless steel water bottle, designed t
     <td class="num">-</td>
     <td class="num">-</td>
     <td class="num">5</td>
-    <td></td>
+    <td>partial_completion</td>
   </tr>
 </table>
 <details><summary>qwen2.5:7b</summary>
-<p><b>Judge:</b> The response adheres to the format and language requirements, providing four distinct tips within the specified word limit. However, the third tip is 13 words long, which slightly exceeds the constraint.</p>
-<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<p><b>Judge:</b> The response adheres to the format and constraints of the request, providing four distinct tips, each under 12 words. The fourth tip is about following up after the interview, as required. However, the response does not include an introduction or conclusion, which is not a constraint but a clear omission from the request.</p>
 <pre>- Research the company culture beforehand
 - Dress appropriately for the interview
 - Prepare examples of your previous work experiences
 - Send a thank-you email after the interview</pre>
 </details>
 <details><summary>llama3.1:8b</summary>
-<p><b>Judge:</b> The response adheres to the format and constraints of the request, providing four distinct tips, each under 12 words. The fourth tip is about following up, as required. However, the second tip is slightly redundant as &#39;dressing professionally&#39; is often implied in the context of making a good first impression.</p>
-<p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
+<p><b>Judge:</b> The response adheres to the format and constraints of the request, providing four distinct tips, each under 12 words. The fourth tip is about following up, as required. However, the response does not include an introduction or conclusion, which is not a constraint but a requirement, and it is missing a minor part of the request.</p>
 <pre>• Research the company and its values beforehand.
 • Dress professionally and make a good first impression.
 • Prepare thoughtful questions to ask the interviewer.
@@ -379,8 +381,8 @@ Stay hydrated on-the-go with our 600 ml stainless steel water bottle, designed t
     <td class="num">2</td>
     <td class="num">-</td>
     <td class="num">-</td>
-    <td class="num">2</td>
-    <td>format_error</td>
+    <td class="num">3</td>
+    <td>format_error, partial_completion</td>
   </tr>
   <tr><td>llama3.1:8b</td>
     <td class="pass">pass</td>
@@ -395,7 +397,7 @@ Stay hydrated on-the-go with our 600 ml stainless steel water bottle, designed t
 <ul>
   <li class="fail">bullet_list: 6 items, expected at most 4</li>
 </ul>
-<p><b>Judge:</b> The response provides more than the requested 4 tips, with 6 tips listed. The tips are generally useful, but the format and length constraints are not met. The fourth tip about follow-up is present, but the response is not helpful in its current form due to the format error.</p>
+<p><b>Judge:</b> The response provides six tips instead of the requested four, and the tips are generally useful. However, the format and length constraints are not met, and the fourth tip about follow-up is not the last item as required. The language is correct.</p>
 <p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
 <pre>- Penyelidikilah perusahaan sebelum wawancara
 - Beri tahu tujuan karirmu
@@ -405,7 +407,7 @@ Stay hydrated on-the-go with our 600 ml stainless steel water bottle, designed t
 - Kirimi email terima kasih segera</pre>
 </details>
 <details><summary>llama3.1:8b</summary>
-<p><b>Judge:</b> The response adheres to the format and language requirements, providing exactly four tips in bullet list format, each under 12 words. However, the second tip &#39;Buatlah daftar pertanyaan untuk ditanyakan&#39; is not unique as it is a common and expected tip for job interviews. The third tip &#39;Jangan membawa ponsel ke dalam ruang wawancara&#39; is a good tip but not as universally applicable or impactful as the other tips might be. The fourth tip about sending a thank-you email is correctly included.</p>
+<p><b>Judge:</b> The response adheres to the format and language requirements, providing exactly four tips in bullet form, each under 12 words. However, the third tip advises against bringing a phone, which is a minor but unnecessary detail that could be seen as less helpful than other potential tips. The fourth tip correctly addresses follow-up actions after the interview.</p>
 <p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
 <pre>1. Siapkan diri dengan informasi tentang perusahaan.
 2. Buatlah daftar pertanyaan untuk ditanyakan.
@@ -801,28 +803,28 @@ Tolong beri tahu saya jika Anda ingin konversi ke unit atau jenis yang lain agar
   <tr><th>Run</th><th>Checks</th><th>IF</th><th>RQ</th><th>FA</th><th>HE</th><th>Failure modes</th></tr>
   <tr><td>qwen2.5:7b</td>
     <td class="pass">pass</td>
+    <td class="num">3</td>
+    <td class="num">5</td>
+    <td class="num">5</td>
     <td class="num">4</td>
-    <td class="num">5</td>
-    <td class="num">5</td>
-    <td class="num">5</td>
     <td></td>
   </tr>
   <tr><td>llama3.1:8b</td>
     <td class="pass">pass</td>
+    <td class="num">3</td>
     <td class="num">4</td>
     <td class="num">5</td>
-    <td class="num">5</td>
-    <td class="num">5</td>
+    <td class="num">4</td>
     <td></td>
   </tr>
 </table>
 <details><summary>qwen2.5:7b</summary>
-<p><b>Judge:</b> The response correctly identifies the month as April, adhering to the common date format in Indonesia. It also correctly explains that the date format MM/DD/YYYY would mean March. However, it does not explicitly mention that the format DD/MM/YYYY is commonly used in Indonesia, which was implied by the criteria.</p>
+<p><b>Judge:</b> The response correctly identifies the month as April based on the common date format in Indonesia and most countries. However, it does not mention the alternative interpretation for the American date format, which is a requirement. The response is clear and helpful, but it lacks the full explanation requested.</p>
 <p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
 <pre>Faktur yang bertanggal 03/04/2026 diterbitkan pada bulan April. Tanggal 03/04/2026 berarti tanggal 3 April 2026.</pre>
 </details>
 <details><summary>llama3.1:8b</summary>
-<p><b>Judge:</b> The response correctly identifies the month as April based on the common date format in Indonesia, and it adheres to the required language. However, it does not mention the alternative interpretation for the American date format, which is a minor deviation from the instructions.</p>
+<p><b>Judge:</b> The response correctly identifies the month as April based on the common date format in Indonesia and most countries, but it does not address the possibility of the American date format. It does not mention the format ambiguity as requested, which is a significant omission. The response is clear and useful, but it fails to fully address the task as specified.</p>
 <p class="intro">The judge also named constraint_violation, which no check found (not counted).</p>
 <pre>Faktur tersebut diterbitkan pada bulan April 2026.</pre>
 </details>
