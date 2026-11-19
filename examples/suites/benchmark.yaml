@@ -36,8 +36,11 @@ cases:
       - {type: sentence_count, min: 3, max: 3}
       - {type: required_phrases, phrases: [stainless steel, BPA-free]}
       - {type: forbidden_phrases, phrases: [eco-friendly, eco friendly, ecofriendly]}
-      - type: regex  # the last sentence is exactly this, not a sentence that ends with it
-        pattern: '(?:\A|[.!?]["'')\]]*\s+)[*_]*Free shipping across Java\.[*_]*\s*\Z'
+      # The last sentence is exactly this, not a sentence that ends with it. Before it:
+      # the start, or a sentence end with closing quotes or markup, and at most one
+      # symbol (an emoji, a ">").
+      - type: regex
+        pattern: '(?:\A|[.!?…]["''”’)\]*_]*\s+(?:[^\w\s]{1,4}\s+)?)[*_]*Free shipping across Java\.[*_]*\s*\Z'
         flags: [ignorecase]
         fails_as: format_error
     rubric:
@@ -57,7 +60,7 @@ cases:
       - {type: required_phrases, phrases: [stainless steel, bebas BPA]}
       - {type: forbidden_phrases, phrases: [ramah lingkungan, ramah-lingkungan]}
       - type: regex
-        pattern: '(?:\A|[.!?]["'')\]]*\s+)[*_]*Gratis ongkir se-Jawa\.[*_]*\s*\Z'
+        pattern: '(?:\A|[.!?…]["''”’)\]*_]*\s+(?:[^\w\s]{1,4}\s+)?)[*_]*Gratis ongkir se-Jawa\.[*_]*\s*\Z'
         flags: [ignorecase]
         fails_as: format_error
     rubric:

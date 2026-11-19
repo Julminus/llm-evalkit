@@ -1,6 +1,6 @@
 {
  "meta": {
-  "date": "2026-11-19T18:55:19+00:00",
+  "date": "2026-11-19T19:25:04+00:00",
   "evalkit_version": "0.1.0.dev0",
   "models": [
    "qwen2.5:7b",
@@ -20,7 +20,7 @@
  },
  "generated": {
   "qwen2.5:7b": {
-   "wall_s": 33.041,
+   "wall_s": 32.94,
    "counts": {
     "cases": 40,
     "generated": 40,
@@ -42,7 +42,7 @@
      "finish_reason": "stop",
      "input_tokens": 88,
      "output_tokens": 67,
-     "latency_s": 0.4145,
+     "latency_s": 0.409,
      "attempts": 1,
      "cached": false,
      "cache_key": "00bc51d7f9e976315bae1108dea9903d810c15fe9ed93e0f7cb906cea3d3fb09"
@@ -57,7 +57,7 @@
      "finish_reason": "stop",
      "input_tokens": 113,
      "output_tokens": 65,
-     "latency_s": 0.4092,
+     "latency_s": 0.4001,
      "attempts": 1,
      "cached": false,
      "cache_key": "128c9504c9e1af45039e58a3ac8476428cb7099f92f8ffa58194216385c2398e"
@@ -72,7 +72,7 @@
      "finish_reason": "stop",
      "input_tokens": 149,
      "output_tokens": 88,
-     "latency_s": 0.5402,
+     "latency_s": 0.5381,
      "attempts": 1,
      "cached": false,
      "cache_key": "bd06188a8fa640de3e56fb36c1119d91e300647c8aac49fb57c91a9be0442d2f"
@@ -87,7 +87,7 @@
      "finish_reason": "stop",
      "input_tokens": 162,
      "output_tokens": 90,
-     "latency_s": 0.556,
+     "latency_s": 0.5515,
      "attempts": 1,
      "cached": false,
      "cache_key": "157bb1ca19ea028d0b52668723b187e42b14b933e89582e6d41488a24903be15"
@@ -102,7 +102,7 @@
      "finish_reason": "stop",
      "input_tokens": 73,
      "output_tokens": 33,
-     "latency_s": 0.2115,
+     "latency_s": 0.2101,
      "attempts": 1,
      "cached": false,
      "cache_key": "e973903356ad8f96621447a60aab67f67b51931cd1993e031badb36cff53e812"
@@ -117,7 +117,7 @@
      "finish_reason": "stop",
      "input_tokens": 93,
      "output_tokens": 75,
-     "latency_s": 0.4575,
+     "latency_s": 0.4624,
      "attempts": 1,
      "cached": false,
      "cache_key": "97357fa111d07a232c1ce1099d0f98173b52d1dc892913af2e90f326a87bfd99"
@@ -132,7 +132,7 @@
      "finish_reason": "stop",
      "input_tokens": 96,
      "output_tokens": 82,
-     "latency_s": 0.4994,
+     "latency_s": 0.5049,
      "attempts": 1,
      "cached": false,
      "cache_key": "cfb7d35d4a8868ee41e54620f4461e66077e2b12190046c751a015c88455e219"
@@ -147,7 +147,7 @@
      "finish_reason": "stop",
      "input_tokens": 125,
      "output_tokens": 76,
-     "latency_s": 0.4706,
+     "latency_s": 0.4707,
      "attempts": 1,
      "cached": false,
      "cache_key": "36b6c00c57de030b538bba6da19df2f1b166d78c8781fa627959020569119754"
@@ -162,7 +162,7 @@
      "finish_reason": "stop",
      "input_tokens": 74,
      "output_tokens": 138,
-     "latency_s": 0.8345,
+     "latency_s": 0.8277,
      "attempts": 1,
      "cached": false,
      "cache_key": "b0274d50519287ad8dd86feaaa0a3e7ad258d0ddd76a559e027c58c76a0faf19"
@@ -177,7 +177,7 @@
      "finish_reason": "stop",
      "input_tokens": 87,
      "output_tokens": 157,
-     "latency_s": 0.9466,
+     "latency_s": 0.9396,
      "attempts": 1,
      "cached": false,
      "cache_key": "f924464ca1616bb6393428319b31c9fa35d3fab4911e98a3b3424731e054922b"
@@ -192,7 +192,7 @@
      "finish_reason": "stop",
      "input_tokens": 36,
      "output_tokens": 48,
-     "latency_s": 0.299,
+     "latency_s": 0.2974,
      "attempts": 1,
      "cached": false,
      "cache_key": "7174f2df11e2dba89428a645b9d0065ab0ef1ab12c331bade3e28e82bbf4eaff"
@@ -207,7 +207,7 @@
      "finish_reason": "stop",
      "input_tokens": 40,
      "output_tokens": 448,
-     "latency_s": 2.6673,
+     "latency_s": 2.6515,
      "attempts": 1,
      "cached": false,
      "cache_key": "0c2bb46bf48f1bace14793229a4b968faf0230537dc364dbf3939153b147d97e"
@@ -222,7 +222,7 @@
      "finish_reason": "stop",
      "input_tokens": 47,
      "output_tokens": 20,
-     "latency_s": 0.1337,
+     "latency_s": 0.1331,
      "attempts": 1,
      "cached": false,
      "cache_key": "c39ee7552c48b4aec4cdabb2aa00d2596ec0aabda1c099b2ef490fcc6fcc672b"
@@ -237,7 +237,7 @@
      "finish_reason": "stop",
      "input_tokens": 52,
      "output_tokens": 21,
-     "latency_s": 0.1376,
+     "latency_s": 0.1366,
      "attempts": 1,
      "cached": false,
      "cache_key": "dbce8692f4dcedcffbe427ec8bc23ceaa284d1e6ce311d3df42aed9f0ec41394"
@@ -252,7 +252,7 @@
      "finish_reason": "stop",
      "input_tokens": 52,
      "output_tokens": 71,
-     "latency_s": 0.4293,
+     "latency_s": 0.4374,
      "attempts": 1,
      "cached": false,
      "cache_key": "c29b4b4c1a4436b2bbab5440780ccbbd842e5da031713fc1143e3832300a8ffd"
@@ -267,7 +267,7 @@
      "finish_reason": "stop",
      "input_tokens": 60,
      "output_tokens": 52,
-     "latency_s": 0.3209,
+     "latency_s": 0.319,
      "attempts": 1,
      "cached": false,
      "cache_key": "8415af623cb0427e280251b7ae36d91779d8703ed850b4c731c58cba6e25ac77"
@@ -282,7 +282,7 @@
      "finish_reason": "stop",
      "input_tokens": 46,
      "output_tokens": 193,
-     "latency_s": 1.1451,
+     "latency_s": 1.1488,
      "attempts": 1,
      "cached": false,
      "cache_key": "5422866352810e51aa41f8219c7788610748dd4e567fa91be0389edc92a427b8"
@@ -297,7 +297,7 @@
      "finish_reason": "stop",
      "input_tokens": 47,
      "output_tokens": 96,
-     "latency_s": 0.5819,
+     "latency_s": 0.5846,
      "attempts": 1,
      "cached": false,
      "cache_key": "bceb703e27d92b02277abb3b2df54f474ec9917c7e839f53a9a3e91398000bd6"
@@ -312,7 +312,7 @@
      "finish_reason": "stop",
      "input_tokens": 42,
      "output_tokens": 269,
-     "latency_s": 1.6093,
+     "latency_s": 1.6009,
      "attempts": 1,
      "cached": false,
      "cache_key": "f60718836db58eaf3c792c7abc6160f438ad90283941b95edf41a9bfc95e4443"
@@ -327,7 +327,7 @@
      "finish_reason": "stop",
      "input_tokens": 42,
      "output_tokens": 472,
-     "latency_s": 2.8103,
+     "latency_s": 2.7927,
      "attempts": 1,
      "cached": false,
      "cache_key": "157f317096456ffbfafba63adcc659b86e0f72b42d659c336d37d9e6d4c1dc1c"
@@ -342,7 +342,7 @@
      "finish_reason": "stop",
      "input_tokens": 39,
      "output_tokens": 21,
-     "latency_s": 0.1397,
+     "latency_s": 0.1396,
      "attempts": 1,
      "cached": false,
      "cache_key": "2d1faf9a9cc871b4b8e6ef27a5ecb83d5bbcdd38c17cca13ebdab6ae4c7c8dcb"
@@ -357,7 +357,7 @@
      "finish_reason": "stop",
      "input_tokens": 40,
      "output_tokens": 38,
-     "latency_s": 0.2347,
+     "latency_s": 0.2356,
      "attempts": 1,
      "cached": false,
      "cache_key": "5d3114e0e7aca2aac4f64055c98cfe652a847c4cb9690dfe73d61e081ff4f752"
@@ -372,7 +372,7 @@
      "finish_reason": "stop",
      "input_tokens": 43,
      "output_tokens": 109,
-     "latency_s": 0.6519,
+     "latency_s": 0.6549,
      "attempts": 1,
      "cached": false,
      "cache_key": "51ab9d9ffed289d0a38a596e46d5e30ca3c1ea44ba74c52b07dd184a04a5facf"
@@ -387,7 +387,7 @@
      "finish_reason": "stop",
      "input_tokens": 50,
      "output_tokens": 250,
-     "latency_s": 1.4838,
+     "latency_s": 1.4946,
      "attempts": 1,
      "cached": false,
      "cache_key": "b883c3067fa35f1b6e75e2f0cfb926896c1e0139e9b1a02e26be52d6d281c7b9"
@@ -402,7 +402,7 @@
      "finish_reason": "stop",
      "input_tokens": 49,
      "output_tokens": 38,
-     "latency_s": 0.2406,
+     "latency_s": 0.2386,
      "attempts": 1,
      "cached": false,
      "cache_key": "58474af355554b765fc2877ed1ebbcf5313e3799cd9185c3e991a46bc89f84e8"
@@ -417,7 +417,7 @@
      "finish_reason": "stop",
      "input_tokens": 55,
      "output_tokens": 121,
-     "latency_s": 0.7293,
+     "latency_s": 0.7285,
      "attempts": 1,
      "cached": false,
      "cache_key": "bed49e95e18530df1f90c0b3ae51bb52315a6a5986263522c995fbbd58a52c65"
@@ -432,7 +432,7 @@
      "finish_reason": "stop",
      "input_tokens": 42,
      "output_tokens": 461,
-     "latency_s": 2.7443,
+     "latency_s": 2.7339,
      "attempts": 1,
      "cached": false,
      "cache_key": "63b57b5087440c8c320e226ae4805578cbbc017c2b237c7d20fccd6dd5b07b2f"
@@ -447,7 +447,7 @@
      "finish_reason": "stop",
      "input_tokens": 45,
      "output_tokens": 558,
-     "latency_s": 3.325,
+     "latency_s": 3.2969,
      "attempts": 1,
      "cached": false,
      "cache_key": "611aa4924f2b2758ea856fb47a8ad5e7d64dfe4feefbe966071a0e12da0af60a"
@@ -462,7 +462,7 @@
      "finish_reason": "stop",
      "input_tokens": 84,
      "output_tokens": 30,
-     "latency_s": 0.1973,
+     "latency_s": 0.1972,
      "attempts": 1,
      "cached": false,
      "cache_key": "9aec8b4ec3ab34fc7da31daf21a064ce9fb4f4a7db49c3b53d0a693096f643e3"
@@ -477,7 +477,7 @@
      "finish_reason": "stop",
      "input_tokens": 117,
      "output_tokens": 37,
-     "latency_s": 0.238,
+     "latency_s": 0.2376,
      "attempts": 1,
      "cached": false,
      "cache_key": "f0956c5f1726f9bb79a2afc2eaba4a5c25421e2682cd52e4eb43a35d43093418"
@@ -492,7 +492,7 @@
      "finish_reason": "stop",
      "input_tokens": 91,
      "output_tokens": 241,
-     "latency_s": 1.4433,
+     "latency_s": 1.4501,
      "attempts": 1,
      "cached": false,
      "cache_key": "a4facda58ec7ecaf3d56bc19b7448bb8240a3d14ecc97f9beb6dda7cb83daff0"
@@ -507,7 +507,7 @@
      "finish_reason": "stop",
      "input_tokens": 117,
      "output_tokens": 316,
-     "latency_s": 1.8945,
+     "latency_s": 1.8896,
      "attempts": 1,
      "cached": false,
      "cache_key": "906672d7ead8f61929141a497bbc57fe7244f65ed54c31aee3dafef9109f44ac"
@@ -522,7 +522,7 @@
      "finish_reason": "stop",
      "input_tokens": 64,
      "output_tokens": 114,
-     "latency_s": 0.6866,
+     "latency_s": 0.6864,
      "attempts": 1,
      "cached": false,
      "cache_key": "79441513badb21fdce1314b5c1830c0b917a99f9607dfeabd9f925d9ace4cc7c"
@@ -537,7 +537,7 @@
      "finish_reason": "stop",
      "input_tokens": 66,
      "output_tokens": 44,
-     "latency_s": 0.2766,
+     "latency_s": 0.2721,
      "attempts": 1,
      "cached": false,
      "cache_key": "9bd7d8ad3dc9e4449af3c697b74b2b3e932737ba998d101fdc3b00ba8b601470"
@@ -552,7 +552,7 @@
      "finish_reason": "stop",
      "input_tokens": 76,
      "output_tokens": 123,
-     "latency_s": 0.7421,
+     "latency_s": 0.739,
      "attempts": 1,
      "cached": false,
      "cache_key": "728d3d197c9e7e0577330f702cc272a863f040b5147593d8f4cbe9a6eb6e0cad"
@@ -567,7 +567,7 @@
      "finish_reason": "stop",
      "input_tokens": 90,
      "output_tokens": 126,
-     "latency_s": 0.7548,
+     "latency_s": 0.756,
      "attempts": 1,
      "cached": false,
      "cache_key": "83e685dbc27d0b628620e4768fae54d8fa1e0b19dea0d56cc426cd60caaeca3c"
@@ -582,7 +582,7 @@
      "finish_reason": "stop",
      "input_tokens": 63,
      "output_tokens": 22,
-     "latency_s": 0.1441,
+     "latency_s": 0.1437,
      "attempts": 1,
      "cached": false,
      "cache_key": "1751b9626d4d0e88dea392e5febaa3336844a5bbb7612f2aed7be42f40d8ffd4"
@@ -597,7 +597,7 @@
      "finish_reason": "stop",
      "input_tokens": 69,
      "output_tokens": 41,
-     "latency_s": 0.2575,
+     "latency_s": 0.255,
      "attempts": 1,
      "cached": false,
      "cache_key": "3c3616b84d44d8db8c61d9f905a3da22db640991dd087583f6d39d154aff81ae"
@@ -612,7 +612,7 @@
      "finish_reason": "stop",
      "input_tokens": 92,
      "output_tokens": 107,
-     "latency_s": 0.649,
+     "latency_s": 0.6431,
      "attempts": 1,
      "cached": false,
      "cache_key": "b15c18d73ee0e18c075c1b890078b9476a17b0272a383120f319ad2e812b4732"
@@ -627,7 +627,7 @@
      "finish_reason": "stop",
      "input_tokens": 118,
      "output_tokens": 117,
-     "latency_s": 0.71,
+     "latency_s": 0.7084,
      "attempts": 1,
      "cached": false,
      "cache_key": "baea13b1a06229f8aa12ec3bcafe7cae532b4709f43a7fd2548bd0452bf4efe6"
@@ -635,7 +635,7 @@
    ]
   },
   "llama3.1:8b": {
-   "wall_s": 33.02,
+   "wall_s": 33.0,
    "counts": {
     "cases": 40,
     "generated": 40,
@@ -657,7 +657,7 @@
      "finish_reason": "stop",
      "input_tokens": 67,
      "output_tokens": 86,
-     "latency_s": 0.5566,
+     "latency_s": 0.5561,
      "attempts": 1,
      "cached": false,
      "cache_key": "b1869c1fe6550b0b729194c74ab106fba34e46c0d82fe1ca4d59138d5f55425c"
@@ -672,7 +672,7 @@
      "finish_reason": "stop",
      "input_tokens": 91,
      "output_tokens": 71,
-     "latency_s": 0.4692,
+     "latency_s": 0.464,
      "attempts": 1,
      "cached": false,
      "cache_key": "1eba7608b5ee27b30bb8436af8d684db83001b57afcd4d4b44752641d5104995"
@@ -687,7 +687,7 @@
      "finish_reason": "stop",
      "input_tokens": 124,
      "output_tokens": 74,
-     "latency_s": 0.4908,
+     "latency_s": 0.4897,
      "attempts": 1,
      "cached": false,
      "cache_key": "4e05c17c50ce2d969707c47080e421873e3c49a77a2b3f5e33234ac25d81293a"
@@ -702,7 +702,7 @@
      "finish_reason": "stop",
      "input_tokens": 137,
      "output_tokens": 76,
-     "latency_s": 0.5029,
+     "latency_s": 0.508,
      "attempts": 1,
      "cached": false,
      "cache_key": "566f0c5d0fa8d0056d9725661dbc3372f75b3d76ea723fad98f146ca6f5a98c9"
@@ -717,7 +717,7 @@
      "finish_reason": "stop",
      "input_tokens": 53,
      "output_tokens": 41,
-     "latency_s": 0.2733,
+     "latency_s": 0.274,
      "attempts": 1,
      "cached": false,
      "cache_key": "f13ecb283b71c050d8a2b67766d0b15011b3639ad79c72a907d96bb58c9b3b5a"
@@ -732,7 +732,7 @@
      "finish_reason": "stop",
      "input_tokens": 73,
      "output_tokens": 65,
-     "latency_s": 0.4256,
+     "latency_s": 0.4255,
      "attempts": 1,
      "cached": false,
      "cache_key": "193d708d0aa27cb2ea82c8f8fe6c4b0da5febd351c8bff2218b053f21f1c7de2"
@@ -747,7 +747,7 @@
      "finish_reason": "stop",
      "input_tokens": 73,
      "output_tokens": 87,
-     "latency_s": 0.565,
+     "latency_s": 0.5691,
      "attempts": 1,
      "cached": false,
      "cache_key": "dffe6d8879ab01a2eeb6104e08dc54b0a886bc6883fa87b960b5e79cc2cccf80"
@@ -762,7 +762,7 @@
      "finish_reason": "stop",
      "input_tokens": 102,
      "output_tokens": 75,
-     "latency_s": 0.4946,
+     "latency_s": 0.4956,
      "attempts": 1,
      "cached": false,
      "cache_key": "7d282e6ef0c397e4f85ce3049d6bcdd92607efbcc11d53b9eb7103ac81fa43ff"
@@ -777,7 +777,7 @@
      "finish_reason": "stop",
      "input_tokens": 55,
      "output_tokens": 60,
-     "latency_s": 0.3947,
+     "latency_s": 0.3937,
      "attempts": 1,
      "cached": false,
      "cache_key": "f8890ac1528790486eecbaa21fb09851ccd79f6351417b7a3d399fd722160060"
@@ -792,7 +792,7 @@
      "finish_reason": "stop",
      "input_tokens": 68,
      "output_tokens": 170,
-     "latency_s": 1.0868,
+     "latency_s": 1.0827,
      "attempts": 1,
      "cached": false,
      "cache_key": "50561ffe60c30b379084270e203e36b26e38b16d540a71b6e8766b655a110965"
@@ -807,7 +807,7 @@
      "finish_reason": "stop",
      "input_tokens": 15,
      "output_tokens": 80,
-     "latency_s": 0.5192,
+     "latency_s": 0.5169,
      "attempts": 1,
      "cached": false,
      "cache_key": "78f0c4e2e34653562dc17af016e25035c26323cf41f8623f7516a5e886b85d43"
@@ -822,7 +822,7 @@
      "finish_reason": "stop",
      "input_tokens": 19,
      "output_tokens": 17,
-     "latency_s": 0.121,
+     "latency_s": 0.1246,
      "attempts": 1,
      "cached": false,
      "cache_key": "87022d67093546cd08c04b84e5755e330a5ec88d0f763633aa4fd0bb70154e3a"
@@ -837,7 +837,7 @@
      "finish_reason": "stop",
      "input_tokens": 28,
      "output_tokens": 25,
-     "latency_s": 0.1726,
+     "latency_s": 0.17,
      "attempts": 1,
      "cached": false,
      "cache_key": "662cfe2d7f350c589d1d793feeaf1c6d8c57a90771ba1b12548a513367780bed"
@@ -852,7 +852,7 @@
      "finish_reason": "stop",
      "input_tokens": 33,
      "output_tokens": 26,
-     "latency_s": 0.177,
+     "latency_s": 0.1763,
      "attempts": 1,
      "cached": false,
      "cache_key": "b11c1ce25a245b3fc97bcc52b73d880507b686170a5e67b0111b233ee54790a0"
@@ -867,7 +867,7 @@
      "finish_reason": "stop",
      "input_tokens": 29,
      "output_tokens": 8,
-     "latency_s": 0.0633,
+     "latency_s": 0.0687,
      "attempts": 1,
      "cached": false,
      "cache_key": "af047ced5c3f68f5c220a7e482d6762fc8cfce15b9a80e88fa4833d1ea0ce842"
@@ -882,7 +882,7 @@
      "finish_reason": "stop",
      "input_tokens": 37,
      "output_tokens": 17,
-     "latency_s": 0.1208,
+     "latency_s": 0.1199,
      "attempts": 1,
      "cached": false,
      "cache_key": "0d52512d95aff0e10299028549bf7e1a41a379de13d6a91b07ef76798d735729"
@@ -897,7 +897,7 @@
      "finish_reason": "stop",
      "input_tokens": 27,
      "output_tokens": 168,
-     "latency_s": 1.059,
+     "latency_s": 1.0608,
      "attempts": 1,
      "cached": false,
      "cache_key": "497d478ab85e8657198b45997eff9ba7d4aed716bfd10423e083754fb37508e5"
@@ -912,7 +912,7 @@
      "finish_reason": "stop",
      "input_tokens": 28,
      "output_tokens": 3,
-     "latency_s": 0.0337,
+     "latency_s": 0.0336,
      "attempts": 1,
      "cached": false,
      "cache_key": "aa9e4887b7433da1e896a0a5f4778368f709f2a030612fb6d4e8f6fb2d9a6ab4"
@@ -927,7 +927,7 @@
      "finish_reason": "stop",
      "input_tokens": 23,
      "output_tokens": 341,
-     "latency_s": 2.1488,
+     "latency_s": 2.1439,
      "attempts": 1,
      "cached": false,
      "cache_key": "81c67ea1262fdc62304d8da628e3782ac959d1a26ff0ea8d5617932d823f7f8e"
@@ -942,7 +942,7 @@
      "finish_reason": "stop",
      "input_tokens": 23,
      "output_tokens": 44,
-     "latency_s": 0.294,
+     "latency_s": 0.2919,
      "attempts": 1,
      "cached": false,
      "cache_key": "0ddcb11ec941af471c7fc09aee1b1b912ca6e0bd932549f211d035812b388968"
@@ -957,7 +957,7 @@
      "finish_reason": "stop",
      "input_tokens": 20,
      "output_tokens": 34,
-     "latency_s": 0.2257,
+     "latency_s": 0.2249,
      "attempts": 1,
      "cached": false,
      "cache_key": "761bcdaf2f0c7bdc47aabac6289563a0f06b8864e51346b12ff22ccf20a6a2d6"
@@ -972,7 +972,7 @@
      "finish_reason": "stop",
      "input_tokens": 21,
      "output_tokens": 10,
-     "latency_s": 0.0779,
+     "latency_s": 0.0801,
      "attempts": 1,
      "cached": false,
      "cache_key": "fd82c02e999eb2ba9b582afffa0a8fe668aadbaf573444920004dd2ee4d4cdc1"
@@ -987,7 +987,7 @@
      "finish_reason": "stop",
      "input_tokens": 22,
      "output_tokens": 144,
-     "latency_s": 0.9158,
+     "latency_s": 0.918,
      "attempts": 1,
      "cached": false,
      "cache_key": "280a75dce87c366e8ac56b6a96f1bb9091cad2d13d43da94694de4524e013a37"
@@ -1002,7 +1002,7 @@
      "finish_reason": "stop",
      "input_tokens": 29,
      "output_tokens": 33,
-     "latency_s": 0.2225,
+     "latency_s": 0.2217,
      "attempts": 1,
      "cached": false,
      "cache_key": "558b0d4d885616088422bb04ce9ff6d79029ee9095e2e25094e34abfa6f5d864"
@@ -1017,7 +1017,7 @@
      "finish_reason": "stop",
      "input_tokens": 30,
      "output_tokens": 186,
-     "latency_s": 1.1842,
+     "latency_s": 1.1815,
      "attempts": 1,
      "cached": false,
      "cache_key": "3f7298440eec6a6ac6fef3a4743c531d8fd5651e81e1d24a93d204cec0e6b82b"
@@ -1032,7 +1032,7 @@
      "finish_reason": "stop",
      "input_tokens": 36,
      "output_tokens": 319,
-     "latency_s": 2.0174,
+     "latency_s": 2.0189,
      "attempts": 1,
      "cached": false,
      "cache_key": "6aa3a3eaeaef8543f725f10f704116d9c68be66703445bd7e57c12ef3c112686"
@@ -1047,7 +1047,7 @@
      "finish_reason": "stop",
      "input_tokens": 23,
      "output_tokens": 482,
-     "latency_s": 3.0327,
+     "latency_s": 3.0464,
      "attempts": 1,
      "cached": false,
      "cache_key": "5534fb18a1baf5a69f76d67d61849cb594651db924287682c8d681452134b77f"
@@ -1062,7 +1062,7 @@
      "finish_reason": "stop",
      "input_tokens": 26,
      "output_tokens": 554,
-     "latency_s": 3.5186,
+     "latency_s": 3.5147,
      "attempts": 1,
      "cached": false,
      "cache_key": "7c9a2cf7912a92aa2d74c8babeaf27adc7903542c7a80053acee205aa6707963"
@@ -1077,7 +1077,7 @@
      "finish_reason": "stop",
      "input_tokens": 65,
      "output_tokens": 22,
-     "latency_s": 0.1632,
+     "latency_s": 0.1615,
      "attempts": 1,
      "cached": false,
      "cache_key": "a69a9b9a0308b4f525b8c141623e3337be9282b85f99b49c0e6c9633c44a397e"
@@ -1092,7 +1092,7 @@
      "finish_reason": "stop",
      "input_tokens": 98,
      "output_tokens": 7,
-     "latency_s": 0.0645,
+     "latency_s": 0.0657,
      "attempts": 1,
      "cached": false,
      "cache_key": "c5417b9872b1eefee6074839ae02e8bbbe33403ba47d505db683d2534fe51bda"
@@ -1107,7 +1107,7 @@
      "finish_reason": "stop",
      "input_tokens": 67,
      "output_tokens": 248,
-     "latency_s": 1.566,
+     "latency_s": 1.5651,
      "attempts": 1,
      "cached": false,
      "cache_key": "a6ed52e8e73318fbc4666e717ce2f9e43c6bde17b039eec3541a469b14d3c3bc"
@@ -1122,7 +1122,7 @@
      "finish_reason": "stop",
      "input_tokens": 93,
      "output_tokens": 148,
-     "latency_s": 0.9534,
+     "latency_s": 0.9475,
      "attempts": 1,
      "cached": false,
      "cache_key": "92a1370c5a183f4844f18f578f6721ab8dd2c14346bf807f02d088c3cf5753ad"
@@ -1137,7 +1137,7 @@
      "finish_reason": "stop",
      "input_tokens": 43,
      "output_tokens": 80,
-     "latency_s": 0.5174,
+     "latency_s": 0.5149,
      "attempts": 1,
      "cached": false,
      "cache_key": "c81d56af53bd2c64ca130d523c2bd9dc1a09825d93fd4cfa2e7f8b5eaeb96211"
@@ -1152,7 +1152,7 @@
      "finish_reason": "stop",
      "input_tokens": 45,
      "output_tokens": 22,
-     "latency_s": 0.1534,
+     "latency_s": 0.1531,
      "attempts": 1,
      "cached": false,
      "cache_key": "1ae523a831e1714e5e599a1cc0f3d2bca9dbe4240d5d4f1e90d75af3323a183d"
@@ -1167,7 +1167,7 @@
      "finish_reason": "length",
      "input_tokens": 55,
      "output_tokens": 1024,
-     "latency_s": 6.5262,
+     "latency_s": 6.5274,
      "attempts": 1,
      "cached": false,
      "cache_key": "43fd308e65ee31b929772655b76d4b775e8cdd98f8d766e2d235721f82b33f1d"
@@ -1182,7 +1182,7 @@
      "finish_reason": "stop",
      "input_tokens": 69,
      "output_tokens": 80,
-     "latency_s": 0.5396,
+     "latency_s": 0.5304,
      "attempts": 1,
      "cached": false,
      "cache_key": "2dc3ae4adc7b491f6173595aac2076d8b907551a8d60d07f55dc1bb6e315605e"
@@ -1197,7 +1197,7 @@
      "finish_reason": "stop",
      "input_tokens": 44,
      "output_tokens": 20,
-     "latency_s": 0.1431,
+     "latency_s": 0.1422,
      "attempts": 1,
      "cached": false,
      "cache_key": "190b97cee9b4499a3525798cba172d29b95961a526df74e7700fb4fbcbaba110"
@@ -1212,7 +1212,7 @@
      "finish_reason": "stop",
      "input_tokens": 50,
      "output_tokens": 7,
-     "latency_s": 0.0604,
+     "latency_s": 0.06,
      "attempts": 1,
      "cached": false,
      "cache_key": "f5cdb8fa657788dc29246e0a55d2b419300b9f6216e1c41b04ec02cd9c7016c4"
@@ -1227,7 +1227,7 @@
      "finish_reason": "stop",
      "input_tokens": 72,
      "output_tokens": 79,
-     "latency_s": 0.5167,
+     "latency_s": 0.5136,
      "attempts": 1,
      "cached": false,
      "cache_key": "5f4ce1e45dbe3bdfafa6f79dde3cd5a20436c8f5e87dc1a3d3a3a9951cdb6e61"
@@ -1242,7 +1242,7 @@
      "finish_reason": "stop",
      "input_tokens": 97,
      "output_tokens": 96,
-     "latency_s": 0.6275,
+     "latency_s": 0.6234,
      "attempts": 1,
      "cached": false,
      "cache_key": "03f82e274e5dc3589cf5bba812fbe03e663d3c6f9c490a89a333a90d98452206"
@@ -1252,7 +1252,7 @@
  },
  "judged": {
   "qwen2.5:7b": {
-   "wall_s": 57.652,
+   "wall_s": 57.244,
    "counts": {
     "cases": 40,
     "judgments": 40,
@@ -1262,8 +1262,8 @@
     "requests": 40,
     "reasks": 0,
     "responses_cut": 0,
-    "input_tokens": 48501,
-    "output_tokens": 4031
+    "input_tokens": 48537,
+    "output_tokens": 3996
    },
    "records": [
     {
@@ -1276,11 +1276,11 @@
      "scores": {
       "instruction_following": 4,
       "faithfulness": 5,
-      "helpfulness": 5
+      "helpfulness": 4
      },
-     "rationale": "The response adheres to the constraints set by the request, including the required phrases and sentence count. However, it slightly deviates from the instruction by not explicitly mentioning the capacity of the bottle in the first two sentences, which was implied but not directly stated. The response is clear and useful, providing a concise product description.",
+     "rationale": "The response adheres to the constraints set by the request, including the required phrases and sentence count. However, it does not mention the capacity of the bottle, which was specified as 600 ml in the request. The response is clear and useful, providing a concise product description.",
      "judge_failure_modes": [
-      "constraint_violation"
+      "partial_completion"
      ],
      "check_status": "pass",
      "check_failure_modes": [],
@@ -1289,15 +1289,17 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.4939,
-     "input_tokens": 1171,
-     "output_tokens": 106,
+     "latency_s": 1.3862,
+     "input_tokens": 1189,
+     "output_tokens": 97,
      "replies": [
-      "{\"rationale\": \"The response adheres to the constraints set by the request, including the required phrases and sentence count. However, it slightly deviates from the instruction by not explicitly mentioning the capacity of the bottle in the first two sentences, which was implied but not directly stated. The response is clear and useful, providing a concise product description.\", \"scores\": {\"instruction_following\": 4, \"faithfulness\": 5, \"helpfulness\": 5}, \"failure_modes\": [\"constraint_violation\"]}"
+      "{\"rationale\": \"The response adheres to the constraints set by the request, including the required phrases and sentence count. However, it does not mention the capacity of the bottle, which was specified as 600 ml in the request. The response is clear and useful, providing a concise product description.\", \"scores\": {\"instruction_following\": 4, \"faithfulness\": 5, \"helpfulness\": 4}, \"failure_modes\": [\"partial_completion\"]}"
      ],
      "response_cut": false,
      "sample": 0,
-     "failure_modes": []
+     "failure_modes": [
+      "partial_completion"
+     ]
     },
     {
      "id": "id-product",
@@ -1311,7 +1313,7 @@
       "faithfulness": 5,
       "helpfulness": 4
      },
-     "rationale": "The response adheres to the constraints and requirements of the request, including the use of 'stainless steel' and 'bebas BPA', and ends with 'Gratis ongkir se-Jawa'. It does not contain the forbidden phrase 'ramah lingkungan'. The content is factual and does not invent details. However, the response is slightly padded with the second sentence, which is not necessary for the task.",
+     "rationale": "The response adheres to the constraints of the request, including the required phrases and sentence count. However, it slightly deviates from the instruction by not mentioning any specific features or benefits of the product beyond the material and size. The response is clear and useful, but it could be more informative.",
      "judge_failure_modes": [
       "constraint_violation"
      ],
@@ -1322,11 +1324,11 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.7002,
-     "input_tokens": 1210,
-     "output_tokens": 126,
+     "latency_s": 1.4225,
+     "input_tokens": 1228,
+     "output_tokens": 100,
      "replies": [
-      "{\"rationale\": \"The response adheres to the constraints and requirements of the request, including the use of 'stainless steel' and 'bebas BPA', and ends with 'Gratis ongkir se-Jawa'. It does not contain the forbidden phrase 'ramah lingkungan'. The content is factual and does not invent details. However, the response is slightly padded with the second sentence, which is not necessary for the task.\", \"scores\": {\"instruction_following\": 4, \"faithfulness\": 5, \"helpfulness\": 4}, \"failure_modes\": [\"constraint_violation\"]}"
+      "{\"rationale\": \"The response adheres to the constraints of the request, including the required phrases and sentence count. However, it slightly deviates from the instruction by not mentioning any specific features or benefits of the product beyond the material and size. The response is clear and useful, but it could be more informative.\", \"scores\": {\"instruction_following\": 4, \"faithfulness\": 5, \"helpfulness\": 4}, \"failure_modes\": [\"constraint_violation\"]}"
      ],
      "response_cut": false,
      "sample": 0,
@@ -1354,7 +1356,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.2099,
+     "latency_s": 1.2035,
      "input_tokens": 1116,
      "output_tokens": 84,
      "replies": [
@@ -1386,7 +1388,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.1459,
+     "latency_s": 1.1481,
      "input_tokens": 1140,
      "output_tokens": 79,
      "replies": [
@@ -1417,7 +1419,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.3049,
+     "latency_s": 1.2951,
      "input_tokens": 989,
      "output_tokens": 94,
      "replies": [
@@ -1454,7 +1456,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.2758,
+     "latency_s": 1.2732,
      "input_tokens": 1068,
      "output_tokens": 91,
      "replies": [
@@ -1491,7 +1493,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.3434,
+     "latency_s": 1.3381,
      "input_tokens": 1154,
      "output_tokens": 95,
      "replies": [
@@ -1525,7 +1527,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.3839,
+     "latency_s": 1.3905,
      "input_tokens": 1206,
      "output_tokens": 97,
      "replies": [
@@ -1562,7 +1564,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.6693,
+     "latency_s": 1.6741,
      "input_tokens": 1375,
      "output_tokens": 118,
      "replies": [
@@ -1599,7 +1601,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.9001,
+     "latency_s": 1.9028,
      "input_tokens": 1431,
      "output_tokens": 136,
      "replies": [
@@ -1633,7 +1635,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.4143,
+     "latency_s": 1.4163,
      "input_tokens": 1175,
      "output_tokens": 99,
      "replies": [
@@ -1669,7 +1671,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 2.0758,
+     "latency_s": 2.0739,
      "input_tokens": 1594,
      "output_tokens": 148,
      "replies": [
@@ -1705,7 +1707,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.15,
+     "latency_s": 1.145,
      "input_tokens": 1016,
      "output_tokens": 77,
      "replies": [
@@ -1744,7 +1746,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.464,
+     "latency_s": 1.4623,
      "input_tokens": 1042,
      "output_tokens": 107,
      "replies": [
@@ -1781,7 +1783,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.399,
+     "latency_s": 1.397,
      "input_tokens": 1212,
      "output_tokens": 98,
      "replies": [
@@ -1815,7 +1817,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.496,
+     "latency_s": 1.4912,
      "input_tokens": 1237,
      "output_tokens": 104,
      "replies": [
@@ -1850,7 +1852,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.6836,
+     "latency_s": 1.6791,
      "input_tokens": 1340,
      "output_tokens": 118,
      "replies": [
@@ -1887,7 +1889,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.4516,
+     "latency_s": 1.4429,
      "input_tokens": 1266,
      "output_tokens": 98,
      "replies": [
@@ -1924,7 +1926,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.9122,
+     "latency_s": 1.9109,
      "input_tokens": 1441,
      "output_tokens": 136,
      "replies": [
@@ -1961,7 +1963,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.9782,
+     "latency_s": 1.9723,
      "input_tokens": 1669,
      "output_tokens": 136,
      "replies": [
@@ -1995,7 +1997,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.3501,
+     "latency_s": 1.3469,
      "input_tokens": 989,
      "output_tokens": 95,
      "replies": [
@@ -2029,7 +2031,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.2575,
+     "latency_s": 1.2558,
      "input_tokens": 1015,
      "output_tokens": 89,
      "replies": [
@@ -2066,7 +2068,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.5472,
+     "latency_s": 1.5451,
      "input_tokens": 1235,
      "output_tokens": 109,
      "replies": [
@@ -2103,7 +2105,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.9484,
+     "latency_s": 1.9493,
      "input_tokens": 1398,
      "output_tokens": 140,
      "replies": [
@@ -2140,7 +2142,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.4379,
+     "latency_s": 1.4407,
      "input_tokens": 1199,
      "output_tokens": 100,
      "replies": [
@@ -2177,7 +2179,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.4953,
+     "latency_s": 1.4996,
      "input_tokens": 1319,
      "output_tokens": 103,
      "replies": [
@@ -2214,7 +2216,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.6492,
+     "latency_s": 1.6494,
      "input_tokens": 1592,
      "output_tokens": 110,
      "replies": [
@@ -2251,7 +2253,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.8301,
+     "latency_s": 1.8269,
      "input_tokens": 1710,
      "output_tokens": 122,
      "replies": [
@@ -2289,7 +2291,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.3888,
+     "latency_s": 1.3905,
      "input_tokens": 1095,
      "output_tokens": 96,
      "replies": [
@@ -2327,7 +2329,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.2026,
+     "latency_s": 1.2069,
      "input_tokens": 1137,
      "output_tokens": 82,
      "replies": [
@@ -2358,7 +2360,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.0847,
+     "latency_s": 1.0821,
      "input_tokens": 1253,
      "output_tokens": 69,
      "replies": [
@@ -2389,7 +2391,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.2707,
+     "latency_s": 1.2769,
      "input_tokens": 1358,
      "output_tokens": 83,
      "replies": [
@@ -2420,7 +2422,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.1486,
+     "latency_s": 1.1558,
      "input_tokens": 1050,
      "output_tokens": 79,
      "replies": [
@@ -2454,7 +2456,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.1617,
+     "latency_s": 1.1629,
      "input_tokens": 988,
      "output_tokens": 83,
      "replies": [
@@ -2489,7 +2491,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.1986,
+     "latency_s": 1.2014,
      "input_tokens": 1090,
      "output_tokens": 85,
      "replies": [
@@ -2524,7 +2526,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.1624,
+     "latency_s": 1.1666,
      "input_tokens": 1114,
      "output_tokens": 80,
      "replies": [
@@ -2559,7 +2561,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.2087,
+     "latency_s": 1.2119,
      "input_tokens": 946,
      "output_tokens": 87,
      "replies": [
@@ -2593,7 +2595,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.4254,
+     "latency_s": 1.4188,
      "input_tokens": 971,
      "output_tokens": 105,
      "replies": [
@@ -2628,7 +2630,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.167,
+     "latency_s": 1.1606,
      "input_tokens": 1076,
      "output_tokens": 81,
      "replies": [
@@ -2661,7 +2663,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.2334,
+     "latency_s": 1.239,
      "input_tokens": 1114,
      "output_tokens": 86,
      "replies": [
@@ -2674,7 +2676,7 @@
    ]
   },
   "llama3.1:8b": {
-   "wall_s": 60.018,
+   "wall_s": 60.151,
    "counts": {
     "cases": 40,
     "judgments": 40,
@@ -2684,8 +2686,8 @@
     "requests": 40,
     "reasks": 0,
     "responses_cut": 0,
-    "input_tokens": 48387,
-    "output_tokens": 4249
+    "input_tokens": 48423,
+    "output_tokens": 4266
    },
    "records": [
     {
@@ -2700,7 +2702,7 @@
       "faithfulness": 5,
       "helpfulness": 4
      },
-     "rationale": "The response includes the required phrases and avoids the forbidden ones, but it contains four sentences instead of the requested three, and the shipping statement is not formatted correctly. The content is otherwise accurate and useful.",
+     "rationale": "The response includes the required phrases and avoids the forbidden ones, but it fails to meet the exact constraints of the request. It contains four sentences instead of three, and the free shipping statement is not the last sentence as required. The content is otherwise appropriate and useful.",
      "judge_failure_modes": [
       "constraint_violation",
       "format_error"
@@ -2715,11 +2717,11 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.2515,
-     "input_tokens": 1208,
-     "output_tokens": 85,
+     "latency_s": 1.4167,
+     "input_tokens": 1226,
+     "output_tokens": 98,
      "replies": [
-      "{\"rationale\": \"The response includes the required phrases and avoids the forbidden ones, but it contains four sentences instead of the requested three, and the shipping statement is not formatted correctly. The content is otherwise accurate and useful.\", \"scores\": {\"instruction_following\": 2, \"faithfulness\": 5, \"helpfulness\": 4}, \"failure_modes\": [\"constraint_violation\", \"format_error\"]}"
+      "{\"rationale\": \"The response includes the required phrases and avoids the forbidden ones, but it fails to meet the exact constraints of the request. It contains four sentences instead of three, and the free shipping statement is not the last sentence as required. The content is otherwise appropriate and useful.\", \"scores\": {\"instruction_following\": 2, \"faithfulness\": 5, \"helpfulness\": 4}, \"failure_modes\": [\"constraint_violation\", \"format_error\"]}"
      ],
      "response_cut": false,
      "sample": 0,
@@ -2736,11 +2738,11 @@
      ],
      "judge": "ollama:qwen2.5:14b",
      "scores": {
-      "instruction_following": 2,
-      "faithfulness": 4,
-      "helpfulness": 3
+      "instruction_following": 3,
+      "faithfulness": 3,
+      "helpfulness": 4
      },
-     "rationale": "The response adheres to the length requirement and includes the required phrases 'stainless steel' and 'bebas BPA'. However, it fails to end with the required phrase 'Gratis ongkir se-Jawa.' Additionally, the response includes a claim about reducing plastic waste, which was not part of the original request and is not supported by the given context.",
+     "rationale": "The response adheres to the length requirement and includes the required phrases 'stainless steel' and 'bebas BPA'. However, it fails to end with the required phrase 'Gratis ongkir se-Jawa.' Additionally, the response includes a claim about reducing plastic waste, which is not supported by the prompt. The response is generally helpful but does not fully meet the instruction.",
      "judge_failure_modes": [
       "constraint_violation",
       "hallucination"
@@ -2754,11 +2756,11 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.6514,
-     "input_tokens": 1227,
-     "output_tokens": 119,
+     "latency_s": 1.7068,
+     "input_tokens": 1245,
+     "output_tokens": 123,
      "replies": [
-      "{\"rationale\": \"The response adheres to the length requirement and includes the required phrases 'stainless steel' and 'bebas BPA'. However, it fails to end with the required phrase 'Gratis ongkir se-Jawa.' Additionally, the response includes a claim about reducing plastic waste, which was not part of the original request and is not supported by the given context.\", \"scores\": {\"instruction_following\": 2, \"faithfulness\": 4, \"helpfulness\": 3}, \"failure_modes\": [\"constraint_violation\", \"hallucination\"]}"
+      "{\"rationale\": \"The response adheres to the length requirement and includes the required phrases 'stainless steel' and 'bebas BPA'. However, it fails to end with the required phrase 'Gratis ongkir se-Jawa.' Additionally, the response includes a claim about reducing plastic waste, which is not supported by the prompt. The response is generally helpful but does not fully meet the instruction.\", \"scores\": {\"instruction_following\": 3, \"faithfulness\": 3, \"helpfulness\": 4}, \"failure_modes\": [\"constraint_violation\", \"hallucination\"]}"
      ],
      "response_cut": false,
      "sample": 0,
@@ -2789,7 +2791,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.2036,
+     "latency_s": 1.1998,
      "input_tokens": 1111,
      "output_tokens": 82,
      "replies": [
@@ -2823,7 +2825,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.3933,
+     "latency_s": 1.3868,
      "input_tokens": 1135,
      "output_tokens": 100,
      "replies": [
@@ -2856,7 +2858,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.3779,
+     "latency_s": 1.3774,
      "input_tokens": 997,
      "output_tokens": 100,
      "replies": [
@@ -2891,7 +2893,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.4104,
+     "latency_s": 1.408,
      "input_tokens": 1051,
      "output_tokens": 102,
      "replies": [
@@ -2925,7 +2927,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.7102,
+     "latency_s": 1.7101,
      "input_tokens": 1162,
      "output_tokens": 126,
      "replies": [
@@ -2959,7 +2961,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.4283,
+     "latency_s": 1.4243,
      "input_tokens": 1207,
      "output_tokens": 101,
      "replies": [
@@ -2996,7 +2998,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.5221,
+     "latency_s": 1.5148,
      "input_tokens": 1297,
      "output_tokens": 106,
      "replies": [
@@ -3037,7 +3039,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.6739,
+     "latency_s": 1.6785,
      "input_tokens": 1456,
      "output_tokens": 116,
      "replies": [
@@ -3075,7 +3077,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.4658,
+     "latency_s": 1.4583,
      "input_tokens": 1225,
      "output_tokens": 100,
      "replies": [
@@ -3111,7 +3113,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.3444,
+     "latency_s": 1.3476,
      "input_tokens": 1167,
      "output_tokens": 94,
      "replies": [
@@ -3147,7 +3149,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.1208,
+     "latency_s": 1.1245,
      "input_tokens": 1021,
      "output_tokens": 77,
      "replies": [
@@ -3184,7 +3186,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.471,
+     "latency_s": 1.4685,
      "input_tokens": 1036,
      "output_tokens": 108,
      "replies": [
@@ -3223,7 +3225,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.7441,
+     "latency_s": 1.7437,
      "input_tokens": 1149,
      "output_tokens": 131,
      "replies": [
@@ -3260,7 +3262,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.6019,
+     "latency_s": 1.598,
      "input_tokens": 1204,
      "output_tokens": 116,
      "replies": [
@@ -3295,7 +3297,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.8009,
+     "latency_s": 1.7976,
      "input_tokens": 1326,
      "output_tokens": 130,
      "replies": [
@@ -3336,7 +3338,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.7502,
+     "latency_s": 1.7507,
      "input_tokens": 1176,
      "output_tokens": 127,
      "replies": [
@@ -3376,7 +3378,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 2.0227,
+     "latency_s": 2.0159,
      "input_tokens": 1534,
      "output_tokens": 145,
      "replies": [
@@ -3414,7 +3416,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.631,
+     "latency_s": 1.6298,
      "input_tokens": 1241,
      "output_tokens": 114,
      "replies": [
@@ -3450,7 +3452,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.4675,
+     "latency_s": 1.4711,
      "input_tokens": 1002,
      "output_tokens": 107,
      "replies": [
@@ -3486,7 +3488,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.2704,
+     "latency_s": 1.2571,
      "input_tokens": 989,
      "output_tokens": 92,
      "replies": [
@@ -3523,7 +3525,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.6079,
+     "latency_s": 1.6086,
      "input_tokens": 1286,
      "output_tokens": 114,
      "replies": [
@@ -3560,7 +3562,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.5164,
+     "latency_s": 1.513,
      "input_tokens": 1183,
      "output_tokens": 108,
      "replies": [
@@ -3599,7 +3601,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.7952,
+     "latency_s": 1.8003,
      "input_tokens": 1347,
      "output_tokens": 129,
      "replies": [
@@ -3634,7 +3636,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.503,
+     "latency_s": 1.5108,
      "input_tokens": 1517,
      "output_tokens": 99,
      "replies": [
@@ -3669,7 +3671,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 2.534,
+     "latency_s": 2.5252,
      "input_tokens": 1613,
      "output_tokens": 185,
      "replies": [
@@ -3706,7 +3708,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.7767,
+     "latency_s": 1.7743,
      "input_tokens": 1706,
      "output_tokens": 119,
      "replies": [
@@ -3743,7 +3745,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.371,
+     "latency_s": 1.3653,
      "input_tokens": 1076,
      "output_tokens": 98,
      "replies": [
@@ -3784,7 +3786,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.371,
+     "latency_s": 1.3678,
      "input_tokens": 1118,
      "output_tokens": 97,
      "replies": [
@@ -3824,7 +3826,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.447,
+     "latency_s": 1.4454,
      "input_tokens": 1303,
      "output_tokens": 100,
      "replies": [
@@ -3859,7 +3861,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.4664,
+     "latency_s": 1.4629,
      "input_tokens": 1209,
      "output_tokens": 104,
      "replies": [
@@ -3890,7 +3892,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.3227,
+     "latency_s": 1.3086,
      "input_tokens": 1024,
      "output_tokens": 95,
      "replies": [
@@ -3926,7 +3928,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.2132,
+     "latency_s": 1.2062,
      "input_tokens": 976,
      "output_tokens": 87,
      "replies": [
@@ -3968,7 +3970,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.6084,
+     "latency_s": 1.6105,
      "input_tokens": 2001,
      "output_tokens": 100,
      "replies": [
@@ -4006,7 +4008,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.3155,
+     "latency_s": 1.3031,
      "input_tokens": 1074,
      "output_tokens": 91,
      "replies": [
@@ -4042,7 +4044,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.2471,
+     "latency_s": 1.2537,
      "input_tokens": 944,
      "output_tokens": 91,
      "replies": [
@@ -4079,7 +4081,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.2173,
+     "latency_s": 1.214,
      "input_tokens": 940,
      "output_tokens": 89,
      "replies": [
@@ -4115,7 +4117,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.1619,
+     "latency_s": 1.1622,
      "input_tokens": 1051,
      "output_tokens": 81,
      "replies": [
@@ -4146,7 +4148,7 @@
      "reasks": 0,
      "requests": 1,
      "cached": false,
-     "latency_s": 1.2018,
+     "latency_s": 1.2051,
      "input_tokens": 1098,
      "output_tokens": 84,
      "replies": [
@@ -4160,7 +4162,7 @@
   }
  },
  "report": {
-  "html_bytes": 123816,
+  "html_bytes": 123719,
   "notes": []
  }
 }

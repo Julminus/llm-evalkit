@@ -7,7 +7,7 @@
     "name": "benchmark",
     "version": "1",
     "path": "examples/suites/benchmark.yaml",
-    "digest": "ec8c4ba2ea9831fc",
+    "digest": "d7307a04d58fb69d",
     "cases_selected": 40,
     "cases_total": 40
   },
@@ -42,9 +42,9 @@
   },
   "concurrency": 1,
   "cache": "runs/s6/judge",
-  "started_at": "2026-11-19T18:53:21+00:00",
-  "finished_at": "2026-11-19T18:54:19+00:00",
-  "duration_s": 57.652,
+  "started_at": "2026-11-19T19:23:07+00:00",
+  "finished_at": "2026-11-19T19:24:04+00:00",
+  "duration_s": 57.244,
   "counts": {
     "cases": 40,
     "judgments": 40,
@@ -54,8 +54,8 @@
     "requests": 40,
     "reasks": 0,
     "responses_cut": 0,
-    "input_tokens": 48501,
-    "output_tokens": 4031
+    "input_tokens": 48537,
+    "output_tokens": 3996
   },
   "summary": {
     "judged": 40,
@@ -71,14 +71,14 @@
       "instruction_following": 3.725,
       "reasoning_quality": 4.5,
       "faithfulness": 4.643,
-      "helpfulness": 4.071
+      "helpfulness": 4.036
     },
     "mean_scores_by_language": {
       "en": {
         "instruction_following": 3.85,
         "reasoning_quality": 4.615,
         "faithfulness": 4.571,
-        "helpfulness": 4.071
+        "helpfulness": 4.0
       },
       "id": {
         "instruction_following": 3.6,
@@ -113,8 +113,8 @@
         "1": 0,
         "2": 0,
         "3": 7,
-        "4": 12,
-        "5": 9
+        "4": 13,
+        "5": 8
       }
     },
     "failure_modes": {
@@ -135,7 +135,7 @@
       },
       "partial_completion": {
         "check": 0,
-        "judge": 14,
+        "judge": 15,
         "both": 0
       },
       "format_error": {
@@ -152,7 +152,7 @@
     "judge_vs_checks": {
       "constraint_violation": {
         "both": 1,
-        "judge_only": 15,
+        "judge_only": 14,
         "checks_only": 0
       },
       "format_error": {

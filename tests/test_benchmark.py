@@ -56,6 +56,25 @@ def test_reasoning_trap_answers(model: str, right: set[str]) -> None:
     assert {c.id for c in traps if is_correct(c, final_answer(texts[c.id]))} == right
 
 
+@pytest.mark.parametrize(
+    ("ending", "is_own_sentence"),
+    [
+        ("It is BPA-free. Free shipping across Java.", True),
+        ("It is **BPA-free.** Free shipping across Java.", True),
+        ("It is “BPA-free.” **Free shipping across Java.**", True),
+        ("It is BPA-free! \U0001f4a7 Free shipping across Java.", True),
+        ("It is BPA-free.\n\n> Free shipping across Java.\n", True),
+        ("Order now, with Free shipping across Java.", False),
+        ("Order today and enjoy free shipping across Java.", False),
+        ("Best of all: Free shipping across Java.", False),
+    ],
+)
+def test_the_last_sentence_check(ending: str, is_own_sentence: bool) -> None:
+    case = SUITE.case("en-product")
+    [last] = [c for c in case.constraints if c.type == "regex"]
+    assert last.check(f"A 600 ml stainless steel bottle. {ending}").passed is is_own_sentence
+
+
 def test_answer_parser() -> None:
     price, clock, day = (SUITE.case(i) for i in ("en-price-change", "id-time-zone", "en-weekday"))
     assert final_answer("x\n**Answer:** Rp 100.000\n") == "Rp 100.000"
@@ -90,10 +109,10 @@ def test_summary_prints_the_published_numbers(
     summary(data)
     out = capsys.readouterr().out
     for line in [
-        "| qwen2.5:7b | all | en | 20 | 3.85 | 4.62 | 4.57 | 4.07 |",
+        "| qwen2.5:7b | all | en | 20 | 3.85 | 4.62 | 4.57 | 4.00 |",
         "| qwen2.5:7b | all | id | 20 | 3.60 | 4.38 | 4.71 | 4.07 |",
         "| llama3.1:8b | all | en | 20 | 3.30 | 4.00 | 4.64 | 3.86 |",
-        "| llama3.1:8b | all | id | 20 | 2.95 | 3.23 | 4.29 | 2.86 |",
+        "| llama3.1:8b | all | id | 20 | 3.00 | 3.23 | 4.21 | 2.93 |",
         "instruction_following: n=40, exact 12, within one 33, quadratic kappa 0.355",
         "reasoning_quality: n=26, exact 14, within one 22, quadratic kappa 0.724",
         "hallucination (judge): both 7, judge only [], labels only",
