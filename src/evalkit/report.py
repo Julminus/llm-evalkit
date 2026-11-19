@@ -163,7 +163,7 @@ def _manifest(path: Path) -> dict[str, Any]:
     """A run's manifest.json, or ``{}`` if there is none (a plain JSONL file)."""
     try:
         data = json.loads(read_utf8(path))
-    except (OSError, NotUtf8Error, json.JSONDecodeError, RecursionError):
+    except (OSError, NotUtf8Error, ValueError, RecursionError):  # ValueError: bad JSON too
         return {}
     return data if isinstance(data, dict) else {}
 
@@ -196,7 +196,7 @@ def _is_judgments(path: Path) -> bool:
         return path.name == "judgments.jsonl"
     try:
         obj = json.loads(first)
-    except json.JSONDecodeError:
+    except (ValueError, RecursionError):
         return False  # load_responses reports the line
     return isinstance(obj, dict) and "check_status" in obj
 
@@ -241,6 +241,8 @@ def _judged_responses(
         return None, {}
     path = Path(where)
     try:
+        if not path.is_file():  # a device name ("CON") would wait for console input
+            raise ResponsesError(where)
         responses = load_responses(path)
     except (ResponsesError, ValueError):  # ValueError: a path no OS accepts ("a\0b")
         notes.append(f"the judged responses ({where}) can't be read from here")

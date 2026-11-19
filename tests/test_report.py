@@ -247,18 +247,28 @@ def test_an_empty_judgments_file_is_a_judgments_file(tmp_path: Path) -> None:
         load_run(tmp_path, SUITE)
 
 
-def test_a_judged_path_no_os_accepts_is_a_note(judged_run: Path) -> None:
+@pytest.mark.parametrize("where", ["a\u0000b", "CON"])  # CON: Windows would read the console
+def test_a_judged_path_no_os_accepts_is_a_note(judged_run: Path, where: str) -> None:
     manifest = json.loads((judged_run / "manifest.json").read_text(encoding="utf-8"))
-    manifest["responses"]["path"] = "a\u0000b"
+    manifest["responses"]["path"] = where
     (judged_run / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     view = load_run(judged_run, SUITE)
     assert "can't be read from here" in view.notes[0]
+
+
+def test_a_manifest_with_a_huge_number_is_ignored(tmp_path: Path) -> None:
+    shutil.copy(SMOKE_RESPONSES, tmp_path / "responses.jsonl")
+    (tmp_path / "manifest.json").write_text('{"n": ' + "9" * 5000 + "}", encoding="utf-8")
+    assert load_run(tmp_path, SUITE).name == tmp_path.name
 
 
 @pytest.mark.parametrize(
     ("content", "message"),
     [
         (b'{"id": "a", "response": "x"}\n{oops\n', "invalid JSON"),
+        # the first line decides the kind of file; these used to escape as tracebacks
+        (b"[" * 100_000, "nested too deeply"),
+        (b'{"id": "a", "response": ' + b"9" * 5000 + b"}", "invalid JSON"),
         (b"\xff\xfe{\x00", "UTF-16"),
         (b'{"id": "a", "check_status": "pass"}\n', "not a judge record"),
     ],

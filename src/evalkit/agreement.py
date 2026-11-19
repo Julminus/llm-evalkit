@@ -356,6 +356,8 @@ def _judged_texts(path: Path) -> tuple[dict[str, str], str | None]:
         return {}, None
     unused = "so the answer texts aren't compared"
     try:
+        if not Path(where).is_file():  # a device name ("CON") would wait for console input
+            raise ResponsesError(where)
         texts = load_responses(where)
     except (OSError, ValueError, ResponsesError):
         return {}, f"the answers it judged ({where}) can't be read from here, {unused}"

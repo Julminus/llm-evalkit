@@ -513,6 +513,15 @@ class TestResponseTexts:
         manifest.write_text(json.dumps({"responses": {"path": None, "digest": "x"}}), "utf-8")
         assert (load_judgments(judged).texts, load_judgments(judged).note) == ({}, None)
 
+    def test_a_device_name_is_not_read(self, tmp_path: Path) -> None:
+        # On Windows, reading "CON" waits for console input (round-4 review).
+        judged = self.judged(tmp_path)
+        manifest = tmp_path / "run" / "manifest.json"
+        manifest.write_text(json.dumps({"responses": {"path": "CON", "digest": "x"}}), "utf-8")
+        loaded = load_judgments(judged)
+        assert loaded.texts == {}
+        assert "(CON) can't be read from here" in (loaded.note or "")
+
     def test_a_hostile_manifest_is_no_texts(self, tmp_path: Path) -> None:
         judged = self.judged(tmp_path)
         (tmp_path / "run" / "manifest.json").write_text("[" * 100_000, encoding="utf-8")
