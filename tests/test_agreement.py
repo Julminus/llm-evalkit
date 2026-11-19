@@ -1,6 +1,7 @@
 import csv
 import json
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
@@ -17,6 +18,7 @@ from evalkit.agreement import (
 )
 from evalkit.checks import Status
 from evalkit.judge import JudgeRecord
+from evalkit.judge.core import responses_digest
 from evalkit.schema import Dimension
 from evalkit.taxonomy import FailureMode
 
@@ -412,6 +414,65 @@ class TestCompare:
     def test_notes_are_passed_on(self) -> None:
         jud = Ratings("j", {}, note="used sample 1 of 3")
         assert compare(jud, ratings({}), resamples=0).notes == ["j: used sample 1 of 3"]
+
+
+class TestResponseTexts:
+    """A sheet for one model's answers shares its ids with every other model's judgments."""
+
+    ANSWERS: ClassVar[dict[str, str]] = {"c1": "- satu\n- dua  ", "c2": "Jakarta."}
+
+    def judged(self, tmp_path: Path, answers: dict[str, str] | None = None) -> Path:
+        answers = answers or self.ANSWERS
+        run = tmp_path / "run"
+        run.mkdir()
+        responses = tmp_path / "answers.jsonl"
+        responses.write_text(
+            "".join(json.dumps({"id": i, "response": t}) + "\n" for i, t in answers.items()),
+            encoding="utf-8",
+        )
+        meta = {"path": str(responses), "digest": responses_digest(answers)}
+        (run / "manifest.json").write_text(json.dumps({"responses": meta}), encoding="utf-8")
+        return write_judgments(run, [record("c1"), record("c2")], "judgments.jsonl")
+
+    def sheet(self, tmp_path: Path, answers: dict[str, str]) -> Path:
+        path = tmp_path / "labels.csv"
+        rows = [
+            {"id": i, "language": "id", "prompt": "p", "response": t} for i, t in answers.items()
+        ]
+        write_label_sheet(path, rows, scored=lambda i: [IF])
+        text = path.read_text(encoding="utf-8-sig")
+        labelled = text.replace(",id,,", ",id,4,")  # an instruction_following score per row
+        path.write_text(labelled, encoding="utf-8-sig", newline="\n")
+        return path
+
+    def warnings(self, judged: Path, sheet: Path) -> list[str]:
+        return compare(load_judgments(judged), load_labels(sheet), resamples=0).warnings
+
+    def test_same_answers_are_quiet(self, tmp_path: Path) -> None:
+        # The formula guard on "- satu" and trimmed or re-wrapped spaces don't count.
+        sheet = self.sheet(tmp_path, {"c1": "- satu\n  - dua", "c2": "Jakarta."})
+        assert load_labels(sheet).texts["c1"] == "- satu\n  - dua"
+        assert self.warnings(self.judged(tmp_path), sheet) == []
+
+    def test_another_models_answers_are_named(self, tmp_path: Path) -> None:
+        sheet = self.sheet(tmp_path, {"c1": "- satu\n- dua", "c2": "Bandung."})
+        [warning] = self.warnings(self.judged(tmp_path), sheet)
+        assert "differs between the two files on 1 of the 2 cases both rated (c2)" in warning
+
+    def test_answers_changed_since_judging_are_not_compared(self, tmp_path: Path) -> None:
+        judged = self.judged(tmp_path)
+        (tmp_path / "answers.jsonl").write_text('{"id": "c2", "response": "x"}\n', "utf-8")
+        assert load_judgments(judged).texts == {}
+
+    @pytest.mark.parametrize("manifest", [None, "{", '{"responses": []}', '{"responses": {}}'])
+    def test_no_usable_manifest_means_no_texts(self, tmp_path: Path, manifest: str | None) -> None:
+        judged = write_judgments(tmp_path, [record("c1")], "judgments.jsonl")
+        if manifest is not None:
+            (tmp_path / "manifest.json").write_text(manifest, encoding="utf-8")
+        assert load_judgments(judged).texts == {}
+
+    def test_a_sheet_without_responses_has_no_texts(self) -> None:
+        assert load_labels(SMOKE_LABELS).texts == {}
 
 
 class TestConsistency:

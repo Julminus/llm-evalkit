@@ -27,9 +27,14 @@ response next to each row. The columns:
 ``language``
     Optional; used for the per-language split when the other side has none.
 
-Every other column (``notes``, ``prompt``, ``response``, ``labeler``...) is
-ignored; any that evalkit doesn't know are listed in a note, so a misspelt
-label column shows up. Column names are matched ignoring case, spaces and
+``response``
+    Optional; the answer the row labels, as ``evalkit labels`` writes it.
+    :func:`compare` warns when it differs from the other side's text for the
+    same id, which catches a sheet compared with another model's judgments.
+
+Every other column (``notes``, ``prompt``, ``labeler``...) is ignored; any
+that evalkit doesn't know are listed in a note, so a misspelt label column
+shows up. Column names are matched ignoring case, spaces and
 hyphens. A row whose label cells are all blank counts as not labelled yet
 and is skipped, so a half-filled sheet can be compared as it stands. A blank
 row can't also mean "no mode applies", so when the other side tagged failure
@@ -45,6 +50,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 import re
 import statistics
 from collections import Counter, defaultdict
@@ -55,8 +61,9 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from evalkit.evaluate import ResponsesError, load_responses
 from evalkit.files import NotUtf8Error, read_utf8
-from evalkit.judge.core import JudgeRecord
+from evalkit.judge.core import JudgeRecord, responses_digest
 from evalkit.schema import Dimension
 from evalkit.stats import SCALE, bootstrap_ci, cohen_kappa, confusion_matrix, spearman
 from evalkit.taxonomy import CHECKABLE, FailureMode
@@ -84,6 +91,7 @@ LABEL_COLUMNS: tuple[str, ...] = (*(d.value for d in Dimension), "failure_modes"
 _BLANK = {"", "n/a", "na", "-"}
 _MODE_SPLIT = re.compile(r"[;,|\n]+")
 _MODE_NAMES = {m.value: m for m in FailureMode}
+_FORMULA_STARTS = ("=", "+", "-", "@", "\t", "\r")
 
 
 class LabelsError(ValueError):
@@ -117,6 +125,9 @@ class Ratings:
     note: str | None = None
     kind: Literal["labels", "judgments"] = "judgments"
     """What the file is, so messages can say "not labelled yet" or "judge error"."""
+    texts: dict[str, str] = field(default_factory=dict)
+    """The response each rating is about, where the file says: a sheet's ``response``
+    column, or the answers a judge run judged (found through its manifest)."""
 
 
 def _mode(value: str, where: str) -> FailureMode:
@@ -187,6 +198,7 @@ def load_labels(path: Path) -> Ratings:
     has_modes = "failure_modes" in col
 
     ratings: dict[str, Rating] = {}
+    texts: dict[str, str] = {}
     first_seen: dict[str, int] = {}
     skipped: list[str] = []
     line = reader.line_num + 1  # where the next row starts; a quoted cell can span lines
@@ -243,6 +255,8 @@ def load_labels(path: Path) -> Ratings:
             ratings[case_id] = Rating(
                 id=case_id, scores=scores, failure_modes=modes, language=language or None
             )
+            if "response" in col and cell("response"):
+                texts[case_id] = _from_text(row[col["response"]])
     except csv.Error as exc:
         # `line` is where the row being read started, e.g. where an unclosed quote opened.
         raise LabelsError(f"{path}:{line}: not valid CSV: {exc}") from exc
@@ -258,7 +272,8 @@ def load_labels(path: Path) -> Ratings:
             f"{lines}{more}) while others name modes; write 'none' where no mode applies, or "
             "leave the column blank on every row to compare scores only"
         )
-    return Ratings(str(path), ratings, skipped, _unread_note(header, raw_header), kind="labels")
+    note = _unread_note(header, raw_header)
+    return Ratings(str(path), ratings, skipped, note, kind="labels", texts=texts)
 
 
 def read_judgments(path: Path) -> list[JudgeRecord]:
@@ -320,7 +335,18 @@ def load_judgments(path: Path, *, sample: int = 0) -> Ratings:
             language=record.language,
         )
     note = f"used sample {sample} of {len(samples)}" if len(samples) > 1 else None
-    return Ratings(str(path), ratings, skipped, note)
+    return Ratings(str(path), ratings, skipped, note, texts=_judged_texts(path))
+
+
+def _judged_texts(path: Path) -> dict[str, str]:
+    """The answers the run in ``path``'s directory judged, if its manifest still finds
+    them unchanged (as ``evalkit report`` does); otherwise nothing."""
+    try:
+        meta = json.loads(read_utf8(path.parent / "manifest.json"))["responses"]
+        texts = load_responses(meta["path"])
+    except (OSError, NotUtf8Error, ValueError, LookupError, TypeError, ResponsesError):
+        return {}
+    return texts if responses_digest(texts) == meta.get("digest") else {}
 
 
 def _listed(ids: Sequence[str], limit: int = 5) -> str:
@@ -511,6 +537,22 @@ def compare(
 
     notes = [f"{side.source}: {side.note}" for side in (judge, reference) if side.note]
     warnings: list[str] = []
+    # Ids are shared by every model's answers to a suite, so a sheet for one model's
+    # answers lines up with another model's judgments. Spaces don't count: a
+    # spreadsheet or an editor may trim them.
+    differ = [
+        i
+        for i in common
+        if i in judge.texts
+        and i in reference.texts
+        and judge.texts[i].split() != reference.texts[i].split()
+    ]
+    if differ:
+        warnings.append(
+            f"the response text differs between the two files on {len(differ)} of the "
+            f"{len(common)} cases both rated ({_listed(differ)}): are both about the same "
+            "answers?"
+        )
     for sheet, other in ((reference, judge), (judge, reference)):
         # A wholly blank row is "not labelled yet": it can't also mean "clean",
         # so tags the other side gave on such rows are left out. Say so.
@@ -667,7 +709,12 @@ SHEET_TEXT_COLUMNS: tuple[str, ...] = (
 def _as_text(value: str) -> str:
     """A spreadsheet reads a cell that starts with = + - @ as a formula (a
     bulleted answer would show as #NAME?); a leading ' keeps it text."""
-    return "'" + value if value[:1] in ("=", "+", "-", "@", "\t", "\r") else value
+    return "'" + value if value[:1] in _FORMULA_STARTS else value
+
+
+def _from_text(value: str) -> str:
+    """Undo :func:`_as_text`."""
+    return value[1:] if value[:1] == "'" and value[1:2] in _FORMULA_STARTS else value
 
 
 def write_label_sheet(
