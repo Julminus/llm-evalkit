@@ -559,7 +559,7 @@ async def judge_suite(
             evalkit_version=__version__,
             suite=suite_info(suite, suite_path, len(cases)),
             responses={
-                "path": str(responses_path) if responses_path else None,
+                "path": responses_path.as_posix() if responses_path else None,
                 "digest": responses_digest(responses),
                 "count": len(responses),
             },

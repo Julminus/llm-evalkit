@@ -480,7 +480,7 @@ class TestJudgeSuite:
                 out_dir=tmp_path,
                 run_id="j1",
                 suite_path=Path("s.yaml"),
-                responses_path=Path("r.jsonl"),
+                responses_path=Path("d") / "r.jsonl",  # written with "/" on Windows too
                 on_record=lambda r: seen.append(r.id),
             )
         )
@@ -500,7 +500,7 @@ class TestJudgeSuite:
         assert manifest["max_reasks"] == 2
         assert manifest["params"]["sent"] == {"temperature": 0, "max_tokens": 99}
         assert manifest["responses"] == {
-            "path": "r.jsonl",
+            "path": "d/r.jsonl",
             "digest": responses_digest(responses),
             "count": 3,
         }

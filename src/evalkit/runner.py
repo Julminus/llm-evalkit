@@ -421,7 +421,8 @@ def suite_info(suite: Suite, path: Path | None, selected: int) -> dict[str, Any]
     return {
         "name": suite.name,
         "version": suite.version,
-        "path": str(path) if path else None,
+        # Forward slashes, so a run made on Windows reads back on Linux.
+        "path": path.as_posix() if path else None,
         "digest": suite_digest(suite),
         "cases_selected": selected,
         "cases_total": len(suite.cases),

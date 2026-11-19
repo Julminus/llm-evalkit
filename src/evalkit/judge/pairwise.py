@@ -412,8 +412,8 @@ async def judge_pairs(
             evalkit_version=__version__,
             suite=suite_info(suite, suite_path, len(cases)),
             responses={
-                "a": {"name": names[0], "path": str(paths[0]) if paths[0] else None},
-                "b": {"name": names[1], "path": str(paths[1]) if paths[1] else None},
+                "a": {"name": names[0], "path": paths[0].as_posix() if paths[0] else None},
+                "b": {"name": names[1], "path": paths[1].as_posix() if paths[1] else None},
             },
             judge={**provider.identity(), "spec": provider.spec},
             pairwise_prompt_version=PAIRWISE_PROMPT_VERSION,
