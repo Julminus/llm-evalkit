@@ -45,10 +45,10 @@ counts and means in the tables below from it).
 |---|---|---|---|---|
 | Cases passing every check (a case no check could judge is left out) | 18/19 | 18/20 | 17/20 | 14/18 |
 | Reasoning traps: right answer on the `Answer:` line | **4/5** | **2/5** | 2/5 (3/5 by reading) | 2/5 |
-| Judge mean, `instruction_following` | 3.85 | 3.60 | 3.30 | 2.95 |
+| Judge mean, `instruction_following` | 3.85 | 3.60 | 3.30 | 3.00 |
 | Judge mean, `reasoning_quality` | 4.62 | 4.38 | 4.00 | **3.23** |
-| Judge mean, `faithfulness` | 4.57 | 4.71 | 4.64 | 4.29 |
-| Judge mean, `helpfulness` | 4.07 | 4.07 | 3.86 | **2.86** |
+| Judge mean, `faithfulness` | 4.57 | 4.71 | 4.64 | 4.21 |
+| Judge mean, `helpfulness` | 4.00 | 4.07 | 3.86 | **2.93** |
 
 llama3.1:8b's third right trap answer is `en-price-change`: it ended with "The final answer is:
 $\boxed{100000}$" instead of the `Answer:` line, so the check fails it as a format error and the
@@ -78,7 +78,7 @@ What this shows:
   `instruction_following` means are on that group (qwen2.5:7b 3.20, llama3.1:8b 2.50).
 - **Indonesian cost llama3.1:8b on every judged dimension, and qwen2.5:7b on the traps.** The
   judge's means for llama3.1:8b fall from English to Indonesian on all four dimensions
-  (`reasoning_quality` 4.00 → 3.23, `helpfulness` 3.86 → 2.86); qwen2.5:7b's move less
+  (`reasoning_quality` 4.00 → 3.23, `helpfulness` 3.86 → 2.93); qwen2.5:7b's move less
   (`instruction_following` 3.85 → 3.60, `faithfulness` up). On the five traps, qwen2.5:7b was
   right 4 times in English and 2 times in Indonesian on the same problems, and both models got the
   weekday right in English and wrong in Indonesian. That is a direction, not a result: only two
@@ -97,21 +97,22 @@ What this shows:
   read as mixed. No check covers the sentence after the tea-and-coffee table; the judge noticed
   that llama3.1:8b left it out in English and recommended coffee to someone who can't sleep in
   Indonesian.
-- **The answers reproduce; the judge's verdicts move with its prompt.** Four runs, each from a
+- **The answers reproduce; the judge's verdicts move with its prompt.** Five runs, each from a
   fresh load, gave byte-identical answers (80/80 every time), and two runs with the same judge
   prompts gave byte-identical judge replies. Between runs, some tasks were corrected: after a
   pilot, two tasks' criteria (the Yogyakarta one said its constraints can't both be met, but "5
-  words plus a separate list" meets both; the table one hinted that only caffeine mattered); after
-  a review of this section, three tasks' checks or criteria (the product description's
+  words plus a separate list" meets both; the table one hinted that only caffeine mattered);
+  after two rounds of review, three tasks' checks or criteria (the product description's
   last-sentence check, the tip-length check, and the Indonesian invoice-date criteria, which
-  accepted a bare "April" that the English criteria call a miss). Each time the judge's replies
-  changed only on the records whose judge prompt changed (7, then 10). But on 7 of those 10 the
-  only change was the wording of a check that passed or failed exactly as before, and the judge's
-  verdict still moved on 5 (a score on 4, a tag on 4): qwen2.5:7b's English tip list went from 4,
-  for a "13-word" tip (the longest has 7 words), to 5, and its product description from 5 to 4.
-  The run before the review's fixes is
-  [`benchmark-s6-before-review.json`](docs/results/benchmark-s6-before-review.json), and
-  `--summary` prints what changed; the pilot's file wasn't kept.
+  accepted a bare "April" that the English criteria call a miss). The judge's replies changed
+  only on records whose judge prompt changed. But between the run before the reviews and the
+  last one, 7 records changed only in the wording of a check that passed or failed exactly as
+  before, and the judge's verdict moved on 5 of them (a score on 4, a tag on 4): qwen2.5:7b's
+  English tip list went from 4, for a "13-word" tip (the longest has 7 words), to 5, and its
+  product description from 5 to 4. The run before the reviews is
+  [`benchmark-s6-before-review.json`](docs/results/benchmark-s6-before-review.json), `--summary`
+  prints what changed since, and [`docs/results/README.md`](docs/results/README.md) lists the
+  runs.
 
 **The judge against labels.** To show the agreement tooling end to end, Claude labelled
 qwen2.5:7b's 40 answers in [`examples/human_labels.csv`](examples/human_labels.csv), the sheet
@@ -124,10 +125,10 @@ judge lowers `instruction_following` for a wrong answer as well.
 | qwen2.5:14b vs Claude's labels, qwen2.5:7b's 40 answers | IF | RQ | FA | HE |
 |---|---|---|---|---|
 | Answers scored on the dimension | 40 | 26 | 28 | 28 |
-| Same score / within one point | 12 / 33 | 14 / 22 | 15 / 23 | 14 / 26 |
-| Quadratic kappa [95% CI] | 0.35 [0.12, 0.56] | **0.72** [0.35, 0.87] | 0.51 [0.20, 0.72] | 0.46 [0.18, 0.69] |
-| ... English / Indonesian answers (20 / 13 / 14 / 14 each) | 0.42 / **0.28** | 0.64 / 0.77 | 0.50 / 0.51 | 0.61 / **0.27** |
-| Mean, labels / judge | 4.50 / 3.73 | 3.96 / 4.50 | 4.14 / 4.64 | 3.79 / 4.07 |
+| Same score / within one point | 12 / 33 | 14 / 22 | 15 / 23 | 15 / 26 |
+| Quadratic kappa [95% CI] | 0.35 [0.12, 0.56] | **0.72** [0.35, 0.87] | 0.51 [0.20, 0.72] | 0.46 [0.17, 0.70] |
+| ... English / Indonesian answers (20 / 13 / 14 / 14 each) | 0.42 / **0.28** | 0.64 / 0.77 | 0.50 / 0.51 | 0.63 / **0.27** |
+| Mean, labels / judge | 4.50 / 3.73 | 3.96 / 4.50 | 4.14 / 4.64 | 3.79 / 4.04 |
 
 `uv run evalkit agree docs/results/benchmark-s6/judged-qwen2.5-7b/judgments.jsonl
 examples/human_labels.csv` prints this table from a fresh clone, with no model.
@@ -145,14 +146,14 @@ examples/human_labels.csv` prints this table from a fresh clone, with no model.
   (4.64 vs 4.14, and 3.73 vs 4.50). Part of the second gap is the rubric choice above: on the four
   wrong trap answers that followed the format, the labels give 5 and the judge 3.
 - **It agrees less on the Indonesian answers** for `instruction_following` (0.28 vs 0.42) and
-  `helpfulness` (0.27 vs 0.61). One example: qwen2.5:7b's reply to the empty summary request was
+  `helpfulness` (0.27 vs 0.63). One example: qwen2.5:7b's reply to the empty summary request was
   right in both languages, and the judge gave the English one 5 for instruction following and the
   Indonesian one 3, with a `partial_completion` tag.
 - **Its rationales sometimes describe a different answer.** It docked qwen2.5:7b's product
-  description for "not explicitly mentioning the capacity of the bottle in the first two
-  sentences" (the first sentence says 600 ml), and tagged llama3.1:8b's tip list
+  description because it "does not mention the capacity of the bottle, which was specified as
+  600 ml" (its first sentence says "our 600 ml reusable water bottle"), and tagged llama3.1:8b's tip list
   `partial_completion` because it "does not include an introduction or conclusion", which the
-  prompt ruled out. `partial_completion` is its noisiest tag here: 14 against the labels' 6, 4 in
+  prompt ruled out. `partial_completion` is its noisiest tag here: 15 against the labels' 6, 4 in
   common.
 
 Limits: 20 tasks, five per group, so most differences above are single cases; one temperature-0
@@ -467,8 +468,8 @@ numbers. `uv run --with langdetect==1.0.9 python scripts/measure_langdetect.py` 
 rows of the table, including the baseline's wrong guesses.
 
 **Engineering.** 4 providers, 11 check types, an LLM judge with agreement, consistency and
-position-bias tools, HTML and Markdown reports, 947 tests (3 of them opt-in live tests, 2 that run
-only where SciPy and scikit-learn are installed, 1 POSIX-only), 99.25% branch coverage, strict
+position-bias tools, HTML and Markdown reports, 959 tests (3 of them opt-in live tests, 2 that run
+only where SciPy and scikit-learn are installed, 1 POSIX-only), 99.26% branch coverage, strict
 mypy. Every provider is tested offline against the request and response shapes of its API (the
 Anthropic one through the real SDK with a mock transport), and
 `EVALKIT_LIVE_OLLAMA=1 uv run pytest -m live` runs the Ollama paths for real. CI runs the tests on
@@ -937,8 +938,9 @@ noise (see Results); the measured remedy is to gate on the checks and read the j
    not be significant).
 3. **A judge that knows more.** The local judge named only 2 of the 6 errors in qwen2.5:7b's
    answers that need world knowledge. A hosted judge on the same saved answers, compared with the
-   same labels, would show how much of that is the judge's size. It costs money: with
-   `-j anthropic:claude-opus-5-5`, roughly a dollar for these 80 judgments at their token counts.
+   same labels, would show how much of that is the judge's size. It costs money: these 80
+   judgments were about 97,000 input and 8,000 output tokens as qwen2.5:14b counts them, plus
+   whatever a model's thinking adds.
 4. **A third model family**, so a qwen judge isn't grading one qwen model against one other.
 
 ## License
