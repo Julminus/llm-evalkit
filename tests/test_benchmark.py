@@ -70,11 +70,16 @@ def test_answer_parser() -> None:
     assert not is_correct(clock, "10.00")
     assert is_correct(day, "**Monday**")
     assert not is_correct(day, "Mondays")
-    # The working before the result (post-S6 review): the last number, the first word.
+    # Working or a unit beside the result (post-S6 review): the value anywhere on the line.
     assert is_correct(clock, "09.00 WIB = 11.00 WIT")
+    assert is_correct(clock, "11:00 WIT (UTC+9)")
+    assert is_correct(price, "Rp 100.000 (96.000 / 0.96)")
     assert is_correct(SUITE.case("en-mangoes"), "12 - 3 + 6 = 15")
-    assert not is_correct(day, "Thursday, not Monday")
-    assert is_correct(SUITE.case("id-weekday"), "hari Senin")
+    assert is_correct(SUITE.case("en-mangoes"), "15 mangoes (12 - 3 + 6)")
+    assert is_correct(day, "It will be Monday.")
+    assert is_correct(SUITE.case("id-weekday"), "Pada hari Senin")
+    # The documented limit: a hedged line counts as right.
+    assert is_correct(day, "Thursday, not Monday")
 
 
 def test_summary_prints_the_published_numbers(

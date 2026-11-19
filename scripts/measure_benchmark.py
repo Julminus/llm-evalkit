@@ -146,19 +146,18 @@ def final_answer(text: str) -> str | None:
 
 
 def is_correct(case: EvalCase, answer: str | None) -> bool:
-    """A number or time must be the last number on the line, separators ignored
-    ("Rp 100.000" = 100000, "09.00 WIB = 11.00 WIT" = 11:00); a word must be the first
-    word (after "hari").
-    shortcut: decimals ("Rp 100.000,00") read as wrong and "Monday or Tuesday" as Monday;
-    the summary prints every answer next to its reference so a misread shows."""
+    """The right value appears on the Answer line: a number anywhere on it, separators
+    ignored ("Rp 100.000 (96.000 / 0.96)" = 100000, "11.00 WIT" = 11:00), or the word.
+    shortcut: a hedged line ("07:00 or 11:00", "Thursday, not Monday") counts as right and
+    a decimal ("Rp 100.000,00") as wrong; the summary prints every answer next to its
+    reference so a misread shows. Pick a stricter rule if a model starts hedging."""
     reference = case.rubric.reference_answer if case.rubric else None
     if reference is None or answer is None:
         return False
     if any(ch.isdigit() for ch in reference):
-        numbers = re.findall(r"\d[\d.,:]*", answer)
-        return bool(numbers) and re.sub(r"\D", "", numbers[-1]) == re.sub(r"\D", "", reference)
-    first = re.match(r"\W*(?:hari\s+)?(\w+)", answer, re.I)
-    return first is not None and first.group(1).lower() == reference.lower()
+        target = re.sub(r"\D", "", reference)
+        return any(re.sub(r"\D", "", n) == target for n in re.findall(r"\d[\d.,:]*", answer))
+    return re.search(rf"\b{re.escape(reference)}\b", answer, re.I) is not None
 
 
 def pct(n: int, d: int) -> str:
@@ -249,13 +248,15 @@ def summary(data: dict[str, Any]) -> None:
         before = json.loads(BEFORE.read_text(encoding="utf-8"))
         for model in MODELS:
             old, new = responses(before["generated"], model), responses(data["generated"], model)
-            print(f"  {model}: answers identical {sum(old[i] == new[i] for i in new)}/{len(new)}")
+            shared = [i for i in new if i in old]  # a case added since has nothing to compare
+            same = sum(old[i] == new[i] for i in shared)
+            print(f"  {model}: answers identical {same}/{len(shared)} ({len(new)} cases now)")
             olds = {
                 r["id"]: JudgeRecord.model_validate(r) for r in before["judged"][model]["records"]
             }
             for b in (JudgeRecord.model_validate(r) for r in data["judged"][model]["records"]):
-                a = olds[b.id]
-                if a.replies != b.replies:
+                a = olds.get(b.id)
+                if a is not None and a.replies != b.replies:
                     print(
                         f"    {b.id}: checks {a.check_status.value} -> {b.check_status.value}; "
                         f"scores {list(a.scores.values())} -> {list(b.scores.values())}; "
