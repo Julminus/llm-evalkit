@@ -426,7 +426,7 @@ async def judge_pairs(
                 "ignored": provider.ignored_params(runner.params),
             },
             concurrency=runner.concurrency,
-            cache=str(runner.cache.root) if runner.cache is not None else None,
+            cache=runner.cache.root.as_posix() if runner.cache is not None else None,
             started_at=started.isoformat(timespec="seconds"),
         )
 

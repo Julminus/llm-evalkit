@@ -40,6 +40,7 @@ def test_mock_run_reproduces_check_results(dirs: list[str], tmp_path: Path) -> N
     manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["status"] == "complete"
     assert manifest["suite"]["path"] == SMOKE_SUITE.as_posix()
+    assert manifest["cache"] == (tmp_path / "cache").as_posix()
 
     check = runner.invoke(app, ["check", str(SMOKE_SUITE), str(run_dir / "responses.jsonl")])
     assert check.exit_code == 0

@@ -544,7 +544,7 @@ async def run_suite(
             "base_delay": retry.base_delay,
             "max_delay": retry.max_delay,
         },
-        "cache": str(cache.root) if cache is not None else None,
+        "cache": cache.root.as_posix() if cache is not None else None,
         "started_at": started.isoformat(timespec="seconds"),
     }
     if rundir is not None:
