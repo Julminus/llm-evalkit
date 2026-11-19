@@ -94,8 +94,8 @@ def load_responses(path: str | Path) -> dict[str, str]:
             raise ResponsesError(f"{path}:{n}: invalid JSON ({exc.msg})") from exc
         except RecursionError as exc:
             raise ResponsesError(f"{path}:{n}: invalid JSON (nested too deeply)") from exc
-        except ValueError as exc:  # e.g. an integer over Python's 4,300-digit limit
-            raise ResponsesError(f"{path}:{n}: invalid JSON ({exc})") from exc
+        except ValueError as exc:  # json.loads' only other ValueError: Python's int-size limit
+            raise ResponsesError(f"{path}:{n}: a number has more than 4,300 digits") from exc
         if isinstance(obj, dict):  # ids too: a lone surrogate can't be written out
             obj = {k: scrub_surrogates(v) if isinstance(v, str) else v for k, v in obj.items()}
         if not isinstance(obj, dict) or not isinstance(obj.get("id"), str):

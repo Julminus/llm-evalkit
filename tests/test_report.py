@@ -256,6 +256,22 @@ def test_a_judged_path_no_os_accepts_is_a_note(judged_run: Path, where: str) -> 
     assert "can't be read from here" in view.notes[0]
 
 
+def test_a_judged_path_the_os_refuses_to_look_at_is_a_note(
+    judged_run: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Path.is_file() raises PermissionError on 3.11/3.12 for e.g. a Windows system file.
+    real_is_file = Path.is_file
+
+    def denied(self: Path) -> bool:
+        if self.parent.name == "gen":  # the judged answers, runs/gen/responses.jsonl
+            raise PermissionError(13, "Access is denied")
+        return real_is_file(self)
+
+    monkeypatch.setattr(Path, "is_file", denied)
+    view = load_run(judged_run, SUITE)
+    assert "can't be read from here" in view.notes[0]
+
+
 def test_a_manifest_with_a_huge_number_is_ignored(tmp_path: Path) -> None:
     shutil.copy(SMOKE_RESPONSES, tmp_path / "responses.jsonl")
     (tmp_path / "manifest.json").write_text('{"n": ' + "9" * 5000 + "}", encoding="utf-8")
@@ -268,7 +284,7 @@ def test_a_manifest_with_a_huge_number_is_ignored(tmp_path: Path) -> None:
         (b'{"id": "a", "response": "x"}\n{oops\n', "invalid JSON"),
         # the first line decides the kind of file; these used to escape as tracebacks
         (b"[" * 100_000, "nested too deeply"),
-        (b'{"id": "a", "response": ' + b"9" * 5000 + b"}", "invalid JSON"),
+        (b'{"id": "a", "response": ' + b"9" * 5000 + b"}", "more than 4,300 digits"),
         (b"\xff\xfe{\x00", "UTF-16"),
         (b'{"id": "a", "check_status": "pass"}\n', "not a judge record"),
     ],

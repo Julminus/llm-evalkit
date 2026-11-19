@@ -244,7 +244,9 @@ def _judged_responses(
         if not path.is_file():  # a device name ("CON") would wait for console input
             raise ResponsesError(where)
         responses = load_responses(path)
-    except (ResponsesError, ValueError):  # ValueError: a path no OS accepts ("a\0b")
+    # OSError: is_file() itself on 3.11/3.12 (access denied); ValueError: a path no OS
+    # accepts ("a\0b").
+    except (OSError, ResponsesError, ValueError):
         notes.append(f"the judged responses ({where}) can't be read from here")
         return path, {}
     if responses_digest(responses) != _get(manifest, "responses", "digest"):

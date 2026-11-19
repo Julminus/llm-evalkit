@@ -153,7 +153,7 @@ class TestLoadResponses:
         [
             ("{not json", "invalid JSON"),
             ("[" * 100_000, "nested too deeply"),  # RecursionError, not a traceback
-            ('{"id": "a", "response": ' + "9" * 5000 + "}", "invalid JSON"),  # int limit
+            ('{"id": "a", "response": ' + "9" * 5000 + "}", "more than 4,300 digits"),
             ('["a", "b"]', "string 'id'"),
             ('{"id": 1, "response": "x"}', "string 'id'"),
             ('{"id": "a"}', "string 'response'"),
