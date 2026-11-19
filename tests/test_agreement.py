@@ -474,6 +474,43 @@ class TestResponseTexts:
     def test_a_sheet_without_responses_has_no_texts(self) -> None:
         assert load_labels(SMOKE_LABELS).texts == {}
 
+    # Post-S6 review, second round.
+    def test_answers_not_found_from_here_are_named(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.chdir(tmp_path)
+        judged = self.judged(tmp_path)
+        manifest = tmp_path / "run" / "manifest.json"
+        meta = json.loads(manifest.read_text("utf-8"))
+        meta["responses"]["path"] = "answers.jsonl"  # relative, as the CLI writes it
+        manifest.write_text(json.dumps(meta), encoding="utf-8")
+        assert load_judgments(judged).texts == self.ANSWERS  # from the directory it ran in
+        monkeypatch.chdir(tmp_path / "run")
+        loaded = load_judgments(Path("judgments.jsonl"))
+        assert loaded.texts == {}
+        assert loaded.note == (
+            "the answers it judged (answers.jsonl) can't be read from here, "
+            "so the answer texts aren't compared"
+        )
+
+    def test_a_renamed_judgments_file_ignores_the_manifest_beside_it(self, tmp_path: Path) -> None:
+        judged = self.judged(tmp_path)
+        other = judged.with_name("other-model.jsonl")
+        other.write_bytes(judged.read_bytes())
+        assert load_judgments(other).texts == {}
+        assert load_judgments(other).note is None
+
+    def test_a_text_starting_with_a_quote_round_trips(self, tmp_path: Path) -> None:
+        answers = {"c1": "'-v' turns on verbose output", "c2": "'quoted'"}
+        sheet = self.sheet(tmp_path, answers)
+        assert load_labels(sheet).texts == answers
+        assert self.warnings(self.judged(tmp_path, answers), sheet) == []
+
+    def test_a_hostile_manifest_is_no_texts(self, tmp_path: Path) -> None:
+        judged = self.judged(tmp_path)
+        (tmp_path / "run" / "manifest.json").write_text("[" * 100_000, encoding="utf-8")
+        assert load_judgments(judged).texts == {}
+
 
 class TestConsistency:
     def test_stable_and_unstable_cases(self) -> None:

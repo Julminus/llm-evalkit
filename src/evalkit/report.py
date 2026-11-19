@@ -163,7 +163,7 @@ def _manifest(path: Path) -> dict[str, Any]:
     """A run's manifest.json, or ``{}`` if there is none (a plain JSONL file)."""
     try:
         data = json.loads(read_utf8(path))
-    except (OSError, NotUtf8Error, json.JSONDecodeError):
+    except (OSError, NotUtf8Error, json.JSONDecodeError, RecursionError):
         return {}
     return data if isinstance(data, dict) else {}
 

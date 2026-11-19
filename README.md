@@ -645,8 +645,10 @@ Three ways to find out how far a judge can be trusted, each its own command:
   note, so a misspelt label column shows up instead of vanishing. Rows are matched by case id,
   and every model's answers to a suite share the ids, so a sheet for one model's answers lines up
   with another model's judgments. Where both files say which answer they rate (the sheet's
-  `response` column; for a judge run, the answers its manifest points to, if unchanged), `agree`
-  warns when the texts differ, ignoring spacing.
+  `response` column; for a `judgments.jsonl`, the answers its manifest points to, if unchanged),
+  `agree` warns when the texts differ, ignoring spacing. A manifest's path is relative to where
+  the judge ran; if the answers can't be read from the current directory, a note says the texts
+  weren't compared.
 - **Against itself: `evalkit consistency SUITE RESPONSES -j JUDGE -n 5`.** Judges each response n
   times at temperature 0.7, sample i with seed i, and reports per dimension how many cases got the
   same score every time, the mean standard deviation and range, and which judge tags come and go

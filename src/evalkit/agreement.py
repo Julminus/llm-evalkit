@@ -334,19 +334,32 @@ def load_judgments(path: Path, *, sample: int = 0) -> Ratings:
             failure_modes=frozenset(record.failure_modes),
             language=record.language,
         )
-    note = f"used sample {sample} of {len(samples)}" if len(samples) > 1 else None
-    return Ratings(str(path), ratings, skipped, note, texts=_judged_texts(path))
+    texts, text_note = _judged_texts(path)
+    sample_note = f"used sample {sample} of {len(samples)}" if len(samples) > 1 else None
+    note = "; ".join(n for n in (sample_note, text_note) if n) or None
+    return Ratings(str(path), ratings, skipped, note, texts=texts)
 
 
-def _judged_texts(path: Path) -> dict[str, str]:
-    """The answers the run in ``path``'s directory judged, if its manifest still finds
-    them unchanged (as ``evalkit report`` does); otherwise nothing."""
+def _judged_texts(path: Path) -> tuple[dict[str, str], str | None]:
+    """The answers a judge run judged, found the way ``evalkit report`` finds them: the
+    path in the ``manifest.json`` beside ``judgments.jsonl`` (another file name may sit
+    next to some other run's manifest), if that file still has the recorded digest.
+    Otherwise no texts, and a note when the manifest named a file that didn't work."""
+    if path.name != "judgments.jsonl":
+        return {}, None
     try:
         meta = json.loads(read_utf8(path.parent / "manifest.json"))["responses"]
-        texts = load_responses(meta["path"])
-    except (OSError, NotUtf8Error, ValueError, LookupError, TypeError, ResponsesError):
-        return {}
-    return texts if responses_digest(texts) == meta.get("digest") else {}
+        where = meta["path"]
+    except (OSError, NotUtf8Error, ValueError, LookupError, TypeError, RecursionError):
+        return {}, None
+    unused = "so the answer texts aren't compared"
+    try:
+        texts = load_responses(where)
+    except (OSError, ValueError, TypeError, RecursionError, ResponsesError):
+        return {}, f"the answers it judged ({where}) can't be read from here, {unused}"
+    if responses_digest(texts) != meta.get("digest"):
+        return {}, f"the answers it judged ({where}) changed after judging, {unused}"
+    return texts, None
 
 
 def _listed(ids: Sequence[str], limit: int = 5) -> str:
@@ -708,13 +721,14 @@ SHEET_TEXT_COLUMNS: tuple[str, ...] = (
 
 def _as_text(value: str) -> str:
     """A spreadsheet reads a cell that starts with = + - @ as a formula (a
-    bulleted answer would show as #NAME?); a leading ' keeps it text."""
-    return "'" + value if value[:1] in _FORMULA_STARTS else value
+    bulleted answer would show as #NAME?); a leading ' keeps it text. A text
+    that itself starts with ' gets one too, so :func:`_from_text` can undo it."""
+    return "'" + value if value[:1] in (*_FORMULA_STARTS, "'") else value
 
 
 def _from_text(value: str) -> str:
     """Undo :func:`_as_text`."""
-    return value[1:] if value[:1] == "'" and value[1:2] in _FORMULA_STARTS else value
+    return value[1:] if value[:1] == "'" and value[1:2] in (*_FORMULA_STARTS, "'") else value
 
 
 def write_label_sheet(

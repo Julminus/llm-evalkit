@@ -191,6 +191,8 @@ def test_unreadable_manifest_is_ignored(tmp_path: Path) -> None:
     assert load_run(tmp_path, SUITE).name == tmp_path.name
     (tmp_path / "manifest.json").write_text("[1, 2]", encoding="utf-8")
     assert load_run(tmp_path, SUITE).name == tmp_path.name
+    (tmp_path / "manifest.json").write_text("[" * 100_000, encoding="utf-8")  # RecursionError
+    assert load_run(tmp_path, SUITE).name == tmp_path.name
 
 
 def test_missing_and_unknown_cases(tmp_path: Path) -> None:
